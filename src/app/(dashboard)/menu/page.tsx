@@ -638,8 +638,8 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
 }
 
 // ─── Import Menu Modal ───────────────────────────────────────────
-type ImportResult = { row: number; status: 'created' | 'skipped' | 'error'; name: string; reason?: string }
-type ImportSummary = { created: number; skipped: number; errors: number; total: number; results: ImportResult[] }
+type ImportResult = { row: number; status: 'created' | 'skipped' | 'error'; name: string; category?: string; guessed?: boolean; reason?: string }
+type ImportSummary = { created: number; skipped: number; errors: number; autoMatched: number; total: number; results: ImportResult[] }
 
 function ImportMenuModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
     const [file, setFile] = useState<File | null>(null)
@@ -674,10 +674,15 @@ function ImportMenuModal({ onClose, onDone }: { onClose: () => void; onDone: () 
 
     const downloadTemplate = () => {
         const rows = [
-            ['ชื่อเมนู', 'หมวดหมู่', 'ราคาขาย', 'ต้นทุน', 'หน่วย', 'ประเภท', 'หมายเหตุ'],
-            ['ไก่ผัดเม็ดมะม่วง', 'FOOD_FRY', 65000, 30000, 'จาน', 'SALE_ITEM', ''],
-            ['เบียร์ลาว', 'BEER', 30000, 15000, 'ขวด', 'SALE_ITEM', ''],
-            ['ปลาหมึกย่าง', 'FOOD_SEA', 80000, 40000, 'จาน', 'SALE_ITEM', ''],
+            ['ชื่อเมนู', 'ราคาขาย', 'ต้นทุน', 'หน่วย', 'หมายเหตุ'],
+            ['Johny Walker Red', 700000, 400000, 'ขวด', ''],
+            ['เบียร์ลาวสด (1แก้ว)', 10000, 5000, 'แก้ว', ''],
+            ['วาย Anastasia', 699000, 350000, 'ขวด', ''],
+            ['อเมริกาโน (ปั๊น)', 35000, 15000, 'แก้ว', ''],
+            ['ไก่ย่าง', 90000, 45000, 'จาน', ''],
+            ['ก๋วยเตี๋ยวน้ำใส', 35000, 15000, 'จาน', ''],
+            ['ส้มตำ', 40000, 18000, 'จาน', ''],
+            ['ปลาหมึกย่าง', 120000, 60000, 'จาน', ''],
         ]
         const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
         const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -728,9 +733,10 @@ function ImportMenuModal({ onClose, onDone }: { onClose: () => void; onDone: () 
                     {/* Column info */}
                     <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.7 }}>
                         <strong style={{ color: 'var(--text)' }}>คอลัมน์ที่รองรับ:</strong>{' '}
-                        <span style={{ color: '#DC2626' }}>ชื่อเมนู*</span>,{' '}
-                        <span style={{ color: '#DC2626' }}>หมวดหมู่*</span>{' (code: FOOD_FRY, BEER ฯลฯ), '}
-                        ราคาขาย, ต้นทุน, หน่วย, ประเภท, หมายเหตุ
+                        <span style={{ color: '#DC2626' }}>ชื่อเมนู*</span>{' (บังคับ), '}
+                        ราคาขาย, ต้นทุน, หน่วย, หมายเหตุ
+                        <br />
+                        <span style={{ color: '#059669' }}>✨ ไม่ต้องใส่หมวดหมู่ — ระบบวิเคราะห์ชื่อเมนูให้อัตโนมัติ</span>
                     </div>
 
                     {/* Drop zone */}
@@ -771,29 +777,40 @@ function ImportMenuModal({ onClose, onDone }: { onClose: () => void; onDone: () 
                     {/* Summary */}
                     {summary && (
                         <div style={{ marginBottom: 14 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
                                 {[
                                     { label: 'เพิ่มแล้ว', value: summary.created, color: '#059669', bg: '#F0FDF4', border: '#A7F3D0' },
+                                    { label: '🤖 Auto-detect', value: summary.autoMatched, color: '#6366F1', bg: '#EEF2FF', border: '#C7D2FE' },
                                     { label: 'ข้าม (ซ้ำ)', value: summary.skipped, color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
                                     { label: 'ผิดพลาด', value: summary.errors, color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
                                 ].map(s => (
-                                    <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '10px 0', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '1.5rem', fontWeight: 800, color: s.color }}>{s.value}</div>
-                                        <div style={{ fontSize: '0.68rem', color: s.color, fontWeight: 600 }}>{s.label}</div>
+                                    <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '1.3rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+                                        <div style={{ fontSize: '0.62rem', color: s.color, fontWeight: 600, padding: '0 4px' }}>{s.label}</div>
                                     </div>
                                 ))}
                             </div>
                             <div style={{ maxHeight: 220, overflowY: 'auto', borderRadius: 10, border: '1px solid var(--border)' }}>
                                 {summary.results.map((r, i) => (
                                     <div key={i} style={{
-                                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                                        display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
                                         borderBottom: '1px solid var(--border-light)',
                                         background: i % 2 === 0 ? 'var(--white)' : 'var(--bg)',
                                     }}>
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 32, flexShrink: 0 }}>#{r.row}</span>
-                                        <span>{statusIcon(r.status)}</span>
-                                        <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-                                        {r.reason && <span style={{ fontSize: '0.7rem', color: statusColor(r.status), flexShrink: 0, maxWidth: 160, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason}</span>}
+                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', width: 28, flexShrink: 0 }}>#{r.row}</span>
+                                        <span style={{ fontSize: '0.82rem' }}>{statusIcon(r.status)}</span>
+                                        <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                                        {r.status === 'created' && r.category && (
+                                            <span style={{
+                                                fontSize: '0.65rem', flexShrink: 0,
+                                                background: r.guessed ? '#EEF2FF' : '#F0FDF4',
+                                                color: r.guessed ? '#6366F1' : '#059669',
+                                                border: `1px solid ${r.guessed ? '#C7D2FE' : '#A7F3D0'}`,
+                                                borderRadius: 6, padding: '2px 6px', fontWeight: 700,
+                                                maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                            }}>{r.guessed ? '🤖 ' : ''}{r.category}</span>
+                                        )}
+                                        {r.reason && <span style={{ fontSize: '0.68rem', color: statusColor(r.status), flexShrink: 0, maxWidth: 130, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason}</span>}
                                     </div>
                                 ))}
                             </div>
