@@ -31,6 +31,42 @@ const KEYWORD_MAP: { keywords: string[]; code: string }[] = [
         ], code: 'RAW_SEA'
     },
 
+    // บรรจุภัณฑ์ (ตรวจก่อน เครื่องดื่ม เพื่อกัน "กระป๋อง" ของบรรจุ)
+    {
+        keywords: [
+            'ถุง', 'กล่อง', 'ฟอยล์', 'ฝาปิด', 'ช้อน', 'ส้อม', 'หลอด',
+            'bag', 'box', 'foil', 'lid', 'spoon', 'fork', 'straw', 'container',
+            'แพ็ค', 'pack', 'wrap', 'บรรจุ', 'packaging',
+            'ถ้วย', 'โฟม', 'cup', 'foam', 'tray',
+        ], code: 'PACKAGING'
+    },
+
+    // เครื่องดื่ม — ตรวจก่อน RAW_VEG/DRY_GOODS เพื่อกัน fallthrough
+    {
+        keywords: [
+            // เบียร์
+            'beer', 'beerlao', 'beelao', 'heineken', 'carlsberg', 'carsberg',
+            'budweiser', 'corona', 'somersby', 'hoegarden', 'hoegaarden',
+            '1664', 'blanc', 'เบียร์', 'เบีย', 'บีร์',
+            // ไวน์
+            'wine', 'ไวน์', 'วาย', 'penfolds', 'jacob', 'jacop', 'rawson',
+            'hoonuga', 'siegel', 'carmenere', 'chardonnay', 'rosé', 'rose',
+            // สุรา / สปิริต
+            'whisky', 'whiskey', 'johnnie walker', 'johny', 'johnny', 'hennessy',
+            'regency', 'singerton', 'singmalt', 'vodka', 'rum', 'gin', 'brandy',
+            'vsop', 'เหล้า', 'วิสกี้', 'บรั่นดี',
+            // น้ำอัดลม
+            'pepsi', 'soda', 'sprite', 'fanta', 'coke', 'cola', 'โซดา',
+            // ชา กาแฟ
+            'กาแฟ', 'กาเฟ', 'coffee', 'maple coffee', 'ชา', 'tea',
+            // น้ำ / เครื่องดื่มทั่วไป
+            'เครื่องดื่ม', 'น้ำดื่ม', 'water', 'drink', 'juice',
+            'น้ำผลไม้', 'สมูทตี้', 'smoothie', 'ปั่น',
+            // tower
+            'ทาวเวอร์', 'tower',
+        ], code: 'DRY_GOODS'
+    },
+
     // ผัก / เครื่องปรุง
     {
         keywords: [
@@ -45,18 +81,7 @@ const KEYWORD_MAP: { keywords: string[]; code: string }[] = [
         keywords: [
             'ข้าว', 'ของแห้ง', 'กระป๋อง', 'มาม่า', 'บะหมี่', 'วุ้นเส้น',
             'dry', 'rice', 'noodle', 'canned', 'dried',
-            'เครื่องดื่ม', 'น้ำดื่ม', 'น้ำ', 'water', 'drink',
         ], code: 'DRY_GOODS'
-    },
-
-    // บรรจุภัณฑ์
-    {
-        keywords: [
-            'ถุง', 'กล่อง', 'ฟอยล์', 'ฝาปิด', 'ช้อน', 'ส้อม', 'หลอด',
-            'bag', 'box', 'foil', 'lid', 'spoon', 'fork', 'straw', 'container',
-            'แพ็ค', 'pack', 'wrap', 'บรรจุ', 'packaging',
-            'ถ้วย', 'โฟม', 'cup', 'foam', 'tray',
-        ], code: 'PACKAGING'
     },
 
     // อื่นๆ (fallback)
