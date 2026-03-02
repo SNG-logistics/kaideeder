@@ -1,12 +1,10 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth } from '@/lib/api'
 
-// POST /api/system/reset-test
-// ล้างข้อมูลทดสอบ — เก็บ master data (products, categories, users, recipes)
-export const POST = withAuth(async (req, { user }) => {
-    // เฉพาะ OWNER เท่านั้น
-    if (user.role !== 'OWNER') {
+// POST /api/system/reset-test — เฉพาะ OWNER
+export const POST = withAuth<any>(async (_req, { user }) => {
+    if (user?.role !== 'OWNER') {
         return NextResponse.json({ success: false, error: 'เฉพาะ Owner เท่านั้น' }, { status: 403 })
     }
 
