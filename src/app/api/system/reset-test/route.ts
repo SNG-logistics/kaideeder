@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { withAuth } from '@/lib/withAuth'
+import { withAuth } from '@/lib/api'
 
 // POST /api/system/reset-test
 // ล้างข้อมูลทดสอบ — เก็บ master data (products, categories, users, recipes)
