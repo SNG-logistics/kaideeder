@@ -75,9 +75,18 @@ export default function POSPage() {
     const [authChecked, setAuthChecked] = useState(false)
     const [selectedZone, setSelectedZone] = useState<string>('ALL')  // Zone tab
     const [orderStartTime, setOrderStartTime] = useState<Date | null>(null)  // เวลาเริ่มออเดอร์
+    const [nowString, setNowString] = useState<string>('')  // hydration-safe clock
     const searchRef = useRef<HTMLInputElement>(null)
 
     // ─── Auth Check ───────────────────────────────────────────
+    useEffect(() => {
+        // Clock — client-only to avoid SSR hydration mismatch
+        const fmt = () => new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+        setNowString(fmt())
+        const id = setInterval(() => setNowString(fmt()), 60000)
+        return () => clearInterval(id)
+    }, [])
+
     useEffect(() => {
         async function checkAuth() {
             try {
@@ -1472,7 +1481,7 @@ export default function POSPage() {
                             <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
                                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1A1D26' }}>43 Garden Restaurant</div>
                                 <div style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>
-                                    {new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
+                                    {nowString}
                                 </div>
                             </div>
                             <div style={{ borderTop: '1px dashed #D1D5DB', borderBottom: '1px dashed #D1D5DB', padding: '0.75rem 0', marginBottom: '0.75rem' }}>
