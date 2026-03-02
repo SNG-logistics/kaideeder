@@ -638,8 +638,8 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
 }
 
 // ─── Import Menu Modal ───────────────────────────────────────────
-type ImportResult = { row: number; status: 'created' | 'skipped' | 'error'; name: string; category?: string; guessed?: boolean; reason?: string }
-type ImportSummary = { created: number; skipped: number; errors: number; autoMatched: number; total: number; results: ImportResult[] }
+type ImportResult = { row: number; status: 'created' | 'skipped' | 'error'; name: string; category?: string; guessed?: boolean; recipeCreated?: boolean; reason?: string }
+type ImportSummary = { created: number; skipped: number; errors: number; autoMatched: number; recipesCreated: number; total: number; results: ImportResult[] }
 
 function ImportMenuModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
     const [file, setFile] = useState<File | null>(null)
@@ -781,8 +781,8 @@ function ImportMenuModal({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 {[
                                     { label: 'เพิ่มแล้ว', value: summary.created, color: '#059669', bg: '#F0FDF4', border: '#A7F3D0' },
                                     { label: '🤖 Auto-detect', value: summary.autoMatched, color: '#6366F1', bg: '#EEF2FF', border: '#C7D2FE' },
-                                    { label: 'ข้าม (ซ้ำ)', value: summary.skipped, color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-                                    { label: 'ผิดพลาด', value: summary.errors, color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+                                    { label: '📋 สูตรบอม', value: summary.recipesCreated, color: '#0891B2', bg: '#F0F9FF', border: '#BAE6FD' },
+                                    { label: 'ข้าม/ผิดพลาด', value: summary.skipped + summary.errors, color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
                                 ].map(s => (
                                     <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
                                         <div style={{ fontSize: '1.3rem', fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -809,6 +809,14 @@ function ImportMenuModal({ onClose, onDone }: { onClose: () => void; onDone: () 
                                                 borderRadius: 6, padding: '2px 6px', fontWeight: 700,
                                                 maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                             }}>{r.guessed ? '🤖 ' : ''}{r.category}</span>
+                                        )}
+                                        {r.recipeCreated && (
+                                            <span style={{
+                                                fontSize: '0.65rem', flexShrink: 0,
+                                                background: '#F0F9FF', color: '#0891B2',
+                                                border: '1px solid #BAE6FD',
+                                                borderRadius: 6, padding: '2px 6px', fontWeight: 700,
+                                            }}>📋 สูตร</span>
                                         )}
                                         {r.reason && <span style={{ fontSize: '0.68rem', color: statusColor(r.status), flexShrink: 0, maxWidth: 130, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason}</span>}
                                     </div>

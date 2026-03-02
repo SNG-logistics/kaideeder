@@ -174,6 +174,12 @@ const SKU_PREFIX: Record<string, string> = {
     DRY_GOODS: 'DG', PACKAGING: 'PK', OTHER: 'OT',
 }
 
+// หมวดที่ต้องสร้าง Recipe บอมอัตโนมัติ (อาหาร ไม่รวมเครื่องดื่ม/เหล้า)
+const FOOD_CATEGORIES = new Set([
+    'FOOD_GRILL', 'FOOD_FRY', 'FOOD_RICE', 'FOOD_NOODLE',
+    'FOOD_SEA', 'FOOD_VEG', 'FOOD_LAAB', 'SET',
+])
+
 export const POST = withAuth<any>(async (req: NextRequest) => {
     try {
         const formData = await req.formData()
@@ -210,6 +216,7 @@ export const POST = withAuth<any>(async (req: NextRequest) => {
             name: string
             category?: string
             guessed?: boolean
+            recipeCreated?: boolean
             reason?: string
         }[] = []
 
@@ -285,7 +292,25 @@ export const POST = withAuth<any>(async (req: NextRequest) => {
                 })
                 existingSkus.add(sku)
                 existingNames.add(name.toLowerCase())
-                results.push({ row: rowNum, status: 'created', name, category: category.name, guessed })
+
+                // สร้าง Recipe บอมว่าง สำหรับประเภทอาหาร
+                let recipeCreated = false
+                if (FOOD_CATEGORIES.has(category.code)) {
+                    const recipeExists = await prisma.recipe.findFirst({
+                        where: { menuName: name, isActive: true },
+                    })
+                    if (!recipeExists) {
+                        await prisma.recipe.create({
+                            data: {
+                                menuName: name,
+                                note: `[Auto] สร้างอัตโนมัติจาก Import — กรุณาเพิ่มส่วนผสมในหน้า Recipe`,
+                            },
+                        })
+                        recipeCreated = true
+                    }
+                }
+
+                results.push({ row: rowNum, status: 'created', name, category: category.name, guessed, recipeCreated })
             } catch (e: unknown) {
                 results.push({ row: rowNum, status: 'error', name, reason: e instanceof Error ? e.message : 'Unknown error' })
             }
@@ -295,10 +320,11 @@ export const POST = withAuth<any>(async (req: NextRequest) => {
         const skipped = results.filter(r => r.status === 'skipped').length
         const errors = results.filter(r => r.status === 'error').length
         const autoMatched = results.filter(r => r.guessed).length
+        const recipesCreated = results.filter(r => r.recipeCreated).length
 
         return NextResponse.json({
             success: true,
-            data: { created, skipped, errors, autoMatched, total: rows.length, results },
+            data: { created, skipped, errors, autoMatched, recipesCreated, total: rows.length, results },
         })
 
     } catch (e: unknown) {
