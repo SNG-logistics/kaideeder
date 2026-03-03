@@ -812,14 +812,40 @@ export default function POSPage() {
                             <input ref={searchRef} type="text" placeholder="🔍 ค้นหาเมนู..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                                 style={{ width: '100%', padding: '0.45rem 0.75rem', border: '1px solid #E5E7EB', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.85rem', outline: 'none', background: '#FAFBFD' }} />
                         </div>
-                        {/* Product Grid */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.5rem', alignContent: 'start' }}>
-                            {filteredProducts.map(product => (
-                                <button key={product.id} onClick={() => addItem(product)} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '0.75rem 1rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left', transition: 'all 0.15s', gap: 8 }}>
-                                    <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1A1D26', flex: 1 }}>{product.name}</span>
-                                    <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#7C3AED', whiteSpace: 'nowrap' }}>{formatLAK(product.salePrice)}</span>
-                                </button>
-                            ))}
+                        {/* Product Grid — image cards */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: '0.65rem', alignContent: 'start' }}>
+                            {filteredProducts.map(product => {
+                                const hasImg = !!product.imageUrl
+                                const catColor = product.category?.color || '#4F46E5'
+                                return (
+                                    <button key={product.id} onClick={() => addItem(product)}
+                                        style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)' }}
+                                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ''; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}>
+                                        {/* Image area */}
+                                        <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', background: hasImg ? '#000' : catColor, flexShrink: 0 }}>
+                                            {hasImg ? (
+                                                <img src={product.imageUrl!} alt={product.name}
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.2s' }} />
+                                            ) : (
+                                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', opacity: 0.8 }}>
+                                                    {product.category?.icon || '🍽️'}
+                                                </div>
+                                            )}
+                                            {/* Price badge */}
+                                            {product.salePrice > 0 && (
+                                                <div style={{ position: 'absolute', top: 7, right: 7, background: 'rgba(15,15,15,0.82)', backdropFilter: 'blur(4px)', borderRadius: 8, padding: '2px 8px', color: '#FCD34D', fontWeight: 800, fontSize: '0.78rem', whiteSpace: 'nowrap', letterSpacing: '0.01em' }}>
+                                                    {formatLAK(product.salePrice)} ₭
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* Name */}
+                                        <div style={{ padding: '0.45rem 0.55rem 0.55rem', flex: 1, display: 'flex', alignItems: 'center' }}>
+                                            <span style={{ fontWeight: 600, fontSize: '0.8rem', color: '#1A1D26', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</span>
+                                        </div>
+                                    </button>
+                                )
+                            })}
                             {filteredProducts.length === 0 && (
                                 <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>📭 ไม่พบเมนู</div>
                             )}
