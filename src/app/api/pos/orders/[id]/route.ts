@@ -15,6 +15,7 @@ const updateOrderSchema = z.object({
     serviceCharge: z.number().min(0).optional(),
     vat: z.number().min(0).optional(),
     note: z.string().optional(),
+    skipKitchen: z.boolean().optional().default(false),
 })
 
 // GET /api/pos/orders/[id] — get single order
@@ -75,8 +76,8 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
                         quantity: item.quantity,
                         unitPrice: item.unitPrice,
                         note: item.note || null,
-                        stationId: station,
-                        kitchenStatus: 'PENDING',
+                        stationId: data.skipKitchen ? 'SKIP' : station,
+                        kitchenStatus: data.skipKitchen ? 'SERVED' : 'PENDING',
                     }
                 }),
             })

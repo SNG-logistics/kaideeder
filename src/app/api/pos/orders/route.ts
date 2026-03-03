@@ -15,6 +15,7 @@ function generateOrderNumber(): string {
 
 const createOrderSchema = z.object({
     tableId: z.string().min(1),
+    skipKitchen: z.boolean().optional().default(false),
     items: z.array(z.object({
         productId: z.string().min(1),
         quantity: z.number().positive(),
@@ -105,8 +106,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                             quantity: item.quantity,
                             unitPrice: item.unitPrice,
                             note: item.note || null,
-                            stationId: isBar ? 'BAR' : 'KITCHEN',
-                            kitchenStatus: 'PENDING',
+                            stationId: data.skipKitchen ? 'SKIP' : (isBar ? 'BAR' : 'KITCHEN'),
+                            kitchenStatus: data.skipKitchen ? 'SERVED' : 'PENDING',
                         }
                     }),
                 } : undefined,

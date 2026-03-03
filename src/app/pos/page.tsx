@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef, type CSSProperties } from 're
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
 interface Product { id: string; sku: string; name: string; salePrice: number; unit: string; categoryId: string; category?: Category; productType: string; imageUrl?: string }
 interface DiningTable { id: string; number: number; name: string; zone: string; seats: number; status: string; orders?: Order[] }
-interface OrderItemData { id?: string; productId: string; product?: Product; quantity: number; unitPrice: number; note?: string; isCancelled?: boolean }
+interface OrderItemData { id?: string; productId: string; product?: Product; quantity: number; unitPrice: number; note?: string; isCancelled?: boolean; kitchenStatus?: string }
 interface Order { id: string; orderNumber: string; tableId: string; table?: DiningTable; status: string; subtotal: number; discount: number; discountType: string; serviceCharge: number; vat: number; totalAmount: number; note?: string; items: OrderItemData[]; payments?: Payment[] }
 interface Payment { id: string; method: string; amount: number; receivedAmount: number; changeAmount: number }
 
@@ -78,6 +78,7 @@ export default function POSPage() {
     const [nowString, setNowString] = useState<string>('')  // hydration-safe clock
     const [showMenuOverlay, setShowMenuOverlay] = useState(false)  // full-screen menu overlay
     const [noKitchen, setNoKitchen] = useState(false)  // ไม่ส่งครัว checkbox
+    const [showMoveModal, setShowMoveModal] = useState(false)  // ย้ายโต๊ะ modal
     const searchRef = useRef<HTMLInputElement>(null)
 
     // ─── Auth Check ───────────────────────────────────────────
@@ -289,7 +290,7 @@ export default function POSPage() {
     const totalAmount = afterDiscount
 
     // ─── Save/Create Order ────────────────────────────────────
-    const saveOrder = async (): Promise<string | null> => {
+    const saveOrder = async (skipKitchen = false): Promise<string | null> => {
         if (!selectedTable || orderItems.length === 0) return null
         setLoading(true)
 
@@ -309,6 +310,7 @@ export default function POSPage() {
                             })),
                             discount,
                             discountType,
+                            skipKitchen,
                         }),
                     })
                     if (handleApiError(res, 'บันทึกออเดอร์')) return null
@@ -336,6 +338,7 @@ export default function POSPage() {
                             unitPrice: i.unitPrice,
                             note: i.note,
                         })),
+                        skipKitchen,
                     }),
                 })
                 if (handleApiError(res, 'สร้างออเดอร์')) return null
@@ -500,6 +503,34 @@ export default function POSPage() {
         setCurrentOrder(null)
         setOrderItems([])
         setDiscount(0)
+    }
+
+    // ─── Move order to another table ──────────────────────────
+    const moveOrder = async (targetTable: DiningTable) => {
+        if (!currentOrder) return
+        setLoading(true)
+        try {
+            const res = await fetch(`/api/pos/orders/${currentOrder.id}/move`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetTableId: targetTable.id }),
+            })
+            const json = await res.json()
+            if (json.success) {
+                setToast({ message: `ย้ายไปโต๊ะ ${targetTable.name} สำเร็จ`, type: 'success' })
+                setShowMoveModal(false)
+                setSelectedTable(targetTable)
+                setCurrentOrder(json.data)
+                setOrderItems(json.data.items.filter((i: OrderItemData) => !i.isCancelled))
+                fetchTables()
+            } else {
+                setToast({ message: json.error || 'ย้ายไม่สำเร็จ', type: 'error' })
+            }
+        } catch {
+            setToast({ message: 'เกิดข้อผิดพลาดในการย้ายโต๊ะ', type: 'error' })
+        } finally {
+            setLoading(false)
+        }
     }
 
     // ─── Filtered products ────────────────────────────────────
@@ -703,7 +734,7 @@ export default function POSPage() {
                                 { label: 'เพิ่ม', icon: '➕', bg: '#4F46E5', onClick: () => setShowMenuOverlay(true), off: false },
                                 { label: 'QRcode', icon: '📱', bg: '#374151', onClick: () => setToast({ message: 'QR Code — Coming Soon', type: 'warning' }), off: false },
                                 { label: 'ยกเลิก', icon: '✕', bg: '#DC2626', onClick: cancelOrder, off: orderItems.length === 0 },
-                                { label: 'ย้าย', icon: '⇄', bg: '#7C3AED', onClick: () => setToast({ message: 'ย้ายโต๊ะ — Coming Soon', type: 'warning' }), off: !selectedTable },
+                                { label: 'ย้าย', icon: '⇄', bg: '#7C3AED', onClick: () => setShowMoveModal(true), off: !currentOrder },
                                 { label: 'สถานะ', icon: '✓', bg: '#0EA5E9', onClick: confirmAndSaveOrder, off: orderItems.length === 0 || loading },
                             ] as { label: string; icon: string; bg: string; onClick: () => void; off: boolean }[]).map(b => (
                                 <button key={b.label} onClick={b.onClick} disabled={b.off} style={btnStyle(b.bg, b.off)}>
@@ -747,7 +778,12 @@ export default function POSPage() {
                                             <button onClick={() => updateItemQty(idx, 1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem' }}>+</button>
                                         </div>
                                         <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#E8364E' }}>{formatLAK(item.quantity * item.unitPrice)}</span>
-                                        <span style={{ fontSize: '0.72rem', color: '#4ADE80' }}>● เสิร์ฟ</span>
+                                        {(() => {
+                                            const st = item.kitchenStatus || 'PENDING'
+                                            const icon = { PENDING: '⏳', ACCEPTED: '👌', COOKING: '🔥', READY: '✅', SERVED: '🍽️' }[st] || '⏳'
+                                            const col = { PENDING: '#F59E0B', ACCEPTED: '#3B82F6', COOKING: '#EF4444', READY: '#10B981', SERVED: '#6B7280' }[st] || '#F59E0B'
+                                            return <span style={{ fontSize: '0.72rem', color: col, fontWeight: 600 }}>{icon}</span>
+                                        })()}
                                         <button onClick={() => removeItem(idx)} style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: '#9CA3AF', cursor: 'pointer', fontSize: '0.75rem' }}>✕</button>
                                     </div>
                                 ))
@@ -833,7 +869,9 @@ export default function POSPage() {
                                         setShowMenuOverlay(false)
                                     }
                                 }} disabled={orderItems.length === 0 || loading}
-                                    style={{ padding: '0.75rem', background: orderItems.length === 0 ? '#E5E7EB' : '#16A34A', border: 'none', borderRadius: 12, color: orderItems.length === 0 ? '#9CA3AF' : '#fff', fontWeight: 700, cursor: orderItems.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: '0.9rem' }}>ส่งครัว</button>
+                                    style={{ padding: '0.75rem', background: orderItems.length === 0 ? '#E5E7EB' : '#16A34A', border: 'none', borderRadius: 12, color: orderItems.length === 0 ? '#9CA3AF' : '#fff', fontWeight: 700, cursor: orderItems.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: '0.9rem' }}>
+                                    {noKitchen ? 'บันทึก (ไม่ส่งครัว)' : 'ส่งครัว'}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1012,6 +1050,34 @@ export default function POSPage() {
                                 </button>
                             </>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ════ MOVE TABLE MODAL ════ */}
+            {showMoveModal && selectedTable && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+                    <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '90%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1A1D26', margin: 0 }}>⇄ ย้ายโต๊ะ</h2>
+                            <button onClick={() => setShowMoveModal(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: '1rem', color: '#6B7280' }}>✕</button>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#6B7280' }}>โต๊ะปัจจุบัน: <strong style={{ color: '#1A1D26' }}>{selectedTable.name}</strong> → เลือกโต๊ะว่าง</div>
+                        <div style={{ overflowY: 'auto', flex: 1 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                                {tables.filter(t => t.id !== selectedTable.id && (!t.orders || t.orders.length === 0)).map(t => (
+                                    <button key={t.id} onClick={() => moveOrder(t)} disabled={loading}
+                                        style={{ padding: '0.75rem 0.5rem', borderRadius: 12, border: '2px solid #E5E7EB', background: '#F9FAFB', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1A1D26' }}>{t.name}</div>
+                                        <div style={{ fontSize: '0.72rem', color: '#6B7280' }}>{t.zone} • {t.seats} ที่นั่ง</div>
+                                        <div style={{ marginTop: 4, fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>● ว่าง</div>
+                                    </button>
+                                ))}
+                                {tables.filter(t => t.id !== selectedTable.id && (!t.orders || t.orders.length === 0)).length === 0 && (
+                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>ไม่มีโต๊ะว่าง</div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
