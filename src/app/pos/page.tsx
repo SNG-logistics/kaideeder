@@ -818,18 +818,19 @@ export default function POSPage() {
                                 const hasImg = !!product.imageUrl
                                 const catColor = product.category?.color || '#4F46E5'
                                 return (
-                                    <button key={product.id} onClick={() => addItem(product)}
-                                        style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', width: '100%' }}
-                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.14)' }}
-                                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ''; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}>
-                                        {/* Image area — fixed 120px height, always works */}
-                                        <div style={{ position: 'relative', width: '100%', height: 120, overflow: 'hidden', background: hasImg ? '#111' : catColor, flexShrink: 0 }}>
+                                    <div key={product.id} role="button" tabIndex={0} onClick={() => addItem(product)}
+                                        onKeyDown={e => e.key === 'Enter' && addItem(product)}
+                                        style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}
+                                        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 18px rgba(0,0,0,0.14)' }}
+                                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}>
+                                        {/* Image area — 120px fixed height */}
+                                        <div style={{ position: 'relative', width: '100%', height: '120px', overflow: 'hidden', background: hasImg ? '#111' : catColor, flexShrink: 0 }}>
                                             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                 {hasImg ? (
                                                     <img src={product.imageUrl!} alt={product.name}
                                                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                                 ) : (
-                                                    <span style={{ fontSize: '2.8rem', opacity: 0.9 }}>{product.category?.icon || '🍽️'}</span>
+                                                    <span style={{ fontSize: '2.8rem', lineHeight: 1 }}>{product.category?.icon || '🍽️'}</span>
                                                 )}
                                             </div>
                                             {/* Price badge */}
@@ -840,10 +841,10 @@ export default function POSPage() {
                                             )}
                                         </div>
                                         {/* Name */}
-                                        <div style={{ padding: '0.45rem 0.55rem 0.55rem', flex: 1, display: 'flex', alignItems: 'center' }}>
+                                        <div style={{ padding: '0.45rem 0.55rem 0.55rem' }}>
                                             <span style={{ fontWeight: 600, fontSize: '0.8rem', color: '#1A1D26', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</span>
                                         </div>
-                                    </button>
+                                    </div>
                                 )
                             })}
                             {filteredProducts.length === 0 && (
