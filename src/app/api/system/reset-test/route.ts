@@ -4,10 +4,7 @@ import { withAuth } from '@/lib/api'
 
 // POST /api/system/reset-test — เฉพาะ OWNER
 export const POST = withAuth<any>(async (_req, { user }) => {
-    if (user?.role !== 'OWNER') {
-        return NextResponse.json({ success: false, error: 'เฉพาะ Owner เท่านั้น' }, { status: 403 })
-    }
-
+    // Authorization handled by withAuth(['OWNER']) below — no need to re-check here
     try {
         const result = await prisma.$transaction(async (tx) => {
             // ลำดับต้องถูก (foreign key)
