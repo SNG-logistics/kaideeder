@@ -9,10 +9,11 @@ export const POST = withAuth<any>(async (_req, { user }) => {
         const result = await prisma.$transaction(async (tx) => {
             // ลำดับต้องถูก (foreign key)
 
-            // 1. Stock movements (purchase, usage, adjust, transfer, waste)
+            // 1. Stock movements
             const movements = await tx.stockMovement.deleteMany({})
 
-            // 2. POS orders
+            // 2. POS order children (must delete before orders — FK constraints)
+            const salesEvents = await tx.salesEvent.deleteMany({})   // ← SalesEvent.orderId refs Order
             const orderItems = await tx.orderItem.deleteMany({})
             const payments = await tx.payment.deleteMany({})
             const orders = await tx.order.deleteMany({})
