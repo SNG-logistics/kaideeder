@@ -1,9 +1,9 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCurrentUser } from './useCurrentUser'
 
-// Role home pages — where to redirect when access is denied
+// Where each role lands when redirected away from a forbidden page
 const ROLE_HOME: Record<string, string> = {
     cashier: '/pos',
     kitchen: '/kitchen?station=KITCHEN',
@@ -13,19 +13,19 @@ const ROLE_HOME: Record<string, string> = {
 
 /**
  * Redirect to role home if current user is not in allowedRoles.
- * Returns { user, allowed } — render null while loading or not allowed.
+ * Runs redirect via useEffect (client-only, no blocking render).
+ * Uses useRef for allowedRoles to keep stable effect deps.
  */
 export function useRoleGuard(allowedRoles: string[]) {
     const router = useRouter()
     const user = useCurrentUser()
+    // Stable ref so effect doesn't re-fire when page re-renders
+    const rolesRef = useRef(allowedRoles)
 
     useEffect(() => {
-        if (!user) return
-        if (!allowedRoles.includes(user.role)) {
-            router.replace(ROLE_HOME[user.role] ?? '/dashboard')
-        }
-    }, [user, router, allowedRoles])
-
-    const allowed = !user || allowedRoles.includes(user.role)
-    return { user, allowed }
+        if (!user) return                              // still loading
+        if (rolesRef.current.includes(user.role)) return  // allowed, do nothing
+        const dest = ROLE_HOME[user.role] ?? '/dashboard'
+        router.replace(dest)
+    }, [user, router])   // allowedRoles intentionally excluded — stable via ref
 }
