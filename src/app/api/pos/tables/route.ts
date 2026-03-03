@@ -22,7 +22,7 @@ export const GET = withAuth(async () => {
         },
     })
     return ok(tables)
-})
+}, ['owner', 'manager', 'cashier'])
 
 const updateTableSchema = z.object({
     id: z.string().min(1),

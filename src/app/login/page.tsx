@@ -28,7 +28,14 @@ export default function LoginPage() {
             const data = await res.json()
             if (data.success) {
                 toast.success(`ยินดีต้อนรับ ${data.data.name}`)
-                router.push('/dashboard')
+                const redirectMap: Record<string, string> = {
+                    cashier: '/pos',
+                    kitchen: '/kitchen?station=KITCHEN',
+                    bar: '/kitchen?station=BAR',
+                    warehouse: '/inventory',
+                }
+                router.push(redirectMap[data.data.role as string] ?? '/dashboard')
+
             } else {
                 toast.error(data.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
             }

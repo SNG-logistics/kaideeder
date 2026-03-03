@@ -2,6 +2,16 @@
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useSidebar } from './SidebarContext'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+
+const ROLE_LABELS: Record<string, string> = {
+    owner: '👑 เจ้าของ', manager: '📊 ผู้จัดการ', cashier: '💰 แคชเชียร์',
+    kitchen: '🍳 ครัว', bar: '🍸 บาร์', warehouse: '🏭 คลัง',
+}
+const ROLE_COLORS: Record<string, string> = {
+    owner: '#F59E0B', manager: '#3B82F6', cashier: '#10B981',
+    kitchen: '#EF4444', bar: '#8B5CF6', warehouse: '#6B7280',
+}
 
 const pageNames: Record<string, string> = {
     '/dashboard': 'Restaurant Dashboard',
@@ -22,6 +32,7 @@ export default function Topbar() {
     const pathname = usePathname()
     const [time, setTime] = useState('')
     const { toggle, isMobile } = useSidebar()
+    const currentUser = useCurrentUser()
 
     useEffect(() => {
         const tick = () => setTime(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }))
@@ -136,15 +147,15 @@ export default function Topbar() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{
                         width: 32, height: 32,
-                        background: 'linear-gradient(135deg, #E8364E, #FF6B81)',
+                        background: `linear-gradient(135deg, ${ROLE_COLORS[currentUser?.role || 'owner']}, ${ROLE_COLORS[currentUser?.role || 'owner']}99)`,
                         borderRadius: '50%',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 13, fontWeight: 700, color: '#fff',
-                    }}>A</div>
+                    }}>{currentUser?.name?.[0]?.toUpperCase() ?? 'A'}</div>
                     {!isMobile && (
                         <div>
-                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1D26' }}>Admin</div>
-                            <div style={{ fontSize: '0.65rem', color: '#E8364E', fontWeight: 500 }}>Owner</div>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1D26' }}>{currentUser?.name ?? '...'}</div>
+                            <div style={{ fontSize: '0.65rem', color: ROLE_COLORS[currentUser?.role || 'owner'], fontWeight: 500 }}>{ROLE_LABELS[currentUser?.role || ''] ?? currentUser?.role ?? ''}</div>
                         </div>
                     )}
                 </div>

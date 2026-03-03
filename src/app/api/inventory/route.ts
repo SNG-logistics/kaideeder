@@ -49,4 +49,4 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     }, {} as Record<string, { name: string; items: number; totalValue: number }>)
 
     return ok({ inventory: result, summary, total: result.length })
-})
+}, ['owner', 'manager', 'warehouse'])

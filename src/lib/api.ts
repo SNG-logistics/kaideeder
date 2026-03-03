@@ -28,7 +28,7 @@ export function withAuth<T>(handler: ApiHandler<T>, allowedRoles?: string[]) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 }) as any
       }
 
-      if (allowedRoles && !allowedRoles.includes(user.role)) {
+      if (allowedRoles && !allowedRoles.some(r => r.toLowerCase() === user.role.toLowerCase())) {
         return NextResponse.json({ error: 'Forbidden: insufficient role' }, { status: 403 }) as any
       }
 
