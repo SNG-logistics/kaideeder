@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 
@@ -7,6 +8,7 @@ interface Location { id: string; code: string; name: string }
 interface TransferItem { productId: string; quantity: number }
 
 export default function TransferPage() {
+    useRoleGuard(['owner', 'manager', 'warehouse'])
     const [products, setProducts] = useState<Product[]>([])
     const [locations, setLocations] = useState<Location[]>([])
     const [fromLocId, setFromLocId] = useState('')

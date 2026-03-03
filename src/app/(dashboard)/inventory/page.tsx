@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useCallback } from 'react'
 import { formatLAK, formatNumber } from '@/lib/utils'
 
@@ -89,6 +90,7 @@ function EditModal({ inv, onClose, onSaved }: { inv: InvItem; onClose: () => voi
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function InventoryPage() {
+    useRoleGuard(['owner', 'manager', 'warehouse'])
     const [inventory, setInventory] = useState<InvItem[]>([])
     const [summary, setSummary] = useState<Record<string, LocationSummary>>({})
     const [locations, setLocations] = useState<{ id: string; code: string; name: string }[]>([])

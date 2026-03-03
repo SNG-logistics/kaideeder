@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 
 const reports = [
     { title: 'สรุปปิดร้านรายวัน', desc: 'EOD — ยอดขาย, เมนูขายดี, สต็อคใกล้หมด, ของเสีย', icon: '📋', href: '/reports/daily-summary', bg: 'rgba(59,130,246,0.06)', border: 'rgba(59,130,246,0.2)', accent: '#2563EB' },
@@ -13,6 +14,7 @@ const reports = [
 ]
 
 export default function ReportsPage() {
+    useRoleGuard(['owner', 'manager', 'cashier', 'warehouse'])
     return (
         <div className="page-container">
             <div className="page-header" style={{ marginBottom: 24 }}>

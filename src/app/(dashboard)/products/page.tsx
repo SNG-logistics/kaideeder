@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useCallback, useRef, type ChangeEvent, type DragEvent } from 'react'
 import { formatLAK, formatNumber } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -28,6 +29,7 @@ const STOCK_TYPES = ['RAW_MATERIAL', 'PACKAGING']
 type TabKey = 'meat' | 'veg' | 'pkg' | 'drink' | 'all'
 
 export default function ProductsPage() {
+    useRoleGuard(['owner', 'manager', 'cashier', 'warehouse'])
     const [products, setProducts] = useState<Product[]>([])
     const [categories, setCategories] = useState<Category[]>([])
     const [allCategories, setAllCategories] = useState<Category[]>([])

@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useRef } from 'react'
 import toast from 'react-hot-toast'
 
@@ -85,6 +86,7 @@ function ProductCombobox({ products, value, onChange }: {
 
 // ---- Main Page ----
 export default function RecipesPage() {
+    useRoleGuard(['owner', 'manager', 'warehouse'])
     const [recipes, setRecipes] = useState<Recipe[]>([])
     const [products, setProducts] = useState<Product[]>([])
     const [locations, setLocations] = useState<Location[]>([])

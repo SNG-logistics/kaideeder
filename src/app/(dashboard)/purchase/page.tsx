@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { formatLAK } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -503,6 +504,7 @@ function BillScannerModal({
 
 // ---- Main Page ----
 export default function PurchasePage() {
+    useRoleGuard(['owner', 'manager', 'warehouse'])
     const [products, setProducts] = useState<Product[]>([])
     const [locations, setLocations] = useState<Location[]>([])
     const [items, setItems] = useState<PurchaseItem[]>([])

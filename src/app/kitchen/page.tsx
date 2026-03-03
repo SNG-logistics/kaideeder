@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
 interface QueueItem {
@@ -56,6 +57,7 @@ function playBell(freq = 880, times = 2) {
 }
 
 export default function KitchenPage() {
+    useRoleGuard(['owner', 'manager', 'kitchen', 'bar'])
     const [queue, setQueue] = useState<QueueOrder[]>([])
     const [station, setStation] = useState('') // '' = all
     const [statusFilter, setStatusFilter] = useState('PENDING,ACCEPTED,COOKING,READY')

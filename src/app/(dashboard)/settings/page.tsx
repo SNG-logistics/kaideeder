@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 
@@ -143,6 +144,7 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
 
 // ─── Main Settings Page ────────────────────────────────────────────────────
 export default function SettingsPage() {
+    useRoleGuard(['owner'])
     const [posConfig, setPosConfig] = useState<PosConfig>(defaultConfig)
     const [showKey, setShowKey] = useState(false)
     const [testing, setTesting] = useState(false)

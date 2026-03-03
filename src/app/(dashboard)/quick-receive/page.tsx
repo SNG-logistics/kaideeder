@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useRef, useEffect } from 'react'
 
 const LOCATIONS = [
@@ -18,6 +19,7 @@ interface ProductSuggestion {
 }
 
 export default function QuickReceivePage() {
+    useRoleGuard(['owner', 'manager', 'warehouse'])
     const [loc, setLoc] = useState('WH_FRESH')
     const [search, setSearch] = useState('')
     const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([])

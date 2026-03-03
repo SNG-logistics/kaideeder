@@ -1,4 +1,5 @@
 ﻿'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────
@@ -49,6 +50,7 @@ function Toast({ message, type, onClose }: { message: string; type: 'error' | 's
 
 // ─── Main POS Component ─────────────────────────────────────
 export default function POSPage() {
+    useRoleGuard(['owner', 'manager', 'cashier'])
     const [tables, setTables] = useState<DiningTable[]>([])
     const [categories, setCategories] = useState<Category[]>([])
     const [products, setProducts] = useState<Product[]>([])

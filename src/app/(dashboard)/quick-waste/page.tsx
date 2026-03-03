@@ -1,4 +1,5 @@
 'use client'
+import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState } from 'react'
 
 const LOCATIONS = [
@@ -12,6 +13,7 @@ const LOCATIONS = [
 ]
 
 export default function QuickWastePage() {
+    useRoleGuard(['owner', 'manager', 'warehouse', 'kitchen', 'bar'])
     const [loc, setLoc] = useState('KIT_STOCK')
     const [name, setName] = useState('')
     const [qty, setQty] = useState('')
