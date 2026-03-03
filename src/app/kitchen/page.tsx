@@ -27,6 +27,29 @@ const NEXT_LABEL: Record<string, string> = {
     PENDING: '👌 รับงาน', ACCEPTED: '🔥 เริ่มทำ', COOKING: '✅ เสร็จแล้ว',
 }
 
+// ── Web Audio bell ──────────────────────────────────────────────
+function playBell(freq = 880, times = 2) {
+    try {
+        const ctx = new window.AudioContext()
+        let t = ctx.currentTime
+        for (let i = 0; i < times; i++) {
+            const osc = ctx.createOscillator()
+            const gain = ctx.createGain()
+            osc.connect(gain)
+            gain.connect(ctx.destination)
+            osc.frequency.value = freq
+            osc.type = 'sine'
+            gain.gain.setValueAtTime(0, t)
+            gain.gain.linearRampToValueAtTime(0.7, t + 0.01)
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0)
+            osc.start(t)
+            osc.stop(t + 1.0)
+            t += 0.45
+        }
+        setTimeout(() => ctx.close(), (times * 0.45 + 1.1) * 1000)
+    } catch (e) { console.error('Bell error:', e) }
+}
+
 export default function KitchenPage() {
     const [queue, setQueue] = useState<QueueOrder[]>([])
     const [station, setStation] = useState('') // '' = all
@@ -34,8 +57,15 @@ export default function KitchenPage() {
     const [counts, setCounts] = useState({ PENDING: 0, ACCEPTED: 0, COOKING: 0, READY: 0 })
     const [loading, setLoading] = useState(true)
     const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
-    const prevCountRef = useRef(0)
-    const audioRef = useRef<HTMLAudioElement | null>(null)
+    const prevOrderIdsRef = useRef<Set<string>>(new Set())
+    const isFirstLoadRef = useRef(true)
+
+    // ── Request browser notification permission on mount ──────────
+    useEffect(() => {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission()
+        }
+    }, [])
 
     const fetchQueue = useCallback(async () => {
         try {
@@ -45,15 +75,41 @@ export default function KitchenPage() {
             const res = await fetch(`/api/kitchen/queue?${params}`)
             const json = await res.json()
             if (json.success) {
-                setQueue(json.data.queue)
+                const newQueue: QueueOrder[] = json.data.queue
                 setCounts(json.data.byStatus)
 
-                // Play sound on new PENDING items
-                const newPending = json.data.byStatus.PENDING
-                if (newPending > prevCountRef.current && prevCountRef.current > 0) {
-                    audioRef.current?.play().catch(() => { })
+                // ── Detect brand-new orders (not seen before) ──────
+                if (!isFirstLoadRef.current) {
+                    const newOrders = newQueue.filter(o => !prevOrderIdsRef.current.has(o.orderId))
+
+                    if (newOrders.length > 0) {
+                        // Determine dominant station for pitch
+                        const hasBar = newOrders.some(o => o.items.some(i => i.stationId === 'BAR'))
+                        const hasKitchen = newOrders.some(o => o.items.some(i => i.stationId !== 'BAR'))
+                        if (hasKitchen) playBell(880, 2)  // 🍳 ครัว — high ding-ding
+                        else if (hasBar) playBell(660, 2) // 🍺 บาร์ — low ding-ding
+
+                        // Browser notification per new order
+                        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                            newOrders.forEach(o => {
+                                const kitchenItems = o.items.filter(i => i.stationId !== 'BAR')
+                                const barItems = o.items.filter(i => i.stationId === 'BAR')
+                                const parts: string[] = []
+                                if (kitchenItems.length) parts.push(`🍳 ครัว ${kitchenItems.length} รายการ`)
+                                if (barItems.length) parts.push(`🍺 บาร์ ${barItems.length} รายการ`)
+                                new Notification(`🔔 ออเดอร์ใหม่ — ${o.tableName}`, {
+                                    body: parts.join('  |  ') || `${o.items.length} รายการ`,
+                                    tag: o.orderId,
+                                })
+                            })
+                        }
+                    }
                 }
-                prevCountRef.current = newPending
+
+                // Update seen order IDs
+                prevOrderIdsRef.current = new Set(newQueue.map(o => o.orderId))
+                isFirstLoadRef.current = false
+                setQueue(newQueue)
             }
         } catch (e) { console.error(e) }
         setLoading(false)
@@ -99,8 +155,8 @@ export default function KitchenPage() {
 
     return (
         <div style={{ paddingBottom: 40 }}>
-            {/* Hidden audio for notification */}
-            <audio ref={audioRef} src="data:audio/wav;base64,UklGRl9vT19teleWQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhQu5vT18=" preload="auto" />
+
+
 
             {/* Header */}
             <div className="page-header">
