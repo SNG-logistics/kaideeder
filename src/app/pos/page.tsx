@@ -812,37 +812,45 @@ export default function POSPage() {
                             <input ref={searchRef} type="text" placeholder="🔍 ค้นหาเมนู..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                                 style={{ width: '100%', padding: '0.45rem 0.75rem', border: '1px solid #E5E7EB', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.85rem', outline: 'none', background: '#FAFBFD' }} />
                         </div>
-                        {/* Product Grid — image cards */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: '0.65rem', alignContent: 'start' }}>
+                        {/* Product Grid */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.6rem', alignContent: 'start' }}>
                             {filteredProducts.map(product => {
-                                const hasImg = !!product.imageUrl
-                                const catColor = product.category?.color || '#4F46E5'
+                                const catColor = product.category?.color || '#4B5563'
+                                const bg = product.imageUrl
+                                    ? `url("${product.imageUrl}") center/cover no-repeat`
+                                    : catColor
                                 return (
-                                    <div key={product.id} role="button" tabIndex={0} onClick={() => addItem(product)}
+                                    <div key={product.id} role="button" tabIndex={0}
+                                        onClick={() => addItem(product)}
                                         onKeyDown={e => e.key === 'Enter' && addItem(product)}
-                                        style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}
-                                        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 18px rgba(0,0,0,0.14)' }}
-                                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}>
-                                        {/* Image area — 120px fixed height */}
-                                        <div style={{ position: 'relative', width: '100%', height: '120px', overflow: 'hidden', background: hasImg ? '#111' : catColor, flexShrink: 0 }}>
-                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                {hasImg ? (
-                                                    <img src={product.imageUrl!} alt={product.name}
-                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                                ) : (
-                                                    <span style={{ fontSize: '2.8rem', lineHeight: 1 }}>{product.category?.icon || '🍽️'}</span>
-                                                )}
+                                        style={{
+                                            position: 'relative',
+                                            minHeight: 170,
+                                            borderRadius: 14,
+                                            overflow: 'hidden',
+                                            cursor: 'pointer',
+                                            background: bg,
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                                            transition: 'transform 0.15s, box-shadow 0.15s',
+                                            userSelect: 'none',
+                                        }}
+                                        onMouseEnter={e => { const d = e.currentTarget as HTMLDivElement; d.style.transform = 'scale(1.03)'; d.style.boxShadow = '0 6px 20px rgba(0,0,0,0.22)' }}
+                                        onMouseLeave={e => { const d = e.currentTarget as HTMLDivElement; d.style.transform = ''; d.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)' }}>
+                                        {/* Emoji for no-image */}
+                                        {!product.imageUrl && (
+                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3.5rem', opacity: 0.85 }}>
+                                                {product.category?.icon || '🍽️'}
                                             </div>
-                                            {/* Price badge */}
-                                            {product.salePrice > 0 && (
-                                                <div style={{ position: 'absolute', top: 7, right: 7, background: 'rgba(10,10,10,0.78)', backdropFilter: 'blur(4px)', borderRadius: 8, padding: '2px 8px', color: '#FCD34D', fontWeight: 800, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                                                    {formatLAK(product.salePrice)} ₭
-                                                </div>
-                                            )}
+                                        )}
+                                        {/* Price badge */}
+                                        <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(10,10,10,0.75)', backdropFilter: 'blur(6px)', borderRadius: 8, padding: '2px 8px', color: '#FCD34D', fontWeight: 800, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                                            {formatLAK(product.salePrice)} ₭
                                         </div>
-                                        {/* Name */}
-                                        <div style={{ padding: '0.45rem 0.55rem 0.55rem' }}>
-                                            <span style={{ fontWeight: 600, fontSize: '0.8rem', color: '#1A1D26', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</span>
+                                        {/* Bottom gradient + name */}
+                                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.72))', padding: '20px 8px 8px' }}>
+                                            <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.3, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                                                {product.name}
+                                            </div>
                                         </div>
                                     </div>
                                 )
