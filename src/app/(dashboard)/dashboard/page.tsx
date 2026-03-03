@@ -67,11 +67,8 @@ export default function DashboardPage() {
         return () => window.removeEventListener('resize', check)
     }, [])
 
-    // Don’t render financial dashboard for kitchen/bar while redirecting
-    if (currentUser?.role === 'kitchen' || currentUser?.role === 'bar') {
-        return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#9CA3AF' }}>กำลังเข้าสู่จอครัว...</div>
-    }
-
+    // fetchDashboard must stay ABOVE the kitchen/bar early return
+    // so useEffect below always runs (same number of hooks every render)
     async function fetchDashboard(date: string) {
         setLoading(true)
         try {
@@ -82,7 +79,13 @@ export default function DashboardPage() {
         finally { setLoading(false) }
     }
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { if (selectedDate) fetchDashboard(selectedDate) }, [selectedDate])
+
+    // Don’t render financial dashboard for kitchen/bar while redirecting
+    if (currentUser?.role === 'kitchen' || currentUser?.role === 'bar') {
+        return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#9CA3AF' }}>กำลังเข้าสู่จอครัว...</div>
+    }
 
     const thaiDate = selectedDate ? format(new Date(selectedDate), 'd MMMM yyyy', { locale: th }) : ''
 
