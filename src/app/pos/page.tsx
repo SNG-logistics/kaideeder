@@ -822,8 +822,8 @@ export default function POSPage() {
                                         style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', width: '100%' }}
                                         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.14)' }}
                                         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ''; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}>
-                                        {/* Image area — padding-top trick for reliable 4:3 ratio */}
-                                        <div style={{ position: 'relative', width: '100%', paddingTop: '75%', overflow: 'hidden', background: hasImg ? '#111' : catColor, flexShrink: 0 }}>
+                                        {/* Image area — fixed 120px height, always works */}
+                                        <div style={{ position: 'relative', width: '100%', height: 120, overflow: 'hidden', background: hasImg ? '#111' : catColor, flexShrink: 0 }}>
                                             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                 {hasImg ? (
                                                     <img src={product.imageUrl!} alt={product.name}
