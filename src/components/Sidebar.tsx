@@ -43,7 +43,7 @@ export default function Sidebar() {
     const pathname = usePathname()
     const { collapsed, toggle, mobileOpen, setMobileOpen, isMobile } = useSidebar()
     const currentUser = useCurrentUser()
-    const userRole = currentUser?.role || 'owner' // default to full access until loaded
+    const userRole = (currentUser?.role || 'owner').toLowerCase()
 
     const sidebarWidth = collapsed && !isMobile ? 68 : 240
     const showLabels = isMobile ? true : !collapsed

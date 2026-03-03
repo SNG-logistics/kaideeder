@@ -26,8 +26,10 @@ export function useCurrentUser(): CurrentUser | null {
             .then(r => r.json())
             .then(j => {
                 if (j.success) {
-                    cachedUser = j.data
-                    setUser(j.data)
+                    // Normalize role to lowercase — JWT may store 'OWNER', 'MANAGER', etc.
+                    const data: CurrentUser = { ...j.data, role: (j.data.role || '').toLowerCase() }
+                    cachedUser = data
+                    setUser(data)
                 }
             })
             .catch(() => { })
