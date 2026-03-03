@@ -819,22 +819,22 @@ export default function POSPage() {
                                 const catColor = product.category?.color || '#4F46E5'
                                 return (
                                     <button key={product.id} onClick={() => addItem(product)}
-                                        style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
-                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)' }}
+                                        style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', width: '100%' }}
+                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.14)' }}
                                         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ''; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}>
-                                        {/* Image area */}
-                                        <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', background: hasImg ? '#000' : catColor, flexShrink: 0 }}>
-                                            {hasImg ? (
-                                                <img src={product.imageUrl!} alt={product.name}
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.2s' }} />
-                                            ) : (
-                                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', opacity: 0.8 }}>
-                                                    {product.category?.icon || '🍽️'}
-                                                </div>
-                                            )}
+                                        {/* Image area — padding-top trick for reliable 4:3 ratio */}
+                                        <div style={{ position: 'relative', width: '100%', paddingTop: '75%', overflow: 'hidden', background: hasImg ? '#111' : catColor, flexShrink: 0 }}>
+                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {hasImg ? (
+                                                    <img src={product.imageUrl!} alt={product.name}
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                                ) : (
+                                                    <span style={{ fontSize: '2.8rem', opacity: 0.9 }}>{product.category?.icon || '🍽️'}</span>
+                                                )}
+                                            </div>
                                             {/* Price badge */}
                                             {product.salePrice > 0 && (
-                                                <div style={{ position: 'absolute', top: 7, right: 7, background: 'rgba(15,15,15,0.82)', backdropFilter: 'blur(4px)', borderRadius: 8, padding: '2px 8px', color: '#FCD34D', fontWeight: 800, fontSize: '0.78rem', whiteSpace: 'nowrap', letterSpacing: '0.01em' }}>
+                                                <div style={{ position: 'absolute', top: 7, right: 7, background: 'rgba(10,10,10,0.78)', backdropFilter: 'blur(4px)', borderRadius: 8, padding: '2px 8px', color: '#FCD34D', fontWeight: 800, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                                                     {formatLAK(product.salePrice)} ₭
                                                 </div>
                                             )}
