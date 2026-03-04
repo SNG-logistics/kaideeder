@@ -39,33 +39,44 @@ const CAT_NAME_MAP: Record<string, string> = {
     'อื่น': 'OTHER', 'other': 'OTHER',
 }
 
-/** Priority rules: specific first, catch-all last */
+/** Priority rules — ported from Python detect_code() script (specific first, catch-all last) */
 const CAT_RULES: Array<{ code: string; re: RegExp[] }> = [
-    { code: 'BEER', re: [/เบียร์/i, /\bbeer\b/i, /heineken|hoegarden|somersby/i] },
-    { code: 'WINE', re: [/ไวน์/i, /\bwine\b/i, /penfolds|ros[eé]\b|วิสกี้/i] },
-    { code: 'COCKTAIL', re: [/ค็อกเทล/i, /\bcocktail\b/i] },
-    { code: 'WATER', re: [/น้ำดื่ม/i, /น้ำแข็ง/i, /\bice\b/i] },
-    { code: 'DRINK', re: [/เครื่องดื่ม/i, /\bdrink\b/i, /ลาเต้|อเมริกาโน|coffee|โกโก้|มัทฉะ|ปั่น/i] },
+    { code: 'BEER', re: [/เบียร์/i, /\bbeer\b/i, /heineken|hoegaarden|singha|chang|leo|budweiser|corona|asahi|sapporo|kirin|tiger|san.?miguel|somersby/i] },
+    { code: 'WINE', re: [/ไวน์/i, /\bwine\b/i, /วิสกี้|whisky|whiskey/i, /champagne|sparkling/i, /soju|โซจู/i] },
+    { code: 'COCKTAIL', re: [/ค็อกเทล/i, /\bcocktail\b/i, /mojito|margarita|martini|negroni|spritz/i] },
+    { code: 'WATER', re: [/น้ำดื่ม/i, /น้ำแข็ง/i, /\bice\b/i, /โซดา/i, /\bsoda\b/i] },
+    {
+        code: 'DRINK', re: [/เครื่องดื่ม/i, /\bdrink\b/i,
+            /กาแฟ|coffee|latte|ลาเต้|americano|เอสเพรสโซ|cappuccino|คาปู/i,
+            /ชา\b|tea|ชานม|milk.?tea|matcha|มัทฉะ|โกโก้|cocoa|น้ำผลไม้|juice|สมูทตี้|smoothie|ปั่น/i]
+    },
 
-    { code: 'RAW_SEA', re: [/กุ้ง|ปลา|หมึก|ปู|หอย|แซลมอน|ทะเล/i] },
-    { code: 'RAW_PORK', re: [/หมู|เบคอน|แฮม/i] },
-    { code: 'RAW_MEAT', re: [/เนื้อ|ไก่|เป็ด|วัว|กบ|กระดูก/i] },
-    { code: 'RAW_VEG', re: [/ผัก|เห็ด|กระเทียม|หัวหอม|มะนาว|ขิง|มะเขือ|ถั่ว/i] },
+    { code: 'KARAOKE', re: [/คาราโอเกะ/i] },
+    { code: 'ENTERTAIN', re: [/\bpr\b/i, /entertain/i, /เอนเตอร์เทน/i] },
+    { code: 'SET', re: [/โปร\b/i, /เซ็ต/i, /\bset\b/i, /\bcombo\b/i, /คอมโบ/i] },
 
-    { code: 'PACKAGING', re: [/บรรจุภัณฑ์|กล่อง|ถุง|แก้ว|ฝา|หลอด|จาน|ช้อน|ส้อม/i] },
-    // ไข่/นม/ชีส/แป้ง — ต้องอยู่ก่อน DRY_GOODS เพื่อไม่ให้เนย/แป้งตก DRY_GOODS
+    { code: 'PACKAGING', re: [/บรรจุภัณฑ์|กล่อง|ถุง|แก้ว|ฝา|หลอด|จาน|ช้อน|ส้อม|ทิชชู่|กระดาษ|แพ็ค|แพค|ฟิล์ม|wrap|ฟอยล์|foil/i] },
+
+    // ไข่/นม/ชีส/แป้ง — ต้องอยู่ก่อน DRY_GOODS เพื่อไม่ให้ เนย/ครีม/แป้ง ตกไป DRY_GOODS
     { code: 'EGG', re: [/ไข่ไก่|ไข่เป็ด|ไข่เค็ม|ไข่เยี่ยวม้า|ไข่นกกระทา|\begg\b/i] },
-    { code: 'DAIRY', re: [/นม[สวดอ่อเผือก]|ครีม|โยเกิร์ต|เนยสด|\bbutter\b|\bcream\b|\bmilk\b|\byogurt\b/i] },
+    { code: 'DAIRY', re: [/นม[สวดอ่อเผือกข]|ครีม|โยเกิร์ต|เนยสด|\bbutter\b|\bcream\b|\bmilk\b|\byogurt\b/i] },
     { code: 'CHEESE', re: [/ชีส|\bcheese\b|cheddar|mozzarella|parmesan|brie|gouda/i] },
     { code: 'FLOUR_DOUGH', re: [/แป้งสาลี|แป้งหมู|โดว์|\bflour\b|\bdough\b|pizza.?base|แป้งพิซซ่า|แป้งขนมปัง/i] },
-    { code: 'DRY_GOODS', re: [/เครื่องปรุง|ซอส|น้ำปลา|ซีอิ๊ว|พริกไทย|เกลือ|น้ำตาล|แป้ง/i] },
 
-    { code: 'FOOD_GRILL', re: [/ปิ้ง|ย่าง|grill/i] },
-    { code: 'FOOD_FRY', re: [/ทอด|fry/i] },
+    { code: 'DRY_GOODS', re: [/เครื่องปรุง|ซอส|น้ำปลา|ซีอิ๊ว|ซีอิ้ว|เกลือ|น้ำตาล|พริกไทย|ผง|น้ำจิ้ม|น้ำพริก|กะปิ|น้ำมัน|vinegar|น้ำส้ม|ซอสหอย|หอยนางรม/i] },
+
+    { code: 'RAW_SEA', re: [/กุ้ง|ปลา|หมึก|ปู|หอย|แซลมอน|ปลาหมึก|ปลากะพง|ปลาทู|ปลานิล|ปลาดอรี่|กั้ง|หอยนางรม|หอยแมลงภู่|หอยเชลล์|ปลาสลิด/i] },
+    { code: 'RAW_PORK', re: [/หมู|เบคอน|แฮม|ไส้กรอกหมู|ซี่โครงหมู|สันคอ|สามชั้น|หมูบด|หมูสับ/i] },
+    { code: 'RAW_MEAT', re: [/เนื้อ|ไก่|เป็ด|วัว|โค|กบ|กระดูก|ลูกชิ้นเนื้อ|น่องไก่|อกไก่|ปีกไก่|เครื่องใน|ตับ|กึ๋น|ไส้/i] },
+    { code: 'RAW_VEG', re: [/ผัก|เห็ด|กระเทียม|หัวหอม|หอมแดง|ขิง|ข่า|ตะไคร้|มะนาว|มะเขือ|พริก|กะหล่ำ|คะน้า|ผักกาด|แครอท|แตงกวา|ถั่ว|ใบโหระพา|กะเพรา|ผักชี|ต้นหอม|ขึ้นฉ่าย|หอมใหญ่|มะเขือเทศ|มะพร้าว|กะทิ/i] },
+
+    { code: 'FOOD_GRILL', re: [/ปิ้งย่าง|ย่าง|grill|bbq|บาร์บีคิว/i] },
+    { code: 'FOOD_FRY', re: [/ทอด|fry|กรอบ/i] },
     { code: 'FOOD_SEA', re: [/ทะเล|seafood/i] },
+    { code: 'FOOD_VEG', re: [/\bveg\b|เจ\b|ผักรวม/i] },
     { code: 'FOOD_LAAB', re: [/ลาบ|ยำ/i] },
     { code: 'FOOD_RICE', re: [/ข้าว|rice/i] },
-    { code: 'FOOD_NOODLE', re: [/เส้น|ก๋วยเตี๋ยว|noodle/i] },
+    { code: 'FOOD_NOODLE', re: [/ก๋วยเตี๋ยว|เส้น|noodle|บะหมี่|วุ้นเส้น|มาม่า/i] },
 
     { code: 'OTHER', re: [/.*/] },  // catch-all
 ]
