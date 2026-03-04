@@ -1,6 +1,6 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 
 const sysInfo = [
@@ -142,13 +142,117 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
     )
 }
 
-// ─── Main Settings Page ────────────────────────────────────────────────────
+// ─── Import Products Modal ─────────────────────────────────────────────────
+function ImportProductsModal({ onClose }: { onClose: () => void }) {
+    const [file, setFile] = useState<File | null>(null)
+    const [mode, setMode] = useState<'upsert' | 'clear_reimport'>('upsert')
+    const [step, setStep] = useState<'pick' | 'running' | 'done'>('pick')
+    const [result, setResult] = useState<any>(null)
+    const fileRef = useRef<HTMLInputElement>(null)
+
+    async function doImport() {
+        if (!file) return toast.error('กรุณาเลือกไฟล์ Excel')
+        setStep('running')
+        try {
+            const fd = new FormData()
+            fd.append('file', file)
+            fd.append('mode', mode)
+            const res = await fetch('/api/system/import-products', { method: 'POST', body: fd })
+            const json = await res.json()
+            if (json.success) { setResult(json.data); setStep('done') }
+            else { toast.error(json.error || 'เกิดข้อผิดพลาด'); setStep('pick') }
+        } catch { toast.error('เกิดข้อผิดพลาด'); setStep('pick') }
+    }
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' }}
+            onClick={step === 'running' ? undefined : onClose}>
+            <div style={{ background: 'var(--white)', borderRadius: 20, width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ height: 4, background: step === 'done' ? '#16a34a' : 'var(--accent)' }} />
+                <div style={{ padding: '1.25rem 1.5rem' }}>
+
+                    {step === 'pick' && (<>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                            <span style={{ fontSize: '1.8rem' }}>📦</span>
+                            <div>
+                                <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>นำเข้าสินค้าจาก Excel</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>รองรับ .xlsx / .xls — อ่านทุก Sheet อัตโนมัติ</div>
+                            </div>
+                        </div>
+
+                        {/* File drop zone */}
+                        <div onClick={() => fileRef.current?.click()}
+                            style={{ border: `2px dashed ${file ? '#16a34a' : 'var(--border)'}`, borderRadius: 14, padding: '1.5rem', textAlign: 'center', cursor: 'pointer', marginBottom: 14, background: file ? 'rgba(22,163,74,0.04)' : 'var(--bg)', transition: 'all 0.2s' }}>
+                            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] || null)} />
+                            <div style={{ fontSize: '1.8rem', marginBottom: 6 }}>{file ? '✅' : '📊'}</div>
+                            {file
+                                ? <><p style={{ fontWeight: 700, color: '#059669', fontSize: '0.88rem' }}>{file.name}</p><button onClick={e => { e.stopPropagation(); setFile(null) }} style={{ marginTop: 4, background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.72rem', cursor: 'pointer', textDecoration: 'underline' }}>เปลี่ยนไฟล์</button></>
+                                : <><p style={{ color: 'var(--text)', fontWeight: 600, fontSize: '0.88rem', marginBottom: 2 }}>คลิกเพื่อเลือกไฟล์ Excel</p><p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>.xlsx หรือ .xls</p></>}
+                        </div>
+
+                        {/* Mode toggle */}
+                        <div style={{ marginBottom: 16 }}>
+                            <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>โหมดการนำเข้า</p>
+                            {[{ v: 'upsert', icon: '🔄', label: 'อัพเดทข้อมูลที่มีอยู่ (ปลอดภัย)', sub: 'SKU ใหม่ = เพิ่ม / SKU เดิม = อัพเดท' },
+                            { v: 'clear_reimport', icon: '🗑️', label: 'ล้างแล้ว Import ใหม่ทั้งหมด', sub: '⚠️ จะลบสินค้า BOM คลัง และ PO ทั้งหมดก่อน' }].map(m => (
+                                <div key={m.v} onClick={() => setMode(m.v as any)}
+                                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '0.75rem', borderRadius: 10, border: `1.5px solid ${mode === m.v ? 'var(--accent)' : 'var(--border)'}`, background: mode === m.v ? 'var(--accent-bg)' : 'var(--bg)', cursor: 'pointer', marginBottom: 8 }}>
+                                    <span style={{ fontSize: '1.1rem', marginTop: 1 }}>{m.icon}</span>
+                                    <div>
+                                        <p style={{ fontWeight: 700, fontSize: '0.82rem', color: mode === m.v ? 'var(--accent)' : 'var(--text)' }}>{m.label}</p>
+                                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{m.sub}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button onClick={onClose} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.85rem' }}>ยกเลิก</button>
+                            <button onClick={doImport} disabled={!file}
+                                style={{ flex: 2, minHeight: 44, borderRadius: 12, border: 'none', background: file ? (mode === 'clear_reimport' ? '#DC2626' : 'var(--accent)') : '#9CA3AF', color: '#fff', fontWeight: 700, fontSize: '0.9rem', cursor: file ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                                {mode === 'clear_reimport' ? '🗑️ ล้างแล้ว Import' : '📦 Import'}
+                            </button>
+                        </div>
+                    </>)}
+
+                    {step === 'running' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem 0', gap: 14 }}>
+                            <div style={{ width: 44, height: 44, border: '4px solid rgba(201,168,76,0.3)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                            <div style={{ fontWeight: 700, color: 'var(--accent)' }}>กำลัง import...</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>อาจใช้เวลา 10-60 วินาที ขึ้นอยู่กับขนาดไฟล์</div>
+                        </div>
+                    )}
+
+                    {step === 'done' && result && (
+                        <div>
+                            <div style={{ textAlign: 'center', padding: '0.5rem 0', marginBottom: 16 }}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>✅</div>
+                                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#16a34a' }}>Import เสร็จแล้ว!</div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 14 }}>
+                                {result.cleared > 0 && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '0.75rem', textAlign: 'center', border: '1px solid #FECACA' }}><p style={{ fontSize: '1.4rem', fontWeight: 800, color: '#DC2626' }}>{result.cleared}</p><p style={{ fontSize: '0.7rem', color: '#7F1D1D', marginTop: 2 }}>ลบออก</p></div>}
+                                <div style={{ background: 'rgba(22,163,74,0.06)', borderRadius: 10, padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(22,163,74,0.2)' }}><p style={{ fontSize: '1.4rem', fontWeight: 800, color: '#16a34a' }}>{result.created}</p><p style={{ fontSize: '0.7rem', color: '#065F46', marginTop: 2 }}>เพิ่มใหม่</p></div>
+                                <div style={{ background: 'rgba(59,130,246,0.06)', borderRadius: 10, padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(59,130,246,0.2)' }}><p style={{ fontSize: '1.4rem', fontWeight: 800, color: '#3B82F6' }}>{result.updated}</p><p style={{ fontSize: '0.7rem', color: '#1E3A5F', marginTop: 2 }}>อัพเดท</p></div>
+                                <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '0.75rem', textAlign: 'center', border: '1px solid var(--border)' }}><p style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-muted)' }}>{result.skipped}</p><p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>ข้าม</p></div>
+                            </div>
+                            {result.errors?.length > 0 && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '0.75rem', marginBottom: 12 }}><p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#DC2626', marginBottom: 6 }}>⚠️ Errors ({result.errors.length})</p>{result.errors.map((e: string, i: number) => <p key={i} style={{ fontSize: '0.7rem', color: '#7F1D1D', marginBottom: 2 }}>• {e}</p>)}</div>}
+                            <button onClick={onClose} style={{ width: '100%', minHeight: 44, borderRadius: 12, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>✅ ปิด</button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
 export default function SettingsPage() {
     useRoleGuard(['owner'])
     const [posConfig, setPosConfig] = useState<PosConfig>(defaultConfig)
     const [showKey, setShowKey] = useState(false)
     const [testing, setTesting] = useState(false)
     const [showReset, setShowReset] = useState(false)
+    const [showImport, setShowImport] = useState(false)
 
     useEffect(() => {
         try {
@@ -313,6 +417,23 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* ── นำเข้าสินค้า ── */}
+                <div className="card" style={{ borderColor: 'rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.02)' }}>
+                    <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem' }}>📦 นำเข้าสินค้า</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>เพิ่ม/อัพเดทสินค้าจากไฟล์ Excel — หรือล้างแล้ว import ใหม่</p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--white)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.2)' }}>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: 2 }}>📊 Import จาก Excel (.xlsx)</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>อ่านหลาย Sheet — อัพเดทหรือล้าง+import ใหม่แบบ Clean slate</div>
+                        </div>
+                        <button onClick={() => setShowImport(true)}
+                            style={{ background: 'transparent', border: '1.5px solid rgba(59,130,246,0.5)', color: '#3B82F6', padding: '0.5rem 1.25rem', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 12, transition: 'all 0.15s' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#3B82F6'; e.currentTarget.style.color = '#fff' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#3B82F6' }}
+                        >📦 นำเข้า</button>
+                    </div>
+                </div>
+
                 {/* ── Danger Zone ── */}
                 <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 14, padding: '1.5rem' }}>
                     <h2 style={{ fontWeight: 700, color: '#DC2626', marginBottom: 4, fontSize: '0.95rem' }}>⚠️ Danger Zone</h2>
@@ -340,6 +461,7 @@ export default function SettingsPage() {
             </div>
 
             {showReset && <ResetTestModal onClose={() => setShowReset(false)} />}
+            {showImport && <ImportProductsModal onClose={() => setShowImport(false)} />}
         </div>
     )
 }
