@@ -19,9 +19,9 @@ const typeLabels: Record<string, string> = {
     PACKAGING: '📦 บรรจุภัณฑ์', ENTERTAIN: '🎭 Entertain',
 }
 
-const DRINK_CODES = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER']
-const MEAT_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA']
-const VEG_CODES = ['RAW_VEG', 'DRY_GOODS', 'OTHER']
+const DRINK_CODES = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER', 'KARAOKE', 'ENTERTAIN', 'SET']
+const MEAT_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'EGG']
+const VEG_CODES = ['RAW_VEG', 'DRY_GOODS', 'OTHER', 'DAIRY', 'CHEESE', 'FLOUR_DOUGH']
 const PKG_CODES = ['PACKAGING']
 const RAW_CATEGORY_CODES = [...MEAT_CODES, ...VEG_CODES, ...PKG_CODES, ...DRINK_CODES]
 const STOCK_TYPES = ['RAW_MATERIAL', 'PACKAGING']
@@ -89,12 +89,13 @@ export default function ProductsPage() {
     }, [activeTab, allCategories])
 
     const filteredProducts = products.filter(p => {
-        // แสดงเฉพาะวัตถุดิบ/บรรจุภัณฑ์ — ไม่แสดงเมนูขาย
+        // Drink tab: show all regardless of productType (beer/wine/drinks are SALE_ITEM but physically stocked)
+        if (activeTab === 'drink') return DRINK_CODES.includes(p.category?.code)
+        // Other tabs: only raw materials and packaging
         if (!STOCK_TYPES.includes(p.productType)) return false
         if (activeTab === 'meat') return MEAT_CODES.includes(p.category?.code)
         if (activeTab === 'veg') return VEG_CODES.includes(p.category?.code)
         if (activeTab === 'pkg') return PKG_CODES.includes(p.category?.code)
-        if (activeTab === 'drink') return DRINK_CODES.includes(p.category?.code)
         return true
     })
 
