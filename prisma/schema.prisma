@@ -7,41 +7,133 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────
+// TENANT (Multi-tenant root)
+// ─────────────────────────────────────────────
+
+model Tenant {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  displayName String?      // ชื่อร้านที่แสดงใน UI (ถ้าไม่ตั้ง จะใช้ name)
+  logoUrl     String?      // URL รูปโลโก้ (relative path เช่น /uploads/logos/store-001.png)
+  status      TenantStatus @default(ACTIVE)
+  subEndsAt   DateTime?
+  graceEndsAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Store data relations
+  users            User[]
+  categories       Category[]
+  products         Product[]
+  locations        Location[]
+  inventory        Inventory[]
+  stockMovements   StockMovement[]
+  purchaseOrders   PurchaseOrder[]
+  purchaseItems    PurchaseItem[]
+  suppliers        Supplier[]
+  stockTransfers   StockTransfer[]
+  transferItems    TransferItem[]
+  stockAdjustments StockAdjustment[]
+  adjustmentItems  AdjustmentItem[]
+  recipes          Recipe[]
+  recipeBOMs       RecipeBOM[]
+  salesImports     SalesImport[]
+  salesImportItems SalesImportItem[]
+  orders           Order[]
+  orderItems       OrderItem[]
+  payments         Payment[]
+  salesEvents      SalesEvent[]
+  tables           DiningTable[]
+
+  // SaaS relations
+  wallet           Wallet?
+  walletLedger     WalletLedger[]
+  subs             Subscription[]
+  topups           TopupRequest[]
+  auditLogs        AuditLog[]
+
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// SYSTEM ADMINS (SuperAdmin / Admin1-3)
+// ─────────────────────────────────────────────
+
+model AdminUser {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  name         String
+  role         AdminRole
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  auditLogs         AuditLog[]
+  walletLedgerEntry WalletLedger[]
+  topupReviews      TopupRequest[]
+
+  @@map("admin_users")
+}
+
+// ─────────────────────────────────────────────
+// STORE USERS (scoped to tenant)
+// ─────────────────────────────────────────────
+
 model User {
   id                String            @id @default(cuid())
-  username          String            @unique
+  tenantId          String
+  username          String
   passwordHash      String
   name              String
   role              Role              @default(VIEWER)
   isActive          Boolean           @default(true)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id])
   itemStatusChanges OrderItem[]       @relation("ItemStatusChangedBy")
   orders            Order[]
   purchaseOrders    PurchaseOrder[]
   adjustments       StockAdjustment[]
   stockMovements    StockMovement[]
   transfers         StockTransfer[]
+  topupRequests     TopupRequest[]
+  auditLogs         AuditLog[]
 
+  @@unique([tenantId, username])
+  @@index([tenantId])
   @@map("users")
 }
 
+// ─────────────────────────────────────────────
+// MASTER DATA
+// ─────────────────────────────────────────────
+
 model Category {
   id       String    @id @default(cuid())
-  code     String    @unique
+  tenantId String
+  code     String
   name     String
   nameEn   String?
   color    String?
   icon     String?
   isActive Boolean   @default(true)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
   products Product[]
 
+  @@unique([tenantId, code])
+  @@index([tenantId])
   @@map("categories")
 }
 
 model Product {
   id             String          @id @default(cuid())
-  sku            String          @unique
+  tenantId       String
+  sku            String
   name           String
   nameTh         String?
   nameLao        String?
@@ -59,53 +151,71 @@ model Product {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   imageUrl       String?
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  category       Category        @relation(fields: [categoryId], references: [id])
   inventory      Inventory[]
   orderItems     OrderItem[]
-  category       Category        @relation(fields: [categoryId], references: [id])
   purchaseItems  PurchaseItem[]
   recipes        RecipeBOM[]     @relation("RecipeProduct")
   bom            RecipeBOM[]
   stockMovements StockMovement[]
 
+  @@unique([tenantId, sku])
+  @@index([tenantId])
   @@index([categoryId], map: "products_categoryId_fkey")
   @@map("products")
 }
 
 model Location {
   id            String          @id @default(cuid())
-  code          String          @unique
+  tenantId      String
+  code          String
   name          String
   nameLao       String?
   type          LocationType
   sortOrder     Int             @default(0)
   isActive      Boolean         @default(true)
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
   inventory     Inventory[]
   fromMovements StockMovement[] @relation("FromLocation")
   toMovements   StockMovement[] @relation("ToLocation")
   transferFrom  StockTransfer[] @relation("TransferFrom")
   transferTo    StockTransfer[] @relation("TransferTo")
 
+  @@unique([tenantId, code])
+  @@index([tenantId])
   @@map("locations")
 }
 
+// ─────────────────────────────────────────────
+// INVENTORY
+// ─────────────────────────────────────────────
+
 model Inventory {
   id          String   @id @default(cuid())
+  tenantId    String
   productId   String
   locationId  String
   quantity    Float    @default(0)
   reservedQty Float    @default(0)
   avgCost     Float    @default(0)
   updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   location    Location @relation(fields: [locationId], references: [id])
   product     Product  @relation(fields: [productId], references: [id])
 
-  @@unique([productId, locationId])
+  @@unique([tenantId, productId, locationId])
+  @@index([tenantId])
   @@index([locationId], map: "inventory_locationId_fkey")
   @@map("inventory")
 }
 
 model StockMovement {
   id             String       @id @default(cuid())
+  tenantId       String
   productId      String
   fromLocationId String?
   toLocationId   String?
@@ -118,11 +228,14 @@ model StockMovement {
   note           String?
   createdById    String?
   createdAt      DateTime     @default(now())
+
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
   createdBy      User?        @relation(fields: [createdById], references: [id])
   fromLocation   Location?    @relation("FromLocation", fields: [fromLocationId], references: [id])
   product        Product      @relation(fields: [productId], references: [id])
   toLocation     Location?    @relation("ToLocation", fields: [toLocationId], references: [id])
 
+  @@index([tenantId])
   @@index([productId])
   @@index([createdAt])
   @@index([type])
@@ -132,9 +245,14 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+// ─────────────────────────────────────────────
+// PURCHASING
+// ─────────────────────────────────────────────
+
 model PurchaseOrder {
   id           String         @id @default(cuid())
-  poNumber     String         @unique
+  tenantId     String
+  poNumber     String
   supplierId   String?
   status       POStatus       @default(DRAFT)
   totalAmount  Float          @default(0)
@@ -144,10 +262,14 @@ model PurchaseOrder {
   createdById  String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
   items        PurchaseItem[]
   createdBy    User?          @relation(fields: [createdById], references: [id])
   supplier     Supplier?      @relation(fields: [supplierId], references: [id])
 
+  @@unique([tenantId, poNumber])
+  @@index([tenantId])
   @@index([createdById], map: "purchase_orders_createdById_fkey")
   @@index([supplierId], map: "purchase_orders_supplierId_fkey")
   @@map("purchase_orders")
@@ -155,15 +277,19 @@ model PurchaseOrder {
 
 model PurchaseItem {
   id              String        @id @default(cuid())
+  tenantId        String
   purchaseOrderId String
   productId       String
   locationId      String
   quantity        Float
   unitCost        Float
   totalCost       Float
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
   product         Product       @relation(fields: [productId], references: [id])
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
 
+  @@index([tenantId])
   @@index([productId], map: "purchase_items_productId_fkey")
   @@index([purchaseOrderId], map: "purchase_items_purchaseOrderId_fkey")
   @@map("purchase_items")
@@ -171,17 +297,26 @@ model PurchaseItem {
 
 model Supplier {
   id       String          @id @default(cuid())
+  tenantId String
   name     String
   phone    String?
   note     String?
   isActive Boolean         @default(true)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
   orders   PurchaseOrder[]
 
+  @@index([tenantId])
   @@map("suppliers")
 }
 
+// ─────────────────────────────────────────────
+// TRANSFERS & ADJUSTMENTS
+// ─────────────────────────────────────────────
+
 model StockTransfer {
   id             String         @id @default(cuid())
+  tenantId       String
   fromLocationId String
   toLocationId   String
   status         TransferStatus @default(PENDING)
@@ -189,11 +324,14 @@ model StockTransfer {
   requestedById  String?
   transferDate   DateTime       @default(now())
   createdAt      DateTime       @default(now())
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
   fromLocation   Location       @relation("TransferFrom", fields: [fromLocationId], references: [id])
   requestedBy    User?          @relation(fields: [requestedById], references: [id])
   toLocation     Location       @relation("TransferTo", fields: [toLocationId], references: [id])
   items          TransferItem[]
 
+  @@index([tenantId])
   @@index([fromLocationId], map: "stock_transfers_fromLocationId_fkey")
   @@index([requestedById], map: "stock_transfers_requestedById_fkey")
   @@index([toLocationId], map: "stock_transfers_toLocationId_fkey")
@@ -202,17 +340,22 @@ model StockTransfer {
 
 model TransferItem {
   id         String        @id @default(cuid())
+  tenantId   String
   transferId String
   productId  String
   quantity   Float
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
   transfer   StockTransfer @relation(fields: [transferId], references: [id])
 
+  @@index([tenantId])
   @@index([transferId], map: "transfer_items_transferId_fkey")
   @@map("transfer_items")
 }
 
 model StockAdjustment {
   id           String           @id @default(cuid())
+  tenantId     String
   locationId   String
   status       AdjustmentStatus @default(PENDING)
   reason       String
@@ -220,15 +363,19 @@ model StockAdjustment {
   adjustedById String?
   adjustedAt   DateTime         @default(now())
   createdAt    DateTime         @default(now())
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
   items        AdjustmentItem[]
   adjustedBy   User?            @relation(fields: [adjustedById], references: [id])
 
+  @@index([tenantId])
   @@index([adjustedById], map: "stock_adjustments_adjustedById_fkey")
   @@map("stock_adjustments")
 }
 
 model AdjustmentItem {
   id           String          @id @default(cuid())
+  tenantId     String
   adjustmentId String
   productId    String
   locationId   String
@@ -236,43 +383,63 @@ model AdjustmentItem {
   actualQty    Float
   diffQty      Float
   unitCost     Float           @default(0)
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
   adjustment   StockAdjustment @relation(fields: [adjustmentId], references: [id])
 
+  @@index([tenantId])
   @@index([adjustmentId], map: "adjustment_items_adjustmentId_fkey")
   @@map("adjustment_items")
 }
 
+// ─────────────────────────────────────────────
+// RECIPES
+// ─────────────────────────────────────────────
+
 model Recipe {
   id          String      @id @default(cuid())
+  tenantId    String
   menuName    String
   posMenuCode String?
   isActive    Boolean     @default(true)
   note        String?
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
   bom         RecipeBOM[]
 
+  @@index([tenantId])
   @@map("recipes")
 }
 
 model RecipeBOM {
   id         String   @id @default(cuid())
+  tenantId   String
   recipeId   String
   productId  String
   menuId     String?
   locationId String
   quantity   Float
   unit       String
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
   menu       Product? @relation("RecipeProduct", fields: [menuId], references: [id])
   product    Product  @relation(fields: [productId], references: [id])
   recipe     Recipe   @relation(fields: [recipeId], references: [id])
 
+  @@index([tenantId])
   @@index([menuId], map: "recipe_bom_menuId_fkey")
   @@index([productId], map: "recipe_bom_productId_fkey")
   @@index([recipeId], map: "recipe_bom_recipeId_fkey")
   @@map("recipe_bom")
 }
 
+// ─────────────────────────────────────────────
+// SALES IMPORT
+// ─────────────────────────────────────────────
+
 model SalesImport {
   id           String            @id @default(cuid())
+  tenantId     String
   fileName     String
   importDate   DateTime
   saleDate     DateTime
@@ -282,13 +449,17 @@ model SalesImport {
   note         String?
   importedById String?
   importedAt   DateTime          @default(now())
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
   items        SalesImportItem[]
 
+  @@index([tenantId])
   @@map("sales_imports")
 }
 
 model SalesImportItem {
   id            String      @id @default(cuid())
+  tenantId      String
   importId      String
   rowNumber     Int
   menuName      String
@@ -298,28 +469,41 @@ model SalesImportItem {
   category      String?
   stockDeducted Boolean     @default(false)
   matchedRecipe String?
+
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
   import        SalesImport @relation(fields: [importId], references: [id])
 
+  @@index([tenantId])
   @@index([importId], map: "sales_import_items_importId_fkey")
   @@map("sales_import_items")
 }
 
+// ─────────────────────────────────────────────
+// DINING / POS
+// ─────────────────────────────────────────────
+
 model DiningTable {
   id       String      @id @default(cuid())
-  number   Int         @unique
+  tenantId String
+  number   Int
   name     String
   zone     String
   seats    Int         @default(4)
   status   TableStatus @default(AVAILABLE)
   isActive Boolean     @default(true)
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
   orders   Order[]
 
+  @@unique([tenantId, number])
+  @@index([tenantId])
   @@map("dining_tables")
 }
 
 model Order {
   id            String       @id @default(cuid())
-  orderNumber   String       @unique
+  tenantId      String
+  orderNumber   String
   tableId       String?
   status        OrderStatus  @default(OPEN)
   subtotal      Float        @default(0)
@@ -332,12 +516,16 @@ model Order {
   createdById   String?
   openedAt      DateTime     @default(now())
   closedAt      DateTime?
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
   items         OrderItem[]
   createdBy     User?        @relation(fields: [createdById], references: [id])
   table         DiningTable? @relation(fields: [tableId], references: [id])
   payments      Payment[]
   salesEvents   SalesEvent[]
 
+  @@unique([tenantId, orderNumber])
+  @@index([tenantId])
   @@index([status])
   @@index([openedAt])
   @@index([createdById], map: "orders_createdById_fkey")
@@ -347,6 +535,7 @@ model Order {
 
 model OrderItem {
   id                String        @id @default(cuid())
+  tenantId          String
   orderId           String
   productId         String
   quantity          Float         @default(1)
@@ -358,10 +547,13 @@ model OrderItem {
   stationId         String?
   statusChangedAt   DateTime?
   statusChangedById String?
+
+  tenant            Tenant        @relation(fields: [tenantId], references: [id])
   order             Order         @relation(fields: [orderId], references: [id])
   product           Product       @relation(fields: [productId], references: [id])
   statusChangedBy   User?         @relation("ItemStatusChangedBy", fields: [statusChangedById], references: [id])
 
+  @@index([tenantId])
   @@index([orderId], map: "order_items_orderId_fkey")
   @@index([productId], map: "order_items_productId_fkey")
   @@index([statusChangedById], map: "order_items_statusChangedById_fkey")
@@ -370,12 +562,16 @@ model OrderItem {
 
 model SalesEvent {
   id         String   @id @default(cuid())
+  tenantId   String
   orderId    String
   occurredAt DateTime @default(now())
   payload    Json
   processed  Boolean  @default(false)
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
   order      Order    @relation(fields: [orderId], references: [id])
 
+  @@index([tenantId])
   @@index([occurredAt])
   @@index([processed])
   @@index([orderId], map: "sales_events_orderId_fkey")
@@ -384,6 +580,7 @@ model SalesEvent {
 
 model Payment {
   id             String        @id @default(cuid())
+  tenantId       String
   orderId        String
   method         PaymentMethod @default(CASH)
   amount         Float         @default(0)
@@ -391,10 +588,155 @@ model Payment {
   changeAmount   Float         @default(0)
   reference      String?
   paidAt         DateTime      @default(now())
+
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
   order          Order         @relation(fields: [orderId], references: [id])
 
+  @@index([tenantId])
   @@index([orderId], map: "payments_orderId_fkey")
   @@map("payments")
+}
+
+// ─────────────────────────────────────────────
+// SAAS – PLANS & SUBSCRIPTIONS
+// ─────────────────────────────────────────────
+
+model Plan {
+  id           String         @id @default(cuid())
+  code         String         @unique // e.g. PLAN_1M, PLAN_3M
+  name         String
+  priceLAK     Int
+  durationDays Int
+  features     Json?
+  isActive     Boolean        @default(true)
+
+  subs         Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id        String    @id @default(cuid())
+  tenantId  String
+  planId    String
+  startAt   DateTime
+  endAt     DateTime
+  status    SubStatus @default(ACTIVE)
+  autoRenew Boolean   @default(false)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  plan      Plan      @relation(fields: [planId], references: [id])
+
+  @@index([tenantId])
+  @@index([endAt])
+  @@map("subscriptions")
+}
+
+// ─────────────────────────────────────────────
+// SAAS – WALLET & LEDGER (immutable ledger)
+// ─────────────────────────────────────────────
+
+model Wallet {
+  id         String         @id @default(cuid())
+  tenantId   String         @unique
+  balanceLAK Int            @default(0)
+  updatedAt  DateTime       @updatedAt
+
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  ledger     WalletLedger[]
+
+  @@map("wallets")
+}
+
+/// Immutable — never UPDATE or DELETE rows. Source of truth for balance.
+model WalletLedger {
+  id               String     @id @default(cuid())
+  walletId         String
+  tenantId         String
+  type             LedgerType
+  amountLAK        Int        // positive = credit (topup/refund), negative = debit (billing)
+  refType          String?    // "TOPUP" | "SUBSCRIPTION" | "ADJUST"
+  refId            String?
+  note             String?
+  createdAt        DateTime   @default(now())
+  createdByAdminId String?
+
+  wallet           Wallet     @relation(fields: [walletId], references: [id])
+  tenant           Tenant     @relation(fields: [tenantId], references: [id])
+  createdByAdmin   AdminUser? @relation(fields: [createdByAdminId], references: [id])
+
+  @@index([walletId])
+  @@index([tenantId, createdAt])
+  @@index([type])
+  @@map("wallet_ledger")
+}
+
+// ─────────────────────────────────────────────
+// SAAS – TOPUP REQUESTS
+// ─────────────────────────────────────────────
+
+model TopupRequest {
+  id                String      @id @default(cuid())
+  tenantId          String
+  userId            String
+  amountLAK         Int
+  channel           String      // BCEL / transfer / cash / …
+  proofUrl          String?
+  status            TopupStatus @default(PENDING)
+  createdAt         DateTime    @default(now())
+  reviewedAt        DateTime?
+  reviewedByAdminId String?
+
+  tenant            Tenant      @relation(fields: [tenantId], references: [id])
+  user              User        @relation(fields: [userId], references: [id])
+  reviewedBy        AdminUser?  @relation(fields: [reviewedByAdminId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([userId])
+  @@map("topup_requests")
+}
+
+// ─────────────────────────────────────────────
+// SAAS – AUDIT LOG
+// ─────────────────────────────────────────────
+
+/// Every action by AdminUser (or significant store-user action) must produce one row.
+model AuditLog {
+  id        String    @id @default(cuid())
+  actorType ActorType
+  adminId   String?   // set when actorType = ADMIN
+  userId    String?   // set when actorType = TENANT_USER
+  tenantId  String?
+  action    String    // e.g. "APPROVE_TOPUP" | "DISABLE_TENANT" | "CHANGE_PLAN"
+  payload   Json?
+  ip        String?
+  createdAt DateTime  @default(now())
+
+  admin     AdminUser? @relation(fields: [adminId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+  tenant    Tenant?    @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([action])
+  @@index([adminId])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum TenantStatus {
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+}
+
+enum AdminRole {
+  SUPERADMIN
+  ADMIN1
+  ADMIN2
+  ADMIN3
 }
 
 enum Role {
@@ -406,6 +748,30 @@ enum Role {
   BAR
   CASHIER
   VIEWER
+}
+
+enum SubStatus {
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum LedgerType {
+  TOPUP
+  RENT_FEE
+  ADJUST
+  REFUND
+}
+
+enum TopupStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ActorType {
+  ADMIN
+  TENANT_USER
 }
 
 enum ProductType {

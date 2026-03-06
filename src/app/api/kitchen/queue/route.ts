@@ -3,21 +3,21 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 
 // GET /api/kitchen/queue — Kitchen queue view
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
+    const { tenantId } = context as any
     const url = new URL(req.url)
-    const station = url.searchParams.get('station') || '' // BAR, KITCHEN, or empty=all
+    const station = url.searchParams.get('station') || ''
     const statusParam = url.searchParams.get('status') || 'PENDING,ACCEPTED,COOKING,READY'
     const statuses = statusParam.split(',').map(s => s.trim())
 
     const where: Record<string, unknown> = {
         kitchenStatus: { in: statuses },
         isCancelled: false,
-        order: { status: 'OPEN' },
+        order: { tenantId, status: 'OPEN' },   // ← tenant scoped here
     }
     if (station === 'BAR') {
         where.stationId = 'BAR'
     } else if (station === 'KITCHEN') {
-        // Include null stationId items as KITCHEN (legacy data fallback)
         where.OR = [{ stationId: 'KITCHEN' }, { stationId: null }]
     }
 

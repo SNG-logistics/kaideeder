@@ -15,6 +15,7 @@ const closeOrderSchema = z.object({
 
 // POST /api/pos/orders/[id]/close — close bill & deduct stock
 export const POST = withAuth(async (req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
     const params = await ctx.params
     const id = params?.id
     if (!id) return err('Missing order id')
@@ -23,17 +24,13 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         const body = await req.json()
         const data = closeOrderSchema.parse(body)
 
-        // Fetch order with items
-        const order = await prisma.order.findUnique({
-            where: { id },
+        // Fetch order with items (tenant-scoped)
+        const order = await prisma.order.findFirst({
+            where: { id, tenantId },
             include: {
                 items: {
                     where: { isCancelled: false },
-                    include: {
-                        product: {
-                            include: { category: true },
-                        },
-                    },
+                    include: { product: { include: { category: true } } },
                 },
                 table: true,
             },
@@ -64,7 +61,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         const stockErrors: string[] = []
 
         // Get all locations for fallback logic
-        const locations = await prisma.location.findMany({ where: { isActive: true } })
+        const locations = await prisma.location.findMany({ where: { tenantId, isActive: true } })
         const locationMap = Object.fromEntries(locations.map(l => [l.code, l.id]))
 
         for (const item of order.items) {
@@ -87,7 +84,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                         bom.product.costPrice,
                         id,
                         ctx.user?.userId || null,
-                        stockErrors
+                        stockErrors,
+                        tenantId,
                     )
                 }
             } else {
@@ -100,7 +98,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                     item.product.costPrice,
                     id,
                     ctx.user?.userId || null,
-                    stockErrors
+                    stockErrors,
+                    tenantId,
                 )
             }
         }
@@ -197,17 +196,17 @@ async function deductInventory(
     orderId: string,
     userId: string | null,
     errors: string[],
+    tenantId?: string,
 ) {
     try {
-        // Find or create inventory record
         let inventory = await prisma.inventory.findUnique({
             where: { productId_locationId: { productId, locationId } },
         })
 
         if (!inventory) {
-            // Create inventory record with 0 qty
             inventory = await prisma.inventory.create({
                 data: {
+                    ...(tenantId ? { tenantId } : {}),
                     productId,
                     locationId,
                     quantity: 0,
@@ -233,6 +232,7 @@ async function deductInventory(
         // Create stock movement
         await prisma.stockMovement.create({
             data: {
+                ...(tenantId ? { tenantId } : {}),
                 productId,
                 fromLocationId: locationId,
                 quantity,

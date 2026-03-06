@@ -14,30 +14,32 @@ const quickReceiveSchema = z.object({
 
 export const POST = withAuth(async (req: NextRequest, context: AuthContext) => {
     try {
+        const { tenantId } = context as any
         const body = await req.json();
         const data = quickReceiveSchema.parse(body);
 
         if (!data.productSku && !data.productName) {
-             return err('ต้องระบุ productSku หรือ productName', 400);
+            return err('ต้องระบุ productSku หรือ productName', 400);
         }
 
-        const location = await prisma.location.findUnique({ where: { code: data.locationCode } });
+        const location = await prisma.location.findFirst({ where: { tenantId, code: data.locationCode } });
         if (!location) return err('ไม่พบคลัง: ' + data.locationCode, 404);
 
         let product;
         if (data.productSku) {
-            product = await prisma.product.findUnique({ where: { sku: data.productSku } });
+            product = await prisma.product.findFirst({ where: { tenantId, sku: data.productSku } });
             if (!product) return err('ไม่พบ SKU: ' + data.productSku, 404);
         } else if (data.productName) {
             product = await prisma.product.findFirst({
-                where: { name: { contains: data.productName.trim() }, isActive: true },
+                where: { tenantId, name: { contains: data.productName.trim() }, isActive: true },
             });
 
             if (!product) {
                 const autoSku = 'AUTO-' + Date.now();
-                const defCat = await prisma.category.findFirst({ where: { code: 'OTHER' } });
+                const defCat = await prisma.category.findFirst({ where: { tenantId, code: 'OTHER' } });
                 product = await prisma.product.create({
                     data: {
+                        tenantId,
                         sku: autoSku,
                         name: data.productName.trim(),
                         unit: data.unit || 'ชิ้น',
@@ -50,14 +52,15 @@ export const POST = withAuth(async (req: NextRequest, context: AuthContext) => {
                 });
             }
         }
-        
-        if(!product) return err('ไม่พบสินค้า', 404); 
+
+        if (!product) return err('ไม่พบสินค้า', 404);
 
         const totalCost = data.quantity * (data.unitCost || 0);
 
         await prisma.inventory.upsert({
             where: { productId_locationId: { productId: product.id, locationId: location.id } },
             create: {
+                tenantId,
                 productId: product.id,
                 locationId: location.id,
                 quantity: data.quantity,
@@ -71,6 +74,7 @@ export const POST = withAuth(async (req: NextRequest, context: AuthContext) => {
 
         await prisma.stockMovement.create({
             data: {
+                tenantId,
                 productId: product.id,
                 toLocationId: location.id,
                 quantity: data.quantity,

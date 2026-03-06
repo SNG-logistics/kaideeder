@@ -18,13 +18,15 @@ const poSchema = z.object({
 })
 
 // GET /api/purchase — รายการใบสั่งซื้อ
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
+    const { tenantId } = context as any
     const url = new URL(req.url)
     const page = parseInt(url.searchParams.get('page') || '1')
     const limit = parseInt(url.searchParams.get('limit') || '20')
 
     const [orders, total] = await Promise.all([
         prisma.purchaseOrder.findMany({
+            where: { tenantId },
             orderBy: { createdAt: 'desc' },
             skip: (page - 1) * limit,
             take: limit,
@@ -34,13 +36,13 @@ export const GET = withAuth(async (req: NextRequest) => {
                 _count: { select: { items: true } },
             },
         }),
-        prisma.purchaseOrder.count(),
+        prisma.purchaseOrder.count({ where: { tenantId } }),
     ])
     return ok({ orders, total, page, pages: Math.ceil(total / limit) })
 })
 
 // POST /api/purchase — สร้าง PO + รับสินค้าเข้าคลังทันที
-export const POST = withAuth(async (req: NextRequest, { user }) => {
+export const POST = withAuth(async (req: NextRequest, { user, tenantId }: any) => {
     try {
         const body = await req.json()
         const data = poSchema.parse(body)
@@ -49,9 +51,9 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
         const poNumber = `PO-${Date.now().toString(36).toUpperCase()}`
 
         const result = await prisma.$transaction(async (tx) => {
-            // สร้าง PO
             const po = await tx.purchaseOrder.create({
                 data: {
+                    tenantId,
                     poNumber,
                     supplierId: data.supplierId || null,
                     status: POStatus.RECEIVED,
@@ -61,6 +63,7 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                     createdById: user?.userId,
                     items: {
                         create: data.items.map(item => ({
+                            tenantId,
                             productId: item.productId,
                             locationId: item.locationId,
                             quantity: item.quantity,
@@ -93,6 +96,7 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                         avgCost: newAvgCost,
                     },
                     create: {
+                        tenantId,
                         productId: item.productId,
                         locationId: item.locationId,
                         quantity: item.quantity,
@@ -109,6 +113,7 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                 // Stock movement
                 await tx.stockMovement.create({
                     data: {
+                        tenantId,
                         productId: item.productId,
                         toLocationId: item.locationId,
                         quantity: item.quantity,

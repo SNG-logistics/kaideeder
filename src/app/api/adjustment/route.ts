@@ -15,8 +15,10 @@ const adjustSchema = z.object({
 })
 
 // GET /api/adjustment
-export const GET = withAuth(async () => {
+export const GET = withAuth(async (_req, context) => {
+    const { tenantId } = (context as any)
     const adjustments = await prisma.stockAdjustment.findMany({
+        where: { tenantId },
         orderBy: { createdAt: 'desc' },
         take: 50,
         include: {
@@ -30,12 +32,14 @@ export const GET = withAuth(async () => {
 // POST /api/adjustment — ปรับสต็อค (นับของจริง)
 export const POST = withAuth<any>(async (req: NextRequest, context) => {
     try {
+        const { tenantId } = context as any
         const body = await req.json()
         const data = adjustSchema.parse(body)
 
         const result = await prisma.$transaction(async (tx) => {
             const adjustment = await tx.stockAdjustment.create({
                 data: {
+                    tenantId,
                     locationId: data.locationId,
                     status: 'APPROVED',
                     reason: data.reason,
@@ -53,6 +57,7 @@ export const POST = withAuth<any>(async (req: NextRequest, context) => {
 
                 await tx.adjustmentItem.create({
                     data: {
+                        tenantId,
                         adjustmentId: adjustment.id,
                         productId: item.productId,
                         locationId: data.locationId,
@@ -65,9 +70,10 @@ export const POST = withAuth<any>(async (req: NextRequest, context) => {
 
                 // อัพเดตสต็อค
                 await tx.inventory.upsert({
-                    where: { productId_locationId: { productId: item.productId, locationId: data.locationId } },
+                    where: { productId_locationId_tenantId: { productId: item.productId, locationId: data.locationId, tenantId } },
                     update: { quantity: item.actualQty },
                     create: {
+                        tenantId,
                         productId: item.productId,
                         locationId: data.locationId,
                         quantity: item.actualQty,
@@ -79,6 +85,7 @@ export const POST = withAuth<any>(async (req: NextRequest, context) => {
                 if (diffQty !== 0) {
                     await tx.stockMovement.create({
                         data: {
+                            tenantId,
                             productId: item.productId,
                             ...(diffQty > 0 ? { toLocationId: data.locationId } : { fromLocationId: data.locationId }),
                             quantity: Math.abs(diffQty),

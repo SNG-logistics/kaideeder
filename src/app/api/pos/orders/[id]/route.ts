@@ -20,17 +20,16 @@ const updateOrderSchema = z.object({
 
 // GET /api/pos/orders/[id] — get single order
 export const GET = withAuth(async (_req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
     const params = await ctx.params
     const id = params?.id
     if (!id) return err('Missing order id')
 
-    const order = await prisma.order.findUnique({
-        where: { id },
+    const order = await prisma.order.findFirst({
+        where: { id, tenantId },
         include: {
             table: true,
-            items: {
-                include: { product: { include: { category: true } } },
-            },
+            items: { include: { product: { include: { category: true } } } },
             payments: true,
             createdBy: { select: { id: true, name: true } },
         },
@@ -41,6 +40,7 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
 
 // PUT /api/pos/orders/[id] — add items / update order
 export const PUT = withAuth(async (req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
     const params = await ctx.params
     const id = params?.id
     if (!id) return err('Missing order id')
@@ -49,7 +49,7 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
         const body = await req.json()
         const data = updateOrderSchema.parse(body)
 
-        const order = await prisma.order.findUnique({ where: { id } })
+        const order = await prisma.order.findFirst({ where: { id, tenantId } })
         if (!order) return err('ไม่พบออเดอร์', 404)
         if (order.status !== 'OPEN') return err('ออเดอร์ปิดแล้ว ไม่สามารถแก้ไข')
 

@@ -5,6 +5,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret'
 
 export interface JWTPayload {
     userId: string
+    tenantId: string   // REQUIRED — tenant scope for every store request
     username: string
     role: string
     name: string

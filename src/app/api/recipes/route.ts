@@ -17,12 +17,11 @@ const recipeSchema = z.object({
 
 // GET /api/recipes
 export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
+    const { tenantId } = context
     const recipes = await prisma.recipe.findMany({
-        where: { isActive: true },
+        where: { tenantId, isActive: true },
         orderBy: { menuName: 'asc' },
-        include: {
-            bom: { include: { product: true } },
-        },
+        include: { bom: { include: { product: true } } },
     })
     return ok(recipes)
 })
@@ -30,12 +29,12 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
 // POST /api/recipes
 export const POST = withAuth<any>(async (req: NextRequest, context: any) => {
     try {
+        const { tenantId } = context
         const body = await req.json()
         const data = recipeSchema.parse(body)
 
-        // B-02 Fix: ป้องกัน Recipe ชื่อซ้ำ (menuName ต้อง unique)
         const existing = await prisma.recipe.findFirst({
-            where: { menuName: { equals: data.menuName }, isActive: true },
+            where: { tenantId, menuName: { equals: data.menuName }, isActive: true },
         })
         if (existing) {
             return err(`Recipe "${data.menuName}" มีอยู่แล้วในระบบ (ID: ${existing.id}) — กรุณาแก้ไข Recipe เดิม หรือใช้ชื่อใหม่`)
@@ -43,6 +42,7 @@ export const POST = withAuth<any>(async (req: NextRequest, context: any) => {
 
         const recipe = await prisma.recipe.create({
             data: {
+                tenantId,
                 menuName: data.menuName,
                 posMenuCode: data.posMenuCode,
                 note: data.note,

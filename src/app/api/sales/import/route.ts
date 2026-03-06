@@ -9,7 +9,8 @@ import { MovementType } from '@prisma/client'
  * รับไฟล์ Excel จาก POS (format เดียวกับ TOP 10 Bast Selling)
  * → parse → match recipe → ตัดสต็อคอัตโนมัติ
  */
-export const POST = withAuth<any>(async (req: NextRequest, { user }) => {
+export const POST = withAuth<any>(async (req: NextRequest, ctx) => {
+    const { user, tenantId } = ctx
     try {
         const formData = await req.formData()
         const file = formData.get('file') as File
@@ -30,6 +31,7 @@ export const POST = withAuth<any>(async (req: NextRequest, { user }) => {
 
             const existingImport = await prisma.salesImport.findFirst({
                 where: {
+                    tenantId,
                     saleDate: { gte: saleDateStart, lte: saleDateEnd },
                     status: { in: ['COMPLETED', 'PROCESSING'] },
                 },
@@ -105,6 +107,7 @@ export const POST = withAuth<any>(async (req: NextRequest, { user }) => {
         // สร้าง SalesImport record
         const salesImport = await prisma.salesImport.create({
             data: {
+                tenantId,
                 fileName: file.name,
                 importDate: new Date(),
                 saleDate,
@@ -135,6 +138,7 @@ export const POST = withAuth<any>(async (req: NextRequest, { user }) => {
             // หา Recipe ที่ match ชื่อเมนูจาก POS
             const recipe = await prisma.recipe.findFirst({
                 where: {
+                    tenantId,
                     menuName: { equals: item.menuName },
                     isActive: true,
                 },
@@ -184,6 +188,7 @@ export const POST = withAuth<any>(async (req: NextRequest, { user }) => {
                             },
                             update: { quantity: newQty },
                             create: {
+                                tenantId,
                                 productId: bomItem.productId,
                                 locationId: bomItem.locationId,
                                 quantity: newQty,
@@ -194,6 +199,7 @@ export const POST = withAuth<any>(async (req: NextRequest, { user }) => {
                         // บันทึก stock movement
                         await tx.stockMovement.create({
                             data: {
+                                tenantId,
                                 productId: bomItem.productId,
                                 fromLocationId: bomItem.locationId,
                                 quantity: deductQty,
@@ -248,7 +254,8 @@ export const POST = withAuth<any>(async (req: NextRequest, { user }) => {
 }, ['OWNER', 'MANAGER', 'CASHIER'])
 
 // GET /api/sales/import — ประวัติการ import
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
+    const { tenantId } = context as any
     const url = new URL(req.url)
     const page = parseInt(url.searchParams.get('page') || '1')
     const limit = parseInt(url.searchParams.get('limit') || '20')
@@ -256,6 +263,7 @@ export const GET = withAuth(async (req: NextRequest) => {
 
     const [imports, total, amountAgg] = await Promise.all([
         prisma.salesImport.findMany({
+            where: { tenantId },
             orderBy: { saleDate: 'desc' },
             skip: (page - 1) * limit,
             take: limit,
@@ -269,9 +277,9 @@ export const GET = withAuth(async (req: NextRequest) => {
                 } : {})
             }
         }),
-        prisma.salesImport.count(),
+        prisma.salesImport.count({ where: { tenantId } }),
         prisma.salesImport.aggregate({
-            where: { status: 'COMPLETED' },
+            where: { tenantId, status: 'COMPLETED' },
             _sum: { totalAmount: true }
         })
     ])

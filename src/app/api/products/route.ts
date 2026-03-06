@@ -30,31 +30,29 @@ const SKU_PREFIX: Record<string, string> = {
     OTHER: 'OT',
 }
 
-async function generateSKU(categoryCode: string): Promise<string> {
+async function generateSKU(tenantId: string, categoryCode: string): Promise<string> {
     const prefix = SKU_PREFIX[categoryCode] || 'XX'
 
-    // Find the highest existing SKU with this exact prefix + digits pattern
     const existing = await prisma.product.findMany({
-        where: { sku: { startsWith: prefix } },
+        where: { tenantId, sku: { startsWith: prefix } },  // scoped to tenant
         select: { sku: true },
         orderBy: { sku: 'desc' },
     })
 
     let nextNum = 1
-    // Filter to exact prefix matches (e.g. B001 but NOT BD001)
     const exactMatches = existing.filter(p => {
         const rest = p.sku.slice(prefix.length)
         return /^\d+$/.test(rest)
     })
 
     if (exactMatches.length > 0) {
-        // Sort numerically to find highest
         const maxNum = Math.max(...exactMatches.map(p => parseInt(p.sku.slice(prefix.length)) || 0))
         nextNum = maxNum + 1
     }
 
     return `${prefix}${String(nextNum).padStart(2, '0')}`
 }
+
 
 const productSchema = z.object({
     sku: z.string().optional(),
@@ -75,6 +73,7 @@ const productSchema = z.object({
 
 // GET /api/products — รายการสินค้า
 export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
+    const { tenantId } = context
     const url = new URL(req.url)
     const search = url.searchParams.get('search') || ''
     const categoryId = url.searchParams.get('categoryId')
@@ -83,7 +82,8 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     const limit = parseInt(url.searchParams.get('limit') || '50')
     const skip = (page - 1) * limit
 
-    const where: Record<string, unknown> = { isActive: true }
+    // tenantId is always the first filter — never omit it
+    const where: Record<string, unknown> = { tenantId, isActive: true }
     if (search) {
         where.OR = [
             { name: { contains: search } },
@@ -111,21 +111,22 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
 // POST /api/products — สร้างสินค้าใหม่
 export const POST = withAuth<any>(async (req: NextRequest, context: any) => {
     try {
+        const { tenantId } = context
         const body = await req.json()
         const data = productSchema.parse(body)
 
-        // Auto-generate SKU from category
+        // Auto-generate SKU scoped to this tenant
         const category = await prisma.category.findUnique({ where: { id: data.categoryId } })
         if (!category) return err('ไม่พบหมวดหมู่ที่เลือก')
 
-        const sku = data.sku?.trim() || await generateSKU(category.code)
+        const sku = data.sku?.trim() || await generateSKU(tenantId, category.code)
 
-        // Check duplicate SKU
-        const dupSku = await prisma.product.findFirst({ where: { sku } })
+        // Check duplicate SKU within this tenant only
+        const dupSku = await prisma.product.findFirst({ where: { tenantId, sku } })
         if (dupSku) return err(`SKU "${sku}" ซ้ำกับสินค้า "${dupSku.name}"`)
 
         const product = await prisma.product.create({
-            data: { ...data, sku },
+            data: { ...data, sku, tenantId },   // always inject tenantId
             include: { category: true },
         })
         return ok(product)

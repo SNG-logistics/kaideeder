@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok } from '@/lib/api'
 
 // GET /api/dashboard — Dashboard data
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
+    const { tenantId } = context as any
     const url = new URL(req.url)
     const dateStr = url.searchParams.get('date') || new Date().toISOString().split('T')[0]
 
@@ -23,6 +24,7 @@ export const GET = withAuth(async (req: NextRequest) => {
         // POS orders (CLOSED) today
         prisma.order.findMany({
             where: {
+                tenantId,
                 status: 'CLOSED',
                 closedAt: { gte: startOfDay, lte: endOfDay },
             },
@@ -37,7 +39,7 @@ export const GET = withAuth(async (req: NextRequest) => {
         // SalesImport (legacy) today
         prisma.salesImportItem.aggregate({
             where: {
-                import: { saleDate: { gte: startOfDay, lte: endOfDay }, status: 'COMPLETED' }
+                import: { tenantId, saleDate: { gte: startOfDay, lte: endOfDay }, status: 'COMPLETED' }
             },
             _sum: { totalAmount: true, quantity: true },
             _count: { id: true },
@@ -45,12 +47,14 @@ export const GET = withAuth(async (req: NextRequest) => {
 
         // Stock value
         prisma.inventory.findMany({
+            where: { tenantId },
             include: { location: true, product: { select: { name: true } } },
         }),
 
         // Purchase today
         prisma.purchaseOrder.aggregate({
             where: {
+                tenantId,
                 purchaseDate: { gte: startOfDay, lte: endOfDay },
                 status: { not: 'CANCELLED' }
             },
@@ -60,7 +64,7 @@ export const GET = withAuth(async (req: NextRequest) => {
 
         // Low stock
         prisma.inventory.findMany({
-            where: { product: { isActive: true } },
+            where: { tenantId, product: { isActive: true } },
             include: { product: true, location: true },
         }),
     ])

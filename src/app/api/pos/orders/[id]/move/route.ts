@@ -7,6 +7,7 @@ const moveSchema = z.object({ targetTableId: z.string().min(1) })
 
 // PATCH /api/pos/orders/[id]/move — move order to another table
 export const PATCH = withAuth(async (req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
     const params = await ctx.params
     const id = params?.id
     if (!id) return err('Missing order id')
@@ -15,13 +16,15 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
         const body = await req.json()
         const { targetTableId } = moveSchema.parse(body)
 
-        const order = await prisma.order.findUnique({ where: { id } })
+        const order = await prisma.order.findFirst({ where: { id, tenantId } })
         if (!order) return err('ไม่พบออเดอร์', 404)
         if (order.status !== 'OPEN') return err('ออเดอร์ปิดแล้ว')
 
-        // Ensure target table has no open order
+        // Ensure target table belongs to the same tenant and has no open order
+        const targetTable = await prisma.diningTable.findFirst({ where: { id: targetTableId, tenantId } })
+        if (!targetTable) return err('ไม่พบโต๊ะปลายทาง', 404)
         const existing = await prisma.order.findFirst({
-            where: { tableId: targetTableId, status: 'OPEN' },
+            where: { tableId: targetTableId, tenantId, status: 'OPEN' },
         })
         if (existing) return err('โต๊ะปลายทางมีออเดอร์อยู่แล้ว')
 

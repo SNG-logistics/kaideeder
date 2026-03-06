@@ -25,18 +25,17 @@ const createOrderSchema = z.object({
 })
 
 // GET /api/pos/orders — list open orders
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
+    const { tenantId } = context as any
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status') || 'OPEN'
 
     const orders = await prisma.order.findMany({
-        where: { status: status as 'OPEN' | 'CLOSED' | 'CANCELLED' | 'VOID' },
+        where: { tenantId, status: status as any },
         orderBy: { openedAt: 'desc' },
         include: {
             table: true,
-            items: {
-                include: { product: true },
-            },
+            items: { include: { product: true } },
             payments: true,
             createdBy: { select: { id: true, name: true } },
         },
@@ -47,22 +46,22 @@ export const GET = withAuth(async (req: NextRequest) => {
 // POST /api/pos/orders — create new order
 export const POST = withAuth(async (req: NextRequest, ctx) => {
     try {
+        const { tenantId }: any = ctx
         const body = await req.json()
         const data = createOrderSchema.parse(body)
 
-        // Check if table already has an open order
         const existingOrder = await prisma.order.findFirst({
-            where: { tableId: data.tableId, status: 'OPEN' },
+            where: { tenantId, tableId: data.tableId, status: 'OPEN' },
         })
         if (existingOrder) {
             return err('โต๊ะนี้มีออเดอร์เปิดอยู่แล้ว')
         }
 
-        // Generate unique order number
+        // Generate unique order number (scoped to tenant)
         let orderNumber = generateOrderNumber()
         let attempts = 0
         while (attempts < 10) {
-            const exists = await prisma.order.findUnique({ where: { orderNumber } })
+            const exists = await prisma.order.findFirst({ where: { tenantId, orderNumber } })
             if (!exists) break
             orderNumber = generateOrderNumber()
             attempts++
@@ -90,6 +89,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
 
         const order = await prisma.order.create({
             data: {
+                tenantId,
                 orderNumber,
                 tableId: data.tableId,
                 createdById: ctx.user?.userId,

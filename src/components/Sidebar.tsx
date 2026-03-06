@@ -3,40 +3,53 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSidebar } from './SidebarContext'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useStoreBranding } from '@/hooks/useStoreBranding'
 
-// ─── Nav items with role guards ──────────────────────────────
-const navItems = [
-    { href: '/pos', icon: '💰', label: 'POS ขายหน้าร้าน', accent: true, roles: ['owner', 'manager', 'cashier'] },
-    { href: '/kitchen', icon: '🍳', label: 'จอครัว (KDS)', accent: true, roles: ['owner', 'manager', 'kitchen', 'bar'] },
-    { href: '/dashboard', icon: '🏠', label: 'Home', roles: ['owner', 'manager', 'cashier', 'warehouse'] },
+// ─── Nav items with permission guards ──────────────────────────
+type NavItem = {
+    href: string
+    icon: string
+    label: string
+    accent?: boolean
+    dividerBefore?: string
+    /** If set, user must have this permission to see this item */
+    permission?: string
+}
+
+const navItems: NavItem[] = [
+    { href: '/pos', icon: '💰', label: 'POS ขายหน้าร้าน', accent: true, permission: 'POS_USE' },
+    { href: '/kitchen', icon: '🍳', label: 'จอครัว (KDS)', accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/dashboard', icon: '🏠', label: 'Home', permission: 'DASHBOARD_VIEW' },
     // ─── เมนูขาย ───
-    { href: '/menu', icon: '🍽️', label: 'เมนูร้าน', dividerBefore: 'เมนู & สต็อค', roles: ['owner', 'manager'] },
-    { href: '/recipes', icon: '📋', label: 'สูตรอาหาร (BOM)', roles: ['owner', 'manager', 'warehouse'] },
+    { href: '/menu', icon: '🍽️', label: 'เมนูร้าน', dividerBefore: 'เมนู & สต็อค', permission: 'MENU_VIEW' },
+    { href: '/recipes', icon: '📋', label: 'สูตรอาหาร (BOM)', permission: 'RECIPE_VIEW' },
     // ─── คลังสต็อค ───
-    { href: '/products', icon: '🥩', label: 'วัตถุดิบ / Stock', roles: ['owner', 'manager', 'warehouse'] },
-    { href: '/inventory', icon: '📦', label: 'สต็อคคลัง', roles: ['owner', 'manager', 'warehouse'] },
-    { href: '/purchase', icon: '🛒', label: 'ซื้อเข้า / GR', roles: ['owner', 'manager', 'warehouse'] },
-    { href: '/transfer', icon: '🔄', label: 'เบิก / โอนคลัง', roles: ['owner', 'manager', 'warehouse'] },
-    { href: '/adjustment', icon: '⚖️', label: 'ปรับสต็อค', roles: ['owner', 'manager', 'warehouse'] },
-    { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย', roles: ['owner', 'manager'] },
-    { href: '/reports', icon: '📈', label: 'Reports', roles: ['owner', 'manager', 'cashier', 'warehouse'] },
-    { href: '/ai-chat', icon: '🤖', label: 'AI Assistant', roles: ['owner', 'manager'] },
+    { href: '/products', icon: '🥩', label: 'วัตถุดิบ / Stock', permission: 'PRODUCT_VIEW' },
+    { href: '/inventory', icon: '📦', label: 'สต็อคคลัง', permission: 'INVENTORY_VIEW' },
+    { href: '/purchase', icon: '🛒', label: 'ซื้อเข้า / GR', permission: 'PURCHASE_VIEW' },
+    { href: '/transfer', icon: '🔄', label: 'เบิก / โอนคลัง', permission: 'TRANSFER_USE' },
+    { href: '/adjustment', icon: '⚖️', label: 'ปรับสต็อค', permission: 'ADJUSTMENT_USE' },
+    { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย', permission: 'SALES_IMPORT' },
+    { href: '/reports', icon: '📈', label: 'Reports', permission: 'REPORT_VIEW' },
+    { href: '/ai-chat', icon: '🤖', label: 'AI Assistant', permission: 'AI_CHAT' },
 ]
 
-const quickItems = [
-    { href: '/quick-receive', icon: '⚡', label: 'รับสินค้าด่วน', roles: ['owner', 'manager', 'warehouse'] },
-    { href: '/quick-waste', icon: '🗑️', label: 'บันทึก Waste', roles: ['owner', 'manager', 'warehouse', 'kitchen', 'bar'] },
-    { href: '/qr-sheets', icon: '🖨️', label: 'พิมพ์ QR Sheet', roles: ['owner', 'manager'] },
+const quickItems: NavItem[] = [
+    { href: '/quick-receive', icon: '⚡', label: 'รับสินค้าด่วน', permission: 'QUICK_RECEIVE' },
+    { href: '/quick-waste', icon: '🗑️', label: 'บันทึก Waste', permission: 'WASTE_LOG' },
+    { href: '/qr-sheets', icon: '🖨️', label: 'พิมพ์ QR Sheet', permission: 'SETTINGS_MANAGE' },
 ]
 
 // ─── Role display config ─────────────────────────────────────
 const ROLE_CONFIG: Record<string, { label: string; color: string }> = {
     owner: { label: '👑 เจ้าของ', color: '#F59E0B' },
     manager: { label: '📊 ผู้จัดการ', color: '#3B82F6' },
+    purchaser: { label: '🛒 ผู้ซื้อ', color: '#0EA5E9' },
     cashier: { label: '💰 แคชเชียร์', color: '#10B981' },
     kitchen: { label: '🍳 ครัว', color: '#EF4444' },
     bar: { label: '🍸 บาร์', color: '#8B5CF6' },
     warehouse: { label: '🏭 คลัง', color: '#6B7280' },
+    viewer: { label: '👁 ดูข้อมูล', color: '#9CA3AF' },
 }
 
 export default function Sidebar() {
@@ -44,6 +57,7 @@ export default function Sidebar() {
     const { collapsed, toggle, mobileOpen, setMobileOpen, isMobile } = useSidebar()
     const currentUser = useCurrentUser()
     const userRole = (currentUser?.role || 'owner').toLowerCase()
+    const branding = useStoreBranding()
 
     const sidebarWidth = collapsed && !isMobile ? 68 : 240
     const showLabels = isMobile ? true : !collapsed
@@ -51,8 +65,10 @@ export default function Sidebar() {
     const isVisible = isMobile ? mobileOpen : true
     if (!isVisible && isMobile) return null
 
-    const filteredNav = navItems.filter(item => !item.roles || item.roles.includes(userRole))
-    const filteredQuick = quickItems.filter(item => !item.roles || item.roles.includes(userRole))
+    const userPermissions = new Set<string>(currentUser?.permissions ?? [])
+
+    const filteredNav = navItems.filter(item => !item.permission || userPermissions.has(item.permission))
+    const filteredQuick = quickItems.filter(item => !item.permission || userPermissions.has(item.permission))
     const roleConfig = ROLE_CONFIG[userRole]
 
     return (
@@ -86,17 +102,30 @@ export default function Sidebar() {
                     transition: 'padding 0.2s ease',
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
-                        <div style={{
-                            width: 36, height: 36, minWidth: 36,
-                            background: 'linear-gradient(135deg, #E8364E, #FF6B81)',
-                            borderRadius: 10,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 18, color: '#fff',
-                            boxShadow: '0 4px 12px rgba(232,54,78,0.3)',
-                        }}>🍽️</div>
+                        {/* Logo icon OR uploaded image */}
+                        {branding.logoUrl ? (
+                            <img
+                                src={branding.logoUrl}
+                                alt="logo"
+                                style={{
+                                    width: 36, height: 36, minWidth: 36,
+                                    borderRadius: 10, objectFit: 'cover',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                }}
+                            />
+                        ) : (
+                            <div style={{
+                                width: 36, height: 36, minWidth: 36,
+                                background: 'linear-gradient(135deg, #E8364E, #FF6B81)',
+                                borderRadius: 10,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 18, color: '#fff',
+                                boxShadow: '0 4px 12px rgba(232,54,78,0.3)',
+                            }}>🍽️</div>
+                        )}
                         {showLabels && (
                             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                                <p style={{ color: '#1A1D26', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>43 Garden</p>
+                                <p style={{ color: '#1A1D26', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>{branding.displayName}</p>
                                 <p style={{ color: '#9CA3AF', fontSize: '0.65rem', letterSpacing: '0.04em' }}>Stock System</p>
                             </div>
                         )}
@@ -218,8 +247,8 @@ export default function Sidebar() {
                         </>
                     )}
 
-                    {/* Settings — owner only */}
-                    {['owner'].includes(userRole) && (
+                    {/* Settings — SETTINGS_MANAGE permission required */}
+                    {userPermissions.has('SETTINGS_MANAGE') && (
                         <Link href="/settings" onClick={() => isMobile && setMobileOpen(false)}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 10,

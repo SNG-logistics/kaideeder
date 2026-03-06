@@ -2,6 +2,170 @@
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
+import { usePermission } from '@/hooks/usePermission'
+import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBranding'
+
+// ─── Store Branding Card ─────────────────────────────────────
+function StoreBrandingCard() {
+    const canManage = usePermission('SETTINGS_MANAGE')
+    const branding = useStoreBranding()
+    const [name, setName] = useState('')
+    const [saving, setSaving] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const [preview, setPreview] = useState<string | null>(null)
+    const fileRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        setName(branding.displayName)
+        setPreview(branding.logoUrl)
+    }, [branding.displayName, branding.logoUrl])
+
+    async function saveName() {
+        if (!name.trim()) return
+        setSaving(true)
+        const res = await fetch('/api/settings/store', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ displayName: name.trim() }),
+        })
+        const d = await res.json()
+        setSaving(false)
+        if (d.success) {
+            clearStoreBrandingCache()
+            toast.success('✅ บันทึกชื่อร้านแล้ว')
+        } else toast.error(d.error || 'เกิดข้อผิดพลาด')
+    }
+
+    async function handleLogoFile(file: File) {
+        if (!file) return
+        // Show preview
+        const url = URL.createObjectURL(file)
+        setPreview(url)
+        // Upload
+        setUploading(true)
+        const fd = new FormData()
+        fd.append('logo', file)
+        const res = await fetch('/api/settings/store/logo', { method: 'POST', body: fd })
+        const d = await res.json()
+        setUploading(false)
+        if (d.success) {
+            clearStoreBrandingCache()
+            setPreview(d.data.logoUrl + '?t=' + Date.now()) // cache-bust
+            toast.success('✅ อัปโหลดโลโก้สำเร็จ')
+        } else toast.error(d.error || 'อัปโหลดไม่สำเร็จ')
+    }
+
+    function onDrop(e: React.DragEvent) {
+        e.preventDefault()
+        const f = e.dataTransfer.files[0]
+        if (f) handleLogoFile(f)
+    }
+
+    if (!canManage) return null
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(232,54,78,0.2)', background: 'rgba(232,54,78,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🏡</span> Brand ชื่อร้าน & โลโก้
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>ชื่อและโลโก้จะแสดงใน Sidebar และหน้า login</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 24, alignItems: 'start' }}>
+                {/* Logo upload zone */}
+                <div>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>🖼️ โลโก้ร้าน</p>
+                    <div
+                        onClick={() => fileRef.current?.click()}
+                        onDrop={onDrop}
+                        onDragOver={e => e.preventDefault()}
+                        style={{
+                            width: 100, height: 100, borderRadius: 16,
+                            border: '2px dashed var(--border)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', overflow: 'hidden', position: 'relative',
+                            background: 'var(--bg)', transition: 'border-color 0.2s',
+                        }}
+                    >
+                        {uploading ? (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>⏳<br />อัปโหลด...</div>
+                        ) : preview ? (
+                            <img src={preview} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.7rem', padding: '0.5rem' }}>
+                                <div style={{ fontSize: '1.8rem', marginBottom: 4 }}>🖼️</div>
+                                คลิก/ลากวาง
+                            </div>
+                        )}
+                        {preview && !uploading && (
+                            <div style={{
+                                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                opacity: 0, transition: 'opacity 0.2s, background 0.2s',
+                                fontSize: '1.2rem',
+                            }}
+                                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(0,0,0,0.4)' }}
+                                onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.background = 'rgba(0,0,0,0)' }}
+                            >🔄
+                            </div>
+                        )}
+                    </div>
+                    <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+                        style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoFile(f) }}
+                    />
+                    <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 6, maxWidth: 100 }}>JPG/PNG/WEBP max 5MB</p>
+                </div>
+
+                {/* Store name */}
+                <div>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>🏠 ชื่อร้าน (แสดงใน UI)</p>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && saveName()}
+                            placeholder="ชื่อร้านของคุณ..."
+                            className="input"
+                            maxLength={100}
+                            style={{ flex: 1 }}
+                        />
+                        <button
+                            onClick={saveName}
+                            disabled={saving || !name.trim()}
+                            className="btn-primary"
+                            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+                        >
+                            {saving ? '⏳...' : '💾 บันทึก'}
+                        </button>
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                        ชื่อปัจจุบัน: <strong>{branding.displayName}</strong>
+                    </p>
+                    {preview && (
+                        <button
+                            onClick={async () => {
+                                const res = await fetch('/api/settings/store', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ logoUrl: null }),
+                                })
+                                const d = await res.json()
+                                if (d.success) { clearStoreBrandingCache(); setPreview(null); toast.success('ลบโลโก้แล้ว') }
+                            }}
+                            style={{ marginTop: 8, background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.72rem', cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                            🗑️ ลบโลโก้
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
 
 const sysInfo = [
     { label: 'Framework', value: 'Next.js 14', icon: '⚡' },
@@ -295,6 +459,26 @@ export default function SettingsPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* ── Brand ── */}
+                <StoreBrandingCard />
+
+                {/* ── User Management ── */}
+                <div className="card" style={{ borderColor: 'rgba(59,130,246,0.25)', background: 'rgba(59,130,246,0.03)' }}>
+                    <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}><span>👥</span> จัดการผู้ใช้ (User Management)</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>เพิ่ม/แก้ไข/ปิดใช้งานผู้ใช้ในร้าน — กำหนด Role และสิทธิ์การเข้าถึง</p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--white)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.2)' }}>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: 2 }}>👤 บัญชีพนักงานและสิทธิ์การใช้งาน</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Roles: Owner · Manager · Purchaser · Warehouse · Kitchen · Bar · Cashier · Viewer</div>
+                        </div>
+                        <a href="/settings/users"
+                            style={{ background: 'transparent', border: '1.5px solid rgba(59,130,246,0.5)', color: '#3B82F6', padding: '0.5rem 1.25rem', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 12, textDecoration: 'none', transition: 'all 0.15s', display: 'inline-block' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#3B82F6'; e.currentTarget.style.color = '#fff' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#3B82F6' }}
+                        >👥 จัดการ Users →</a>
+                    </div>
+                </div>
 
                 {/* ── Store Info ── */}
                 <div className="card">

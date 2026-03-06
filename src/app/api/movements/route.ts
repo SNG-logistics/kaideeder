@@ -4,12 +4,13 @@ import { withAuth, ok } from '@/lib/api'
 
 // GET /api/movements — Stock movement history
 export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
+    const { tenantId } = context
     const url = new URL(req.url)
     const productId = url.searchParams.get('productId')
     const type = url.searchParams.get('type')
     const limit = parseInt(url.searchParams.get('limit') || '100')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { tenantId }
     if (productId) where.productId = productId
     if (type) where.type = type
 

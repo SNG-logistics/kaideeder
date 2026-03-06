@@ -4,9 +4,10 @@ import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
 // GET /api/pos/tables — list all tables with current order info
-export const GET = withAuth(async () => {
+export const GET = withAuth(async (_req, context) => {
+    const { tenantId } = context as any
     const tables = await prisma.diningTable.findMany({
-        where: { isActive: true },
+        where: { tenantId, isActive: true },
         orderBy: { number: 'asc' },
         include: {
             orders: {
@@ -30,20 +31,23 @@ const updateTableSchema = z.object({
 })
 
 // POST /api/pos/tables — update table status
-export const POST = withAuth(async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, context) => {
     try {
+        const { tenantId } = context as any
         const body = await req.json()
         const data = updateTableSchema.parse(body)
 
+        // Verify table belongs to tenant
+        const existing = await prisma.diningTable.findUnique({ where: { id: data.id } })
+        if (!existing || (existing as any).tenantId !== tenantId) return err('Not found', 404)
+
         const table = await prisma.diningTable.update({
             where: { id: data.id },
-            data: {
-                ...(data.status && { status: data.status }),
-            },
+            data: { ...(data.status && { status: data.status }) },
         })
         return ok(table)
-    } catch (error) {
-        if (error instanceof z.ZodError) return err(error.errors.map(e => e.message).join(', '))
+    } catch (error: any) {
+        if (error?.name === 'ZodError') return err(error.errors.map((e: any) => e.message).join(', '))
         return err('เกิดข้อผิดพลาด')
     }
 }, ['OWNER', 'MANAGER', 'CASHIER'])

@@ -9,6 +9,7 @@ const cancelSchema = z.object({
 
 // POST /api/kitchen/items/[itemId]/cancel — Manager/Owner cancels item
 export const POST = withAuth(async (req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
     const params = await ctx.params
     const itemId = params?.itemId
     if (!itemId) return err('Missing itemId')
@@ -23,6 +24,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         })
 
         if (!item) return err('ไม่พบรายการ', 404)
+        if ((item.order as any).tenantId !== tenantId) return err('ไม่พบรายการ', 404)
         if (item.isCancelled) return err('รายการนี้ถูกยกเลิกแล้ว')
         if (item.kitchenStatus === 'SERVED') return err('รายการเสิร์ฟแล้ว ไม่สามารถยกเลิกได้')
 

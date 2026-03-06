@@ -9,6 +9,7 @@ const statusSchema = z.object({
 
 // PATCH /api/kitchen/items/[itemId]/status — Kitchen updates item status
 export const PATCH = withAuth(async (req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
     const params = await ctx.params
     const itemId = params?.itemId
     if (!itemId) return err('Missing itemId')
@@ -24,7 +25,9 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
 
         if (!item) return err('ไม่พบรายการ', 404)
         if (item.isCancelled) return err('รายการนี้ถูกยกเลิกแล้ว')
+        if ((item.order as any).tenantId !== tenantId) return err('ไม่พบรายการ', 404)
         if (item.order.status !== 'OPEN') return err('ออเดอร์ปิดแล้ว')
+
 
         // Validate status transition
         const validTransitions: Record<string, string[]> = {

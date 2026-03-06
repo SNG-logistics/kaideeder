@@ -6,6 +6,8 @@ export interface CurrentUser {
     username: string
     role: string
     name: string
+    tenantId?: string
+    permissions: string[]
 }
 
 // Module-level cache — persists across client navigations
@@ -27,7 +29,11 @@ export function useCurrentUser(): CurrentUser | null {
             .then(j => {
                 if (j.success) {
                     // Normalize role to lowercase — JWT may store 'OWNER', 'MANAGER', etc.
-                    const data: CurrentUser = { ...j.data, role: (j.data.role || '').toLowerCase() }
+                    const data: CurrentUser = {
+                        ...j.data,
+                        role: (j.data.role || '').toLowerCase(),
+                        permissions: j.data.permissions ?? [],
+                    }
                     cachedUser = data
                     setUser(data)
                 }

@@ -10,7 +10,8 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     const search = url.searchParams.get('search') || ''
     const lowOnly = url.searchParams.get('lowOnly') === 'true'
 
-    const where: Record<string, unknown> = {}
+    const { tenantId } = context
+    const where: Record<string, unknown> = { tenantId }
     if (locationId) where.locationId = locationId
     if (search) {
         where.product = {

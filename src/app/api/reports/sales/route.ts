@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 
 // GET /api/reports/sales?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
+  const { tenantId } = context as any
   const url = new URL(req.url)
   const startDate = url.searchParams.get('startDate')
   const endDate = url.searchParams.get('endDate')
@@ -17,7 +18,7 @@ export const GET = withAuth(async (req: NextRequest) => {
 
   try {
     const orders = await prisma.order.findMany({
-      where: { closedAt: { gte: start, lte: end }, status: 'CLOSED' },
+      where: { tenantId, closedAt: { gte: start, lte: end }, status: 'CLOSED' },
       include: {
         payments: true,
         items: {

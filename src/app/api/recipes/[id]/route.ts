@@ -18,14 +18,17 @@ const recipeSchema = z.object({
 // PUT /api/recipes/[id] — แก้ไขสูตร (ลบ BOM เก่าทั้งหมดแล้วสร้างใหม่)
 export const PUT = withAuth(async (req: NextRequest, ctx) => {
     try {
+        const { tenantId } = ctx as any
         const params = await ctx.params
         const id = params?.id
         if (!id) return err('ไม่พบ ID')
         const body = await req.json()
         const data = recipeSchema.parse(body)
 
+        const existing = await prisma.recipe.findFirst({ where: { id, tenantId } })
+        if (!existing) return err('ไม่พบสูตร', 404)
+
         const recipe = await prisma.$transaction(async (tx) => {
-            // ลบ BOM เก่าทั้งหมด
             await tx.recipeBOM.deleteMany({ where: { recipeId: id } })
 
             // อัปเดต recipe + สร้าง BOM ใหม่
@@ -59,9 +62,13 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
 // DELETE /api/recipes/[id] — ลบสูตร (soft delete)
 export const DELETE = withAuth(async (_req: NextRequest, ctx) => {
     try {
+        const { tenantId } = ctx as any
         const params = await ctx.params
         const id = params?.id
         if (!id) return err('ไม่พบ ID')
+
+        const existing = await prisma.recipe.findFirst({ where: { id, tenantId } })
+        if (!existing) return err('ไม่พบสูตร', 404)
 
         await prisma.recipe.update({
             where: { id },

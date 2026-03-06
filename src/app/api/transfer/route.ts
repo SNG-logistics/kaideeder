@@ -15,8 +15,10 @@ const transferSchema = z.object({
 })
 
 // GET /api/transfer
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, context) => {
+    const { tenantId } = context as any
     const transfers = await prisma.stockTransfer.findMany({
+        where: { tenantId },
         orderBy: { createdAt: 'desc' },
         take: 50,
         include: {
@@ -31,7 +33,7 @@ export const GET = withAuth(async (req: NextRequest) => {
 })
 
 // POST /api/transfer — เบิก/โอนระหว่างคลัง
-export const POST = withAuth(async (req: NextRequest, { user }) => {
+export const POST = withAuth(async (req: NextRequest, { user, tenantId }: any) => {
     try {
         const body = await req.json()
         const data = transferSchema.parse(body)
@@ -43,6 +45,7 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
         const result = await prisma.$transaction(async (tx) => {
             const transfer = await tx.stockTransfer.create({
                 data: {
+                    tenantId,
                     fromLocationId: data.fromLocationId,
                     toLocationId: data.toLocationId,
                     status: TransferStatus.COMPLETED,
@@ -50,6 +53,7 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                     requestedById: user?.userId,
                     items: {
                         create: data.items.map(item => ({
+                            tenantId,
                             productId: item.productId,
                             quantity: item.quantity,
                         })),
@@ -89,6 +93,7 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                     where: { productId_locationId: { productId: item.productId, locationId: data.toLocationId } },
                     update: { quantity: { increment: item.quantity }, avgCost: mergedAvgCost },
                     create: {
+                        tenantId,
                         productId: item.productId,
                         locationId: data.toLocationId,
                         quantity: item.quantity,
@@ -100,6 +105,7 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                 // Stock movement
                 await tx.stockMovement.create({
                     data: {
+                        tenantId,
                         productId: item.productId,
                         fromLocationId: data.fromLocationId,
                         toLocationId: data.toLocationId,

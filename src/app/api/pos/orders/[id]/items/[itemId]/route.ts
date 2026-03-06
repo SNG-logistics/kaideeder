@@ -4,13 +4,14 @@ import { withAuth, ok, err } from '@/lib/api'
 
 // DELETE /api/pos/orders/[id]/items/[itemId] — cancel an item
 export const DELETE = withAuth(async (_req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
     const params = await ctx.params
     const orderId = params?.id
     const itemId = params?.itemId
     if (!orderId || !itemId) return err('Missing ids')
 
     try {
-        const order = await prisma.order.findUnique({ where: { id: orderId } })
+        const order = await prisma.order.findFirst({ where: { id: orderId, tenantId } })
         if (!order) return err('ไม่พบออเดอร์', 404)
         if (order.status !== 'OPEN') return err('ออเดอร์ปิดแล้ว ไม่สามารถยกเลิกรายการ')
 
