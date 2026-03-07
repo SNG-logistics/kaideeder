@@ -1,7 +1,7 @@
 {
-  "name": "stock43",
+  "name": "kaideeder-pos",
   "version": "1.0.0",
-  "description": "43 Garden Stock Management System",
+  "description": "KAIDEEDER.com — Restaurant POS & Stock Management System",
   "private": true,
   "scripts": {
     "dev": "next dev",

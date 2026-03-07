@@ -127,6 +127,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         // Create payment record
         await prisma.payment.create({
             data: {
+                tenantId,
                 orderId: id,
                 method: data.paymentMethod,
                 amount: totalAmount,
@@ -147,6 +148,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         // === CREATE SALES EVENT ===
         await prisma.salesEvent.create({
             data: {
+                tenantId,
                 orderId: id,
                 occurredAt: new Date(),
                 payload: {

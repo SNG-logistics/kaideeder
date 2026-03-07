@@ -9,24 +9,22 @@ type Plan = {
     priceLAK: number
     durationDays: number
     isActive: boolean
+    _count?: { subs: number }
 }
 
 const fmt = (n: number) => n.toLocaleString()
+
+const PLAN_ICONS = ['📦', '🥈', '🥇', '💎', '🚀', '⭐']
+
+const defaultForm = { code: '', name: '', priceLAK: 0, durationDays: 30 }
 
 export default function PlansPage() {
     const [plans, setPlans] = useState<Plan[]>([])
     const [loading, setLoading] = useState(true)
     const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
-    // New plan form
-    const [showForm, setShowForm] = useState(false)
+    const [showModal, setShowModal] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [form, setForm] = useState({
-        code: '',
-        name: '',
-        priceLAK: 0,
-        durationDays: 30,
-    })
+    const [form, setForm] = useState(defaultForm)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -49,110 +47,193 @@ export default function PlansPage() {
         const d = await res.json()
         setSaving(false)
         if (d.success) {
-            setMsg({ ok: true, text: `Plan "${form.name}" created` })
-            setForm({ code: '', name: '', priceLAK: 0, durationDays: 30 })
-            setShowForm(false)
+            setMsg({ ok: true, text: `✅ สร้าง Plan "${form.name}" แล้ว` })
+            setForm(defaultForm)
+            setShowModal(false)
             load()
         } else {
             setMsg({ ok: false, text: d.error ?? 'Error' })
         }
     }
 
-    const field = (key: keyof typeof form) => ({
-        value: form[key],
-        onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [key]: e.target.value })),
-        className: 'bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2 w-full focus:outline-none focus:border-blue-500',
-    })
+    const inputStyle = {
+        width: '100%', background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 10, padding: '0.6rem 1rem',
+        fontSize: '0.875rem', color: '#e2e8f0', outline: 'none',
+        boxSizing: 'border-box' as const,
+    }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">Plans</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>📦 Plans</h1>
+                    <p style={{ color: '#475569', fontSize: '0.875rem' }}>{plans.length} แผนบริการในระบบ</p>
+                </div>
                 <button
-                    onClick={() => setShowForm(v => !v)}
-                    className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-                >
-                    {showForm ? 'Cancel' : '+ New Plan'}
-                </button>
+                    onClick={() => { setShowModal(true); setMsg(null) }}
+                    style={{
+                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        border: 'none', color: '#fff', fontWeight: 700,
+                        padding: '0.6rem 1.25rem', borderRadius: 10,
+                        fontSize: '0.875rem', cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
+                    }}
+                >+ New Plan</button>
             </div>
 
             {/* Toast */}
             {msg && (
-                <div className={`px-4 py-3 rounded-lg text-sm ${msg.ok ? 'bg-emerald-900/50 text-emerald-300' : 'bg-red-900/50 text-red-300'}`}>
+                <div style={{
+                    padding: '0.875rem 1.25rem', borderRadius: 12, fontSize: '0.875rem',
+                    background: msg.ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                    border: `1px solid ${msg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                    color: msg.ok ? '#10b981' : '#ef4444',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
                     {msg.text}
-                    <button onClick={() => setMsg(null)} className="ml-3 opacity-60 hover:opacity-100">✕</button>
+                    <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', opacity: 0.6, fontSize: '1rem' }}>✕</button>
                 </div>
             )}
 
-            {/* New plan form */}
-            {showForm && (
-                <form onSubmit={handleCreate} className="bg-gray-900 border border-blue-700 rounded-xl p-6 space-y-4">
-                    <h2 className="text-base font-semibold">New Plan</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Code</label>
-                            <input {...field('code')} placeholder="MONTHLY" required />
+            {/* Plan Cards */}
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: '#475569' }}>⏳ Loading...</div>
+            ) : plans.length === 0 ? (
+                <div style={{
+                    textAlign: 'center', padding: '4rem',
+                    background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 16, color: '#334155',
+                }}>
+                    <div style={{ fontSize: '3rem', marginBottom: 12 }}>📦</div>
+                    <p style={{ color: '#475569' }}>ยังไม่มี Plan — กด New Plan เพื่อสร้าง</p>
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                    {plans.map((p, i) => (
+                        <div key={p.id} style={{
+                            background: 'rgba(255,255,255,0.02)',
+                            border: p.isActive ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: 16, padding: '1.5rem',
+                            display: 'flex', flexDirection: 'column', gap: 12,
+                            position: 'relative', overflow: 'hidden',
+                        }}>
+                            {/* Active glow */}
+                            {p.isActive && (
+                                <div style={{
+                                    position: 'absolute', top: 0, right: 0,
+                                    width: 120, height: 120,
+                                    background: 'radial-gradient(circle, rgba(99,102,241,0.12), transparent)',
+                                    pointerEvents: 'none',
+                                }} />
+                            )}
+
+                            {/* Plan icon + status */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{
+                                    width: 48, height: 48, borderRadius: 12,
+                                    background: p.isActive ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 24,
+                                }}>{PLAN_ICONS[i % PLAN_ICONS.length]}</div>
+                                <span style={{
+                                    fontSize: '0.7rem', fontWeight: 700, padding: '0.25rem 0.75rem',
+                                    borderRadius: 999, border: '1px solid',
+                                    color: p.isActive ? '#10b981' : '#475569',
+                                    background: p.isActive ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)',
+                                    borderColor: p.isActive ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)',
+                                }}>{p.isActive ? '✅ Active' : 'Inactive'}</span>
+                            </div>
+
+                            {/* Name + code */}
+                            <div>
+                                <p style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '1.1rem' }}>{p.name}</p>
+                                <p style={{ color: '#475569', fontSize: '0.75rem', fontFamily: 'monospace' }}>{p.code}</p>
+                            </div>
+
+                            {/* Price */}
+                            <div style={{
+                                background: 'rgba(245,158,11,0.06)',
+                                border: '1px solid rgba(245,158,11,0.15)',
+                                borderRadius: 10, padding: '0.75rem 1rem',
+                            }}>
+                                <p style={{ color: '#f59e0b', fontSize: '1.4rem', fontWeight: 800, fontFamily: 'monospace' }}>
+                                    {fmt(p.priceLAK)}
+                                </p>
+                                <p style={{ color: '#64748b', fontSize: '0.72rem' }}>LAK / {p.durationDays} วัน</p>
+                            </div>
+
+                            {/* Subs count */}
+                            {p._count !== undefined && (
+                                <p style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                                    🏬 {p._count.subs} ร้านใช้งานอยู่
+                                </p>
+                            )}
                         </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Name</label>
-                            <input {...field('name')} placeholder="Monthly Plan" required />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Price (LAK)</label>
-                            <input {...field('priceLAK')} type="number" min={0} required />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Duration (days)</label>
-                            <input {...field('durationDays')} type="number" min={1} required />
-                        </div>
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm px-5 py-2 rounded-lg transition"
-                    >
-                        {saving ? 'Saving…' : 'Create Plan'}
-                    </button>
-                </form>
+                    ))}
+                </div>
             )}
 
-            {/* Plans table */}
-            {loading ? (
-                <p className="text-gray-500">Loading…</p>
-            ) : (
-                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b border-gray-800 text-gray-400 text-left">
-                                <th className="px-5 py-3 font-medium">Plan</th>
-                                <th className="px-5 py-3 font-medium text-right">Price (LAK)</th>
-                                <th className="px-5 py-3 font-medium text-right">Duration</th>
-                                <th className="px-5 py-3 font-medium">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800">
-                            {plans.length === 0 ? (
-                                <tr><td colSpan={4} className="text-center text-gray-600 py-12">No plans yet — create one above</td></tr>
-                            ) : plans.map(p => (
-                                <tr key={p.id} className="hover:bg-gray-800/40 transition">
-                                    <td className="px-5 py-4">
-                                        <p className="font-medium text-white">{p.name}</p>
-                                        <p className="text-xs font-mono text-gray-500">{p.code}</p>
-                                    </td>
-                                    <td className="px-5 py-4 text-right font-mono text-white">{fmt(p.priceLAK)}</td>
-                                    <td className="px-5 py-4 text-right text-gray-400">{p.durationDays} days</td>
-                                    <td className="px-5 py-4">
-                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${p.isActive
-                                            ? 'bg-emerald-900/50 text-emerald-300 border-emerald-700'
-                                            : 'bg-gray-800 text-gray-500 border-gray-700'
-                                            }`}>
-                                            {p.isActive ? 'Active' : 'Inactive'}
-                                        </span>
-                                    </td>
-                                </tr>
+            {/* Create plan modal */}
+            {showModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 999,
+                    background: 'rgba(0,0,0,0.7)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '1rem',
+                }} onClick={() => setShowModal(false)}>
+                    <form
+                        onSubmit={handleCreate}
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: '#0f1221', border: '1px solid rgba(99,102,241,0.4)',
+                            borderRadius: 20, padding: '2rem',
+                            width: '100%', maxWidth: 480,
+                            display: 'flex', flexDirection: 'column', gap: 20,
+                            boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '1.25rem' }}>📦 สร้าง Plan ใหม่</h2>
+                            <button type="button" onClick={() => setShowModal(false)}
+                                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.25rem', cursor: 'pointer' }}>✕</button>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                            {[
+                                { key: 'code', label: 'Plan Code', placeholder: 'MONTHLY', type: 'text' },
+                                { key: 'name', label: 'Plan Name', placeholder: 'Monthly Plan', type: 'text' },
+                                { key: 'priceLAK', label: 'ราคา (LAK)', placeholder: '200000', type: 'number' },
+                                { key: 'durationDays', label: 'ระยะเวลา (วัน)', placeholder: '30', type: 'number' },
+                            ].map(f => (
+                                <div key={f.key}>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', marginBottom: 6, fontWeight: 600 }}>{f.label}</label>
+                                    <input
+                                        type={f.type}
+                                        placeholder={f.placeholder}
+                                        value={(form as any)[f.key]}
+                                        onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                        required
+                                        style={inputStyle}
+                                    />
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            style={{
+                                background: saving ? 'rgba(99,102,241,0.5)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                border: 'none', color: '#fff', fontWeight: 700,
+                                padding: '0.75rem', borderRadius: 12,
+                                fontSize: '0.95rem', cursor: saving ? 'not-allowed' : 'pointer',
+                                boxShadow: '0 4px 16px rgba(99,102,241,0.35)',
+                            }}
+                        >{saving ? '⏳ กำลังสร้าง...' : '📦 สร้าง Plan'}</button>
+                    </form>
                 </div>
             )}
         </div>

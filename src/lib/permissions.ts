@@ -61,6 +61,9 @@ export const PERMISSIONS = {
 
     // Billing (owner only)
     BILLING_VIEW: 'BILLING_VIEW',
+
+    // Waiter
+    WAITER_VIEW: 'WAITER_VIEW',
 } as const
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS]
@@ -116,8 +119,14 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
 
     CASHIER: [
         'POS_USE',
+        'KITCHEN_VIEW',
         'DASHBOARD_VIEW',
         'REPORT_VIEW',
+    ],
+
+    WAITER: [
+        'WAITER_VIEW',
+        'KITCHEN_VIEW',
     ],
 
     VIEWER: [

@@ -102,6 +102,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                         const catName = (prod?.category?.name || '').toLowerCase()
                         const isBar = BAR_CODES.some(c => catCode.includes(c)) || BAR_KEYWORDS.some(k => catName.includes(k))
                         return {
+                            tenantId,
                             productId: item.productId,
                             quantity: item.quantity,
                             unitPrice: item.unitPrice,

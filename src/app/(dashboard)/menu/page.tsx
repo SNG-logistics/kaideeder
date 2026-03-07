@@ -56,9 +56,10 @@ export default function MenuPage() {
     }, [])
 
     useEffect(() => {
-        if (activeTab === 'food') setCategories(allCategories.filter(c => FOOD_CODES.includes(c.code)))
-        else if (activeTab === 'drink') setCategories(allCategories.filter(c => DRINK_CODES.includes(c.code)))
-        else setCategories(allCategories.filter(c => [...FOOD_CODES, ...DRINK_CODES].includes(c.code)))
+        const isCustom = (code: string) => code.startsWith('CUSTOM_')
+        if (activeTab === 'food') setCategories(allCategories.filter(c => FOOD_CODES.includes(c.code) || isCustom(c.code)))
+        else if (activeTab === 'drink') setCategories(allCategories.filter(c => DRINK_CODES.includes(c.code) || isCustom(c.code)))
+        else setCategories(allCategories.filter(c => [...FOOD_CODES, ...DRINK_CODES].includes(c.code) || isCustom(c.code)))
         setSelectedCat('')
     }, [activeTab, allCategories])
 
@@ -66,8 +67,8 @@ export default function MenuPage() {
     const menuProducts = products
         .filter(p => ['SALE_ITEM', 'ENTERTAIN'].includes(p.productType))
         .filter(p => {
-            if (activeTab === 'food') return FOOD_CODES.includes(p.category?.code)
-            if (activeTab === 'drink') return DRINK_CODES.includes(p.category?.code)
+            if (activeTab === 'food') return FOOD_CODES.includes(p.category?.code) || p.category?.code?.startsWith('CUSTOM_')
+            if (activeTab === 'drink') return DRINK_CODES.includes(p.category?.code) || p.category?.code?.startsWith('CUSTOM_')
             return true
         })
         .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()))
@@ -387,13 +388,13 @@ function MenuProductModal({ product, categories, onClose, onSaved }: {
 }) {
     const isEdit = !!product
     const MENU_CATS = [...FOOD_CODES, ...DRINK_CODES]
-    const menuCategories = categories.filter(c => MENU_CATS.includes(c.code))
+    const menuCategories = categories.filter(c => MENU_CATS.includes(c.code) || c.code.startsWith('CUSTOM_'))
 
     const [form, setForm] = useState({
         sku: product?.sku || '',
         name: product?.name || '',
         categoryId: product?.category?.id || menuCategories[0]?.id || categories[0]?.id || '',
-        productType: product?.productType || 'SALE_ITEM',   // default เมนูขาย
+        productType: product?.productType || 'SALE_ITEM',
         unit: product?.unit || 'จาน',
         costPrice: product?.costPrice || 0,
         salePrice: product?.salePrice || 0,
@@ -403,6 +404,56 @@ function MenuProductModal({ product, categories, onClose, onSaved }: {
     })
     const [saving, setSaving] = useState(false)
     const [skuLoading, setSkuLoading] = useState(false)
+
+    // ── Combobox state for category ──────────────────────────────────
+    const [catSearch, setCatSearch] = useState(
+        () => product?.category?.name || menuCategories[0]?.name || ''
+    )
+    const [catOpen, setCatOpen] = useState(false)
+    const [creatingCat, setCreatingCat] = useState(false)
+    const catRef = useRef<HTMLDivElement>(null)
+
+    const filteredCats = menuCategories.filter(c =>
+        c.name.toLowerCase().includes(catSearch.toLowerCase()) ||
+        c.code.toLowerCase().includes(catSearch.toLowerCase())
+    )
+    const isNewCat = catSearch.trim() !== '' &&
+        !menuCategories.some(c => c.name.toLowerCase() === catSearch.trim().toLowerCase())
+
+    useEffect(() => {
+        function handler(e: MouseEvent) {
+            if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    async function handleCreateCategory(name: string) {
+        if (!name.trim() || creatingCat) return
+        setCreatingCat(true)
+        try {
+            const res = await fetch('/api/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim() }),
+            })
+            const j = await res.json()
+            if (j.success || j.data) {
+                const cat = j.data
+                setForm(f => ({ ...f, categoryId: cat.id }))
+                setCatSearch(cat.name)
+                setCatOpen(false)
+                toast.success(`✅ สร้างหมวด "${cat.name}" แล้ว`)
+            } else {
+                toast.error(j.error || 'สร้างหมวดไม่สำเร็จ')
+            }
+        } catch {
+            toast.error('เกิดข้อผิดพลาด')
+        } finally {
+            setCreatingCat(false)
+        }
+    }
+    // ────────────────────────────────────────────────────────────────
 
     useEffect(() => {
         if (isEdit || !form.categoryId) return
@@ -414,6 +465,7 @@ function MenuProductModal({ product, categories, onClose, onSaved }: {
 
     async function handleSave() {
         if (!form.name.trim()) { toast.error('กรุณากรอกชื่อเมนู'); return }
+        if (!form.categoryId) { toast.error('กรุณาเลือกหมวดเมนู'); return }
         setSaving(true)
         try {
             const url = isEdit ? `/api/products/${product.id}` : '/api/products'
@@ -467,12 +519,78 @@ function MenuProductModal({ product, categories, onClose, onSaved }: {
                         </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div>
+                        <div ref={catRef} style={{ position: 'relative' }}>
                             <label className="label">หมวดเมนู</label>
-                            <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
-                                className="input" style={{ minHeight: 40 }}>
-                                {menuCategories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-                            </select>
+                            <div
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    border: '1px solid var(--border)', borderRadius: 8,
+                                    background: 'var(--white)', padding: '0 8px',
+                                    minHeight: 40, cursor: 'text',
+                                }}
+                                onClick={() => setCatOpen(true)}
+                            >
+                                <span style={{ fontSize: '1rem', flexShrink: 0 }}>
+                                    {menuCategories.find(c => c.id === form.categoryId)?.icon || '🏷️'}
+                                </span>
+                                <input
+                                    value={catSearch}
+                                    onChange={e => { setCatSearch(e.target.value); setCatOpen(true) }}
+                                    onFocus={() => setCatOpen(true)}
+                                    placeholder="ค้นหา หรือพิมพ์ชื่อหมวดใหม่..."
+                                    style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '0.875rem', fontFamily: 'inherit' }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Escape') setCatOpen(false)
+                                        if (e.key === 'Enter' && isNewCat) {
+                                            e.preventDefault()
+                                            handleCreateCategory(catSearch.trim())
+                                        }
+                                    }}
+                                />
+                                <span style={{ color: '#9CA3AF', fontSize: '0.65rem', flexShrink: 0 }}>▼</span>
+                            </div>
+                            {catOpen && (
+                                <div style={{
+                                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                                    background: '#fff', border: '1px solid var(--border)',
+                                    borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                    zIndex: 100, maxHeight: 200, overflowY: 'auto',
+                                }}>
+                                    {filteredCats.map(c => (
+                                        <div
+                                            key={c.id}
+                                            onClick={() => { setForm(f => ({ ...f, categoryId: c.id })); setCatSearch(c.name); setCatOpen(false) }}
+                                            style={{
+                                                padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                                                background: form.categoryId === c.id ? '#F0FDF4' : 'transparent',
+                                                fontWeight: form.categoryId === c.id ? 700 : 400, fontSize: '0.85rem',
+                                            }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = form.categoryId === c.id ? '#F0FDF4' : 'transparent')}
+                                        >
+                                            <span>{c.icon || '🏷️'}</span>
+                                            <span>{c.name}</span>
+                                            {form.categoryId === c.id && <span style={{ marginLeft: 'auto', color: '#059669' }}>✓</span>}
+                                        </div>
+                                    ))}
+                                    {isNewCat && (
+                                        <div
+                                            onClick={() => handleCreateCategory(catSearch.trim())}
+                                            style={{
+                                                padding: '9px 12px', cursor: creatingCat ? 'wait' : 'pointer',
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                borderTop: '1px dashed #D1FAE5', color: '#059669',
+                                                fontWeight: 700, fontSize: '0.85rem',
+                                            }}
+                                        >
+                                            {creatingCat ? '⏳' : '✅'} สร้างหมวดใหม่: &ldquo;{catSearch.trim()}&rdquo;
+                                        </div>
+                                    )}
+                                    {filteredCats.length === 0 && !isNewCat && (
+                                        <div style={{ padding: '12px', color: '#9CA3AF', textAlign: 'center', fontSize: '0.82rem' }}>ไม่พบหมวด</div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="label">ประเภท</label>

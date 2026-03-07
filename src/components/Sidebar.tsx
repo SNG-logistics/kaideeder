@@ -4,6 +4,9 @@ import { usePathname } from 'next/navigation'
 import { useSidebar } from './SidebarContext'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
+const TableManagerPanel = dynamic(() => import('./TableManagerPanel'), { ssr: false })
 
 // ─── Nav items with permission guards ──────────────────────────
 type NavItem = {
@@ -19,6 +22,7 @@ type NavItem = {
 const navItems: NavItem[] = [
     { href: '/pos', icon: '💰', label: 'POS ขายหน้าร้าน', accent: true, permission: 'POS_USE' },
     { href: '/kitchen', icon: '🍳', label: 'จอครัว (KDS)', accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/waiter', icon: '🍽️', label: 'หน้าเสิร์ฟ', accent: true, permission: 'KITCHEN_VIEW' },
     { href: '/dashboard', icon: '🏠', label: 'Home', permission: 'DASHBOARD_VIEW' },
     // ─── เมนูขาย ───
     { href: '/menu', icon: '🍽️', label: 'เมนูร้าน', dividerBefore: 'เมนู & สต็อค', permission: 'MENU_VIEW' },
@@ -32,6 +36,9 @@ const navItems: NavItem[] = [
     { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย', permission: 'SALES_IMPORT' },
     { href: '/reports', icon: '📈', label: 'Reports', permission: 'REPORT_VIEW' },
     { href: '/ai-chat', icon: '🤖', label: 'AI Assistant', permission: 'AI_CHAT' },
+    // ─── ตั้งค่า ───
+    { href: '/settings/users', icon: '👥', label: 'จัดการผู้ใช้', dividerBefore: 'จัดการร้าน', permission: 'SETTINGS_MANAGE' },
+    { href: '/settings/manual', icon: '📖', label: 'คู่มือการใช้งาน', permission: 'SETTINGS_MANAGE' },
 ]
 
 const quickItems: NavItem[] = [
@@ -49,6 +56,7 @@ const ROLE_CONFIG: Record<string, { label: string; color: string }> = {
     kitchen: { label: '🍳 ครัว', color: '#EF4444' },
     bar: { label: '🍸 บาร์', color: '#8B5CF6' },
     warehouse: { label: '🏭 คลัง', color: '#6B7280' },
+    waiter: { label: '🍽️ เสิร์ฟ', color: '#059669' },
     viewer: { label: '👁 ดูข้อมูล', color: '#9CA3AF' },
 }
 
@@ -58,6 +66,10 @@ export default function Sidebar() {
     const currentUser = useCurrentUser()
     const userRole = (currentUser?.role || 'owner').toLowerCase()
     const branding = useStoreBranding()
+    const [showTableManager, setShowTableManager] = useState(false)
+    const [mounted, setMounted] = useState(false)
+    useEffect(() => { setMounted(true) }, [])
+    const canManageTables = mounted && (userRole === 'owner' || userRole === 'manager')
 
     const sidebarWidth = collapsed && !isMobile ? 68 : 240
     const showLabels = isMobile ? true : !collapsed
@@ -73,6 +85,8 @@ export default function Sidebar() {
 
     return (
         <>
+            {/* Table Manager Panel */}
+            {showTableManager && <TableManagerPanel onClose={() => setShowTableManager(false)} />}
             {/* Backdrop for mobile */}
             {isMobile && mobileOpen && (
                 <div
@@ -212,6 +226,36 @@ export default function Sidebar() {
                             </div>
                         )
                     })}
+
+                    {/* Table Manager Button — owner/manager only */}
+                    {canManageTables && (
+                        <>
+                            {showLabels ? (
+                                <div style={{ margin: '8px 0 4px', paddingLeft: '0.875rem', fontSize: '0.65rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase' }}>🪑 จัดการร้าน</div>
+                            ) : (
+                                <div style={{ height: 1, background: '#E5E7EB', margin: '6px 4px' }} />
+                            )}
+                            <button
+                                onClick={() => setShowTableManager(true)}
+                                style={{
+                                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: collapsed && !isMobile ? '0.6rem' : '0.6rem 0.875rem',
+                                    borderRadius: 10, fontSize: '0.875rem',
+                                    background: 'rgba(99,102,241,0.08)', color: '#6366f1',
+                                    border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer', fontFamily: 'inherit',
+                                    transition: 'all 0.15s ease',
+                                    justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
+                                    minHeight: 40, fontWeight: 600,
+                                }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.18)' }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.08)' }}
+                                title={collapsed && !isMobile ? 'จัดการโต๊ะ' : undefined}
+                            >
+                                <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>🪑</span>
+                                {showLabels && <span style={{ whiteSpace: 'nowrap' }}>จัดการโต๊ะและโซน</span>}
+                            </button>
+                        </>
+                    )}
 
                     {/* Quick Actions */}
                     {filteredQuick.length > 0 && (

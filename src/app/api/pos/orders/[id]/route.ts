@@ -71,6 +71,7 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
                     const catCode = prod?.category?.code || ''
                     const station = BAR_CATS.includes(catCode) ? 'BAR' : 'KITCHEN'
                     return {
+                        tenantId,
                         orderId: id,
                         productId: item.productId,
                         quantity: item.quantity,

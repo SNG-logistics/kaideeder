@@ -1,6 +1,7 @@
 ﻿'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
+import { useStoreBranding } from '@/hooks/useStoreBranding'
 
 // ─── Types ───────────────────────────────────────────────────
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
@@ -17,6 +18,51 @@ function formatLAK(n: number): string {
 
 // ─── Raw category codes to exclude ──────────────────────────
 const RAW_CATEGORY_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'RAW_VEG', 'DRY_GOODS', 'PACKAGING', 'OTHER']
+
+// ─── Print Kitchen / Bar Ticket ──────────────────────────────
+function printKitchenTicket(opts: {
+    station: 'KITCHEN' | 'BAR'
+    items: OrderItemData[]
+    tableName: string
+    orderNumber: string
+    storeName: string
+}) {
+    if (opts.items.length === 0) return
+    const { station, items, tableName, orderNumber, storeName } = opts
+    const label = station === 'KITCHEN' ? '🍳 ครัว' : '🍺 บาร์'
+    const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+    const w = window.open('', '_blank', 'width=340,height=500')
+    if (!w) return
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  @page { size: 80mm auto; margin: 0; }
+  body { font-family: 'Courier New', monospace; font-size: 13px; padding: 6px 8px; width: 80mm; }
+  .h { text-align:center; font-size:11px; border-bottom: 1px dashed #000; padding-bottom:4px; margin-bottom:4px; }
+  .st { font-size:17px; font-weight:900; text-align:center; margin:2px 0; }
+  .tbl { font-size:22px; font-weight:900; text-align:center; margin:2px 0; letter-spacing:-0.5px; }
+  .num { font-size:10px; text-align:center; color:#555; margin-bottom:4px; border-bottom:1px dashed #000; padding-bottom:4px; }
+  .item { display:flex; gap:6px; padding:5px 0; border-bottom:1px dotted #ccc; align-items:flex-start; }
+  .qty { font-size:22px; font-weight:900; min-width:28px; line-height:1; }
+  .name { font-size:14px; font-weight:700; flex:1; line-height:1.3; }
+  .note { font-size:11px; color:#555; margin-top:2px; }
+  .cut { text-align:center; margin-top:6px; font-size:9px; color:#999; border-top:1px dashed #000; padding-top:4px; }
+  @media print { button { display:none; } }
+</style></head><body>
+<div class="h">${storeName}</div>
+<div class="st">${label}</div>
+<div class="tbl">${tableName}</div>
+<div class="num">#${orderNumber} · ${time}</div>
+${items.map(item => `<div class="item">
+  <div class="qty">${item.quantity}</div>
+  <div><div class="name">${item.product?.name || ''}</div>${item.note ? `<div class="note">📝 ${item.note}</div>` : ''}</div>
+</div>`).join('')}
+<div class="cut">--- ตัดที่นี่ ---</div>
+<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),800);}<\/script>
+</body></html>`)
+    w.document.close()
+}
+
 
 // ─── Toast notification ─────────────────────────────────────
 function Toast({ message, type, onClose }: { message: string; type: 'error' | 'success' | 'warning'; onClose: () => void }) {
@@ -51,6 +97,7 @@ function Toast({ message, type, onClose }: { message: string; type: 'error' | 's
 // ─── Main POS Component ─────────────────────────────────────
 export default function POSPage() {
     useRoleGuard(['owner', 'manager', 'cashier'])
+    const branding = useStoreBranding()
     const [tables, setTables] = useState<DiningTable[]>([])
     const [categories, setCategories] = useState<Category[]>([])
     const [products, setProducts] = useState<Product[]>([])
@@ -81,6 +128,15 @@ export default function POSPage() {
     const [showMenuOverlay, setShowMenuOverlay] = useState(false)  // full-screen menu overlay
     const [noKitchen, setNoKitchen] = useState(false)  // ไม่ส่งครัว checkbox
     const [showMoveModal, setShowMoveModal] = useState(false)  // ย้ายโต๊ะ modal
+    const [showHistory, setShowHistory] = useState(false)  // ประวัติ modal
+    const [historyOrders, setHistoryOrders] = useState<any[]>([])
+    const [historySearch, setHistorySearch] = useState('')
+    const [selectedHistoryOrder, setSelectedHistoryOrder] = useState<any | null>(null)
+    const [historyLoading, setHistoryLoading] = useState(false)
+    const [showKitchenPopup, setShowKitchenPopup] = useState(false)  // kitchen popup
+    const [kitchenQueue, setKitchenQueue] = useState<any[]>([])
+    const [selectedKitchenOrder, setSelectedKitchenOrder] = useState<any | null>(null)
+    const [kitchenUpdating, setKitchenUpdating] = useState<string | null>(null)
     const [mobileTab, setMobileTab] = useState<'tables' | 'order'>('tables')  // mobile bottom nav
     const searchRef = useRef<HTMLInputElement>(null)
 
@@ -380,7 +436,7 @@ export default function POSPage() {
             newItems.forEach(item => {
                 const code = (item.product?.category?.code || '').toLowerCase();
                 const name = (item.product?.category?.name || '').toLowerCase();
-                const isDrink = code.includes('drink') || code.includes('bev') || name.includes('เครื่องดื่ม') || name.includes('น้ำ') || name.includes('เบียร์') || name.includes('เหล้า') || name.includes('แอลกอฮอล์');
+                const isDrink = code.includes('drink') || code.includes('bev') || name.includes('เครื่องดื่ม') || name.includes('น้ำ') || name.includes('เบียร์') || name.includes('เหล้า') || name.includes('แอลกอฮอล์') || code.includes('beer') || code.includes('wine') || code.includes('cocktail') || code.includes('water') || code.includes('entertain');
                 if (isDrink) {
                     barList.push(item);
                 } else {
@@ -388,7 +444,20 @@ export default function POSPage() {
                 }
             });
 
-            setSentItems({ kitchen: kitchenList, bar: barList, orderId, tableCode: selectedTable.name });
+            // Auto print — delay bar slightly so popup blocker doesn't kill second window
+            const orderNumber = currentOrder?.orderNumber || orderId.slice(-8)
+            const tableName = selectedTable.name
+            const sn = branding.displayName || 'ร้านอาหาร'
+            if (kitchenList.length > 0) {
+                printKitchenTicket({ station: 'KITCHEN', items: kitchenList, tableName, orderNumber, storeName: sn })
+            }
+            if (barList.length > 0) {
+                setTimeout(() => {
+                    printKitchenTicket({ station: 'BAR', items: barList, tableName, orderNumber, storeName: sn })
+                }, 300)
+            }
+
+            setSentItems({ kitchen: kitchenList, bar: barList, orderId, tableCode: tableName });
         }
     }
 
@@ -624,12 +693,39 @@ export default function POSPage() {
                 <div style={{ background: '#1A1D26', color: '#fff', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <span style={{ fontSize: '1.3rem' }}>🍽️</span>
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>43 Garden POS</div>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{branding.displayName} POS</div>
                         <div style={{ fontSize: '0.68rem', color: '#9CA3AF' }}>
                             ว่าง <span style={{ color: '#4ADE80', fontWeight: 700 }}>{availableCount}</span>
                             &nbsp;•&nbsp; มีออเดอร์ <span style={{ color: '#FB7185', fontWeight: 700 }}>{occupiedCount}</span>
                         </div>
                     </div>
+                    {!isMobile && (
+                        <button
+                            onClick={() => {
+                                setShowHistory(true)
+                                setHistoryLoading(true)
+                                fetch('/api/pos/history?limit=80')
+                                    .then(r => r.json())
+                                    .then(d => {
+                                        if (d.success) {
+                                            setHistoryOrders(d.data)
+                                            setSelectedHistoryOrder(d.data[0] ?? null)
+                                        }
+                                    })
+                                    .finally(() => setHistoryLoading(false))
+                            }}
+                            style={{
+                                fontSize: '0.78rem', color: '#fff', cursor: 'pointer',
+                                padding: '5px 14px', borderRadius: 8,
+                                border: '1px solid #F59E0B',
+                                background: 'rgba(245,158,11,0.15)',
+                                fontFamily: 'inherit', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: 6,
+                            }}
+                        >
+                            🕐 ประวัติ
+                        </button>
+                    )}
                     <a href="/dashboard" style={{ fontSize: '0.78rem', color: '#9CA3AF', textDecoration: 'none', padding: '5px 12px', borderRadius: 8, border: '1px solid #374151' }}>← กลับ</a>
                 </div>
 
@@ -684,8 +780,40 @@ export default function POSPage() {
 
                 {/* Bottom Filter Bar */}
                 <div style={{ display: 'flex', gap: 4, padding: '0.5rem 0.75rem', borderTop: '1px solid #E5E7EB', background: '#FAFBFD', flexShrink: 0 }}>
-                    {['เมนู', 'ยังไม่ได้รับ', 'ครัว', 'ประวัติ'].map(t => (
-                        <button key={t} style={{ padding: '0.35rem 0.75rem', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: '0.78rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit' }}>{t}</button>
+                    {[['เมนู', 'menu'], ['ยังไม่ได้รับ', 'pending'], ['ครัว', 'kitchen'], ['ประวัติ', 'history']].map(([label, action]) => (
+                        <button key={label as string}
+                            onClick={() => {
+                                if (action === 'history') {
+                                    setShowHistory(true)
+                                    setHistoryLoading(true)
+                                    fetch('/api/pos/history?limit=80')
+                                        .then(r => r.json())
+                                        .then(d => { if (d.success) { setHistoryOrders(d.data); setSelectedHistoryOrder(d.data[0] ?? null) } })
+                                        .finally(() => setHistoryLoading(false))
+                                } else if (action === 'kitchen') {
+                                    setShowKitchenPopup(true)
+                                    fetch('/api/kitchen/queue?status=PENDING,ACCEPTED,COOKING,READY')
+                                        .then(r => r.json())
+                                        .then(d => {
+                                            if (d.success) {
+                                                setKitchenQueue(d.data.queue ?? [])
+                                                setSelectedKitchenOrder(d.data.queue?.[0] ?? null)
+                                            }
+                                        })
+                                } else if (action === 'pending') {
+                                    window.open('/kitchen', '_blank')
+                                }
+                            }}
+                            style={{
+                                padding: '0.35rem 0.75rem', borderRadius: 8, border: '1px solid #E5E7EB',
+                                background: action === 'history' ? '#FEF3C7' : action === 'kitchen' ? '#FFF1F2' : '#fff',
+                                fontSize: '0.78rem',
+                                color: action === 'history' ? '#92400E' : action === 'kitchen' ? '#BE123C' : '#6B7280',
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                fontWeight: (action === 'history' || action === 'kitchen') ? 700 : 400,
+                            }}>
+                            {action === 'history' ? '🕐 ' : action === 'kitchen' ? '🍳 ' : ''}{label as string}
+                        </button>
                     ))}
                 </div>
             </div>
@@ -969,7 +1097,7 @@ export default function POSPage() {
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1.25rem' }}>
                             <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1A1D26' }}>43 Garden Restaurant</div>
+                                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1A1D26' }}>{branding.displayName}</div>
                                 <div style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>{nowString}</div>
                             </div>
                             <div style={{ borderTop: '1px dashed #D1D5DB', borderBottom: '1px dashed #D1D5DB', padding: '0.75rem 0', marginBottom: '0.75rem' }}>
@@ -1160,8 +1288,422 @@ export default function POSPage() {
                 </div>
             )}
 
+            {/* ════ HISTORY MODAL ════ */}
+            {showHistory && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+                    <div className="pos-modal-box">
+
+                        {/* Header */}
+                        <div style={{ background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: '#fff', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🕐</div>
+                            <div>
+                                <div style={{ fontWeight: 800, fontSize: '1rem' }}>ประวัติ</div>
+                                <div style={{ fontSize: '0.72rem', opacity: 0.85 }}>ประวัติการสั่งซื้อ</div>
+                            </div>
+                            <button onClick={() => setShowHistory(false)}
+                                style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}>✕</button>
+                        </div>
+
+                        <div className="pos-modal-split">
+                            {/* Left — order list */}
+                            <div className="pos-modal-left">
+                                <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB', background: '#FAFAFA' }}>
+                                    <input
+                                        placeholder="🔍 ค้นหา..."
+                                        value={historySearch}
+                                        onChange={e => setHistorySearch(e.target.value)}
+                                        style={{ width: '100%', padding: '7px 12px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: '0.83rem', fontFamily: 'inherit', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                                    />
+                                </div>
+                                <div style={{ flex: 1, overflowY: 'auto' }}>
+                                    {historyLoading ? (
+                                        <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF' }}>กำลังโหลด...</div>
+                                    ) : historyOrders.filter(o => {
+                                        const q = historySearch.toLowerCase()
+                                        return !q || o.table?.name?.toLowerCase().includes(q) || o.orderNumber?.toLowerCase().includes(q)
+                                    }).length === 0 ? (
+                                        <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: '0.85rem' }}>ไม่พบข้อมูล</div>
+                                    ) : historyOrders.filter(o => {
+                                        const q = historySearch.toLowerCase()
+                                        return !q || o.table?.name?.toLowerCase().includes(q) || o.orderNumber?.toLowerCase().includes(q)
+                                    }).map(order => {
+                                        const isSelected = selectedHistoryOrder?.id === order.id
+                                        return (
+                                            <div key={order.id} onClick={() => setSelectedHistoryOrder(order)}
+                                                style={{ padding: '12px 14px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: isSelected ? 'rgba(37,99,235,0.08)' : '#fff', borderLeft: isSelected ? '4px solid #2563EB' : '4px solid transparent', transition: 'all 0.12s' }}>
+                                                <div style={{ fontWeight: 700, fontSize: '0.9rem', color: isSelected ? '#2563EB' : '#111827' }}>
+                                                    {order.table?.name || '—'}
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: '#6B7280', marginTop: 2 }}>
+                                                    {order.closedAt ? new Date(order.closedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                                                </div>
+                                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#111827', marginTop: 4, textAlign: 'right' }}>
+                                                    {(order.totalAmount ?? 0).toLocaleString()}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Right — bill detail */}
+                            {selectedHistoryOrder ? (
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+                                        {/* Meta cards */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                                            {[
+                                                { label: '# ORDER ID', value: selectedHistoryOrder.orderNumber },
+                                                { label: '📅 วันที่', value: selectedHistoryOrder.closedAt ? new Date(selectedHistoryOrder.closedAt).toLocaleString('th-TH') : '—' },
+                                                { label: '🪑 โต๊ะอาหาร', value: selectedHistoryOrder.table?.name || '—' },
+                                                { label: '👤 พนักงาน', value: selectedHistoryOrder.createdBy?.name || '—' },
+                                            ].map(card => (
+                                                <div key={card.label} style={{ background: '#F0F4FF', borderRadius: 12, padding: '10px 14px' }}>
+                                                    <div style={{ fontSize: '0.68rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</div>
+                                                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1A1D26', marginTop: 3 }}>{card.value}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Items table */}
+                                        <div style={{ background: '#F9FAFB', borderRadius: 14, overflow: 'hidden', border: '1px solid #E5E7EB', marginBottom: 16 }}>
+                                            <div style={{ background: '#2563EB', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: '0.85rem' }}>
+                                                <span>🍽️</span> รายการ
+                                            </div>
+                                            <div style={{ padding: '0 16px' }}>
+                                                {/* Header row */}
+                                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.5fr 1fr 1.5fr 1fr', gap: 8, padding: '8px 0', borderBottom: '1px solid #E5E7EB', fontSize: '0.73rem', color: '#6B7280', fontWeight: 600 }}>
+                                                    <span>รายการ</span><span style={{ textAlign: 'center' }}>จำนวน</span><span>เวลา</span><span>ผู้สั่ง</span><span style={{ textAlign: 'right' }}>ราคารวม</span>
+                                                </div>
+                                                {selectedHistoryOrder.items?.map((item: any) => (
+                                                    <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '2fr 0.5fr 1fr 1.5fr 1fr', gap: 8, padding: '10px 0', borderBottom: '1px solid #F3F4F6', fontSize: '0.83rem', alignItems: 'start' }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 600, color: '#111827' }}>{item.product?.name || '—'}</div>
+                                                            {item.note && <div style={{ fontSize: '0.72rem', color: '#F59E0B', marginTop: 2 }}>📝 {item.note}</div>}
+                                                        </div>
+                                                        <div style={{ textAlign: 'center', fontWeight: 700, color: '#2563EB' }}>{item.quantity}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                                                            {item.createdAt ? new Date(item.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>{'—'}</div>
+                                                        <div style={{ textAlign: 'right', fontWeight: 700, color: '#111827' }}>{(item.quantity * item.unitPrice).toLocaleString()}.00</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Totals */}
+                                        <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '14px 16px', border: '1px solid #E5E7EB' }}>
+                                            {[
+                                                { label: 'ราคา', value: selectedHistoryOrder.subtotal ?? selectedHistoryOrder.totalAmount },
+                                                { label: 'ราคาสุทธิ', value: selectedHistoryOrder.totalAmount },
+                                                { label: 'เงินสด', value: selectedHistoryOrder.payments?.[0]?.receivedAmount },
+                                            ].filter(r => r.value != null).map(row => (
+                                                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: '0.85rem', color: '#374151', borderBottom: '1px solid #F3F4F6' }}>
+                                                    <span>{row.label}</span><span style={{ fontWeight: 600 }}>{Number(row.value).toLocaleString()}.00</span>
+                                                </div>
+                                            ))}
+                                            {selectedHistoryOrder.payments?.[0]?.changeAmount > 0 && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', color: '#2563EB', fontWeight: 800, fontSize: '1rem' }}>
+                                                    <span>เงินทอน</span>
+                                                    <span>{Number(selectedHistoryOrder.payments[0].changeAmount).toLocaleString()}.00</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Bottom actions */}
+                                    <div style={{ padding: '12px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 10, background: '#fff', flexShrink: 0 }}>
+                                        <button
+                                            onClick={() => {
+                                                const win = window.open('', '_blank', 'width=400,height=600')
+                                                if (!win) return
+                                                const items = selectedHistoryOrder.items?.map((i: any) =>
+                                                    `<tr><td>${i.product?.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${(i.quantity * i.unitPrice).toLocaleString()}</td></tr>`
+                                                ).join('') ?? ''
+                                                win.document.write(`<html><head><title>Receipt</title><style>body{font-family:sans-serif;padding:16px;font-size:13px}table{width:100%;border-collapse:collapse}td{padding:4px}hr{border:1px dashed #ccc}.total{font-weight:bold}</style></head><body>
+                                                <h3 style="text-align:center">ใบเสร็จ</h3>
+                                                <p>\u0e42\u0e15\u0e4a\u0e30: ${selectedHistoryOrder.table?.name ?? '—'} | #${selectedHistoryOrder.orderNumber}</p>
+                                                <p>${selectedHistoryOrder.closedAt ? new Date(selectedHistoryOrder.closedAt).toLocaleString('th-TH') : ''}</p>
+                                                <hr/><table><tr><th style="text-align:left">\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23</th><th>\u0e08\u0e33\u0e19\u0e27\u0e19</th><th>\u0e23\u0e32\u0e04\u0e32</th></tr>${items}</table>
+                                                <hr/><p class="total">\u0e23\u0e27\u0e21: ${(selectedHistoryOrder.totalAmount ?? 0).toLocaleString()}</p>
+                                                <script>window.print();window.onafterprint=()=>window.close()</script></body></html>`)
+                                                win.document.close()
+                                            }}
+                                            style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: '#374151', color: '#fff', fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            🖨️ พิมพ์ใบเสร็จ
+                                        </button>
+                                        <button onClick={() => setShowHistory(false)}
+                                            style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontWeight: 600, fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit', marginLeft: 'auto' }}>
+                                            ✕ ปิดออก
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', flexDirection: 'column', gap: 8 }}>
+                                    <div style={{ fontSize: '2.5rem' }}>📋</div>
+                                    <div style={{ fontWeight: 600 }}>เลือกรายการประวัติทางซ้าย</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ════ KITCHEN POPUP MODAL ════ */}
+            {showKitchenPopup && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+                    <div className="pos-kitchen-box">
+
+                        {/* Header — orange/red gradient like KDS */}
+                        <div style={{ background: 'linear-gradient(135deg, #E8364E 0%, #FF6B35 60%, #FF8C00 100%)', color: '#fff', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, boxShadow: '0 4px 16px rgba(232,54,78,0.35)' }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🍳</div>
+                            <div>
+                                <div style={{ fontWeight: 800, fontSize: '1rem' }}>จอครัว (KDS)</div>
+                                <div style={{ fontSize: '0.72rem', opacity: 0.85 }}>สถานะออเดอร์ — {kitchenQueue.length} โต๊ะ</div>
+                            </div>
+                            {/* Refresh */}
+                            <button onClick={() => {
+                                fetch('/api/kitchen/queue?status=PENDING,ACCEPTED,COOKING,READY')
+                                    .then(r => r.json())
+                                    .then(d => {
+                                        if (d.success) {
+                                            setKitchenQueue(d.data.queue ?? [])
+                                            setSelectedKitchenOrder(prev => d.data.queue?.find((o: any) => o.orderId === prev?.orderId) ?? d.data.queue?.[0] ?? null)
+                                        }
+                                    })
+                            }} style={{ marginLeft: 12, padding: '5px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                                🔄 รีเฟรช
+                            </button>
+                            <button onClick={() => setShowKitchenPopup(false)}
+                                style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}>✕</button>
+                        </div>
+
+                        <div className="pos-modal-split">
+                            {/* Left — order list */}
+                            <div className="pos-kitchen-left">
+                                <div style={{ padding: '10px 14px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1F2937' }}>📋 รายการโต๊ะ</span>
+                                    <span style={{ fontSize: '0.7rem', background: '#E8364E', color: '#fff', borderRadius: 12, padding: '2px 8px', fontWeight: 700 }}>{kitchenQueue.length}</span>
+                                </div>
+                                <div style={{ flex: 1, overflowY: 'auto' }}>
+                                    {kitchenQueue.length === 0 ? (
+                                        <div style={{ padding: 32, textAlign: 'center' }}>
+                                            <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
+                                            <div style={{ color: '#10B981', fontWeight: 700, fontSize: '0.85rem' }}>ไม่มีออเดอร์ค้าง</div>
+                                        </div>
+                                    ) : kitchenQueue.map((order: any) => {
+                                        const isSelected = selectedKitchenOrder?.orderId === order.orderId
+                                        const hasPending = order.items?.some((i: any) => i.kitchenStatus === 'PENDING')
+                                        const diffMs = Date.now() - new Date(order.openedAt).getTime()
+                                        const mins = Math.floor(diffMs / 60000)
+                                        return (
+                                            <div key={order.orderId} onClick={() => setSelectedKitchenOrder(order)}
+                                                style={{ padding: '12px 14px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: isSelected ? 'rgba(232,54,78,0.08)' : '#fff', borderLeft: isSelected ? '4px solid #E8364E' : '4px solid transparent', transition: 'all 0.12s', position: 'relative' }}>
+                                                {hasPending && <div style={{ position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: '50%', background: '#EF4444', animation: 'pulse 1.5s infinite' }} />}
+                                                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: isSelected ? '#E8364E' : '#111827' }}>โต๊ะ {order.tableName}</div>
+                                                <div style={{ fontSize: '0.72rem', color: '#6B7280', marginTop: 2 }}>⏱ {mins < 1 ? 'เมื่อกี้' : `${mins} นาที`}</div>
+                                                <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                                    {order.items?.slice(0, 3).map((item: any) => (
+                                                        <span key={item.id} style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: 8, background: item.kitchenStatus === 'PENDING' ? '#FEE2E2' : item.kitchenStatus === 'COOKING' ? '#FEF3C7' : '#D1FAE5', color: item.kitchenStatus === 'PENDING' ? '#B91C1C' : item.kitchenStatus === 'COOKING' ? '#92400E' : '#065F46', fontWeight: 600 }}>
+                                                            {item.product?.name?.slice(0, 7) ?? '—'}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Right — items detail */}
+                            {selectedKitchenOrder ? (
+                                <div className="pos-kitchen-right">
+                                    {/* Right header */}
+                                    <div style={{ padding: '12px 18px', borderBottom: '1px solid #E5E7EB', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <span style={{ fontWeight: 900, fontSize: '1.3rem', color: '#E8364E' }}>โต๊ะ {selectedKitchenOrder.tableName}</span>
+                                            <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>{selectedKitchenOrder.zone} · #{selectedKitchenOrder.orderNumber}</span>
+                                        </div>
+                                        <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>
+                                            {selectedKitchenOrder.items?.length} รายการ
+                                        </div>
+                                    </div>
+                                    {/* Items */}
+                                    <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        {selectedKitchenOrder.items?.map((item: any) => {
+                                            const STATUS_COLORS: Record<string, string> = { PENDING: '#EF4444', ACCEPTED: '#3B82F6', COOKING: '#F59E0B', READY: '#10B981', SERVED: '#6B7280' }
+                                            const NEXT: Record<string, string> = { PENDING: 'ACCEPTED', ACCEPTED: 'COOKING', COOKING: 'READY', READY: 'SERVED' }
+                                            const NEXT_LABEL: Record<string, string> = { PENDING: '👌 รับงาน', ACCEPTED: '🔥 เริ่มทำ', COOKING: '✅ เสร็จแล้ว', READY: '🍽️ เสิร์ฟ' }
+                                            const STATUS_LABEL: Record<string, string> = { PENDING: '⏳ รอรับ', ACCEPTED: '👌 รับแล้ว', COOKING: '🔥 กำลังทำ', READY: '✅ พร้อมเสิร์ฟ', SERVED: '🍽️ เสิร์ฟแล้ว' }
+                                            const hasPending = item.kitchenStatus === 'PENDING'
+                                            const isServed = item.kitchenStatus === 'SERVED'
+                                            const next = NEXT[item.kitchenStatus]
+                                            const isWorking = kitchenUpdating === item.id
+
+                                            return (
+                                                <div key={item.id} style={{ background: '#fff', borderRadius: 14, border: hasPending ? '2px solid #E8364E' : '1px solid #E5E7EB', boxShadow: hasPending ? '0 4px 16px rgba(232,54,78,0.15)' : '0 1px 4px rgba(0,0,0,0.06)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, opacity: isServed ? 0.5 : 1 }}>
+                                                    {/* Qty */}
+                                                    <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: hasPending ? 'linear-gradient(135deg,#E8364E,#FF6B35)' : STATUS_COLORS[item.kitchenStatus] + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.2rem', color: hasPending ? '#fff' : STATUS_COLORS[item.kitchenStatus] }}>
+                                                        {item.quantity}
+                                                    </div>
+                                                    {/* Icon */}
+                                                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
+                                                        {item.product?.category?.icon ?? '🍽️'}
+                                                    </div>
+                                                    {/* Name */}
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#111827' }}>{item.product?.name ?? '—'}</div>
+                                                        <div style={{ fontSize: '0.72rem', color: STATUS_COLORS[item.kitchenStatus], fontWeight: 600, marginTop: 2 }}>{STATUS_LABEL[item.kitchenStatus]}</div>
+                                                        {item.note && <div style={{ fontSize: '0.72rem', color: '#D97706', marginTop: 2 }}>📝 {item.note}</div>}
+                                                    </div>
+                                                    {/* Action */}
+                                                    {next && (
+                                                        <button onClick={async () => {
+                                                            setKitchenUpdating(item.id)
+                                                            await fetch(`/api/kitchen/items/${item.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) })
+                                                            setKitchenUpdating(null)
+                                                            // refresh
+                                                            fetch('/api/kitchen/queue?status=PENDING,ACCEPTED,COOKING,READY')
+                                                                .then(r => r.json())
+                                                                .then(d => {
+                                                                    if (d.success) {
+                                                                        setKitchenQueue(d.data.queue ?? [])
+                                                                        setSelectedKitchenOrder(d.data.queue?.find((o: any) => o.orderId === selectedKitchenOrder.orderId) ?? d.data.queue?.[0] ?? null)
+                                                                    }
+                                                                })
+                                                        }} disabled={isWorking}
+                                                            style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: hasPending ? 'linear-gradient(135deg,#E8364E,#FF6B35)' : STATUS_COLORS[next], color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit', opacity: isWorking ? 0.6 : 1, flexShrink: 0, boxShadow: hasPending ? '0 4px 10px rgba(232,54,78,0.4)' : 'none' }}>
+                                                            {isWorking ? '⏳' : NEXT_LABEL[item.kitchenStatus]}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    {/* Bottom */}
+                                    <div style={{ padding: '10px 18px', borderTop: '1px solid #E5E7EB', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                                        <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>
+                                            {selectedKitchenOrder.items?.filter((i: any) => i.kitchenStatus === 'READY' || i.kitchenStatus === 'SERVED').length}/{selectedKitchenOrder.items?.length} รายการเสร็จ
+                                        </div>
+                                        {selectedKitchenOrder.items?.some((i: any) => i.kitchenStatus === 'READY') && (
+                                            <button onClick={async () => {
+                                                setKitchenUpdating(selectedKitchenOrder.orderId)
+                                                await fetch(`/api/kitchen/orders/${selectedKitchenOrder.orderId}/serve-all`, { method: 'PATCH' })
+                                                setKitchenUpdating(null)
+                                                fetch('/api/kitchen/queue?status=PENDING,ACCEPTED,COOKING,READY')
+                                                    .then(r => r.json())
+                                                    .then(d => { if (d.success) { setKitchenQueue(d.data.queue ?? []); setSelectedKitchenOrder(d.data.queue?.[0] ?? null) } })
+                                            }} disabled={kitchenUpdating === selectedKitchenOrder.orderId}
+                                                style={{ marginLeft: 'auto', padding: '9px 20px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#059669,#10B981)', color: '#fff', fontWeight: 800, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 12px rgba(16,185,129,0.35)' }}>
+                                                🍽️ เสิร์ฟทั้งโต๊ะ
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: '#9CA3AF', background: '#F9FAFB' }}>
+                                    <div style={{ fontSize: '3rem' }}>✅</div>
+                                    <div style={{ fontWeight: 700, fontSize: '1rem', color: '#10B981' }}>ไม่มีออเดอร์ค้าง</div>
+                                    <div style={{ fontSize: '0.82rem' }}>คลิกโต๊ะทางซ้ายเพื่อดูรายละเอียด</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>{`
                 @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+                /* ── History & Kitchen popup: responsive on mobile ── */
+                .pos-modal-box {
+                    background: #fff;
+                    border-radius: 20px;
+                    width: 90vw;
+                    max-width: 920px;
+                    height: 88vh;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    box-shadow: 0 32px 80px rgba(0,0,0,0.3);
+                }
+                .pos-modal-split {
+                    display: flex;
+                    flex: 1;
+                    overflow: hidden;
+                }
+                .pos-modal-left {
+                    width: 240px;
+                    flex-shrink: 0;
+                    border-right: 1px solid #E5E7EB;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+                .pos-modal-right {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+
+                /* Kitchen popup box */
+                .pos-kitchen-box {
+                    background: #F5F5F5;
+                    border-radius: 20px;
+                    width: 90vw;
+                    max-width: 900px;
+                    height: 86vh;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    box-shadow: 0 32px 80px rgba(0,0,0,0.3);
+                }
+                .pos-kitchen-left {
+                    width: 220px;
+                    flex-shrink: 0;
+                    border-right: 1px solid #E5E7EB;
+                    background: #fff;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+                .pos-kitchen-right {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    background: #F9FAFB;
+                }
+
+                @media (max-width: 640px) {
+                    .pos-modal-box, .pos-kitchen-box {
+                        width: 100vw !important;
+                        max-width: 100vw !important;
+                        height: 100dvh !important;
+                        border-radius: 0 !important;
+                    }
+                    .pos-modal-split {
+                        flex-direction: column;
+                    }
+                    .pos-modal-left {
+                        width: 100% !important;
+                        max-height: 200px;
+                        border-right: none !important;
+                        border-bottom: 1px solid #E5E7EB;
+                    }
+                    .pos-kitchen-left {
+                        width: 100% !important;
+                        max-height: 180px;
+                        border-right: none !important;
+                        border-bottom: 1px solid #E5E7EB;
+                    }
+                    .pos-kitchen-right {
+                        flex: 1;
+                    }
+                }
             `}</style>
         </div>
     )

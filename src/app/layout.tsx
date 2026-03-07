@@ -18,8 +18,8 @@ const notoSansLao = Noto_Sans_Lao({
 })
 
 export const metadata: Metadata = {
-    title: '43 Garden — ระบบสต็อค',
-    description: 'ระบบจัดการสต็อคร้านอาหาร 43 Garden Cafe & Restaurant',
+    title: 'KAIDEEDER.com — ระบบจัดการร้านอาหาร',
+    description: 'KAIDEEDER.com — ระบบ POS จัดการร้านอาหาร สต็อค และจอครัว',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

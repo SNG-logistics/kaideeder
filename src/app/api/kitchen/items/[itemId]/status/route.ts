@@ -4,7 +4,7 @@ import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
 const statusSchema = z.object({
-    status: z.enum(['ACCEPTED', 'COOKING', 'READY']),
+    status: z.enum(['ACCEPTED', 'COOKING', 'READY', 'SERVED']),
 })
 
 // PATCH /api/kitchen/items/[itemId]/status — Kitchen updates item status
@@ -34,6 +34,7 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
             PENDING: ['ACCEPTED'],
             ACCEPTED: ['COOKING'],
             COOKING: ['READY'],
+            READY: ['SERVED'],
         }
 
         const allowed = validTransitions[item.kitchenStatus] || []

@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale/th'
 import Link from 'next/link'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useStoreBranding } from '@/hooks/useStoreBranding'
 
 interface RecentOrder {
     id: string
@@ -42,6 +43,7 @@ interface DashboardData {
 export default function DashboardPage() {
     const router = useRouter()
     const currentUser = useCurrentUser()
+    const branding = useStoreBranding()
     const [data, setData] = useState<DashboardData | null>(null)
     const [loading, setLoading] = useState(true)
     const [selectedDate, setSelectedDate] = useState('')   // ← init empty; set client-side only
@@ -103,7 +105,7 @@ export default function DashboardPage() {
             }}>
                 <div>
                     <h1 className="page-title" style={{ fontSize: isMobile ? '1.2rem' : '1.55rem' }}>🏠 Restaurant Dashboard</h1>
-                    <p className="page-subtitle">43 Garden Cafe & Restaurant — {thaiDate}</p>
+                    <p className="page-subtitle">{branding.displayName} — {thaiDate}</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <input
