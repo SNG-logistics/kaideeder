@@ -171,7 +171,7 @@ ${existingList}
           return { sku: b.sku, ingredientName, productId: null, productName: ingredientName, locationId: null, locationCode: b.location, quantity: b.quantity, unit: b.unit, found: false, missing: true }
         }
 
-        const product = await prisma.product.findUnique({ where: { sku: b.sku }, select: { id: true, name: true, unit: true } })
+        const product = await prisma.product.findFirst({ where: { sku: b.sku }, select: { id: true, name: true, unit: true } })
         const location = await prisma.location.findFirst({ where: { code: b.location } })
         return {
           sku: b.sku, ingredientName: product?.name || ingredientName,
