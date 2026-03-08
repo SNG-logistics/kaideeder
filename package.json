@@ -12,7 +12,10 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "copy-static": "node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});fs.cpSync('public','.next/standalone/public',{recursive:true});console.log('✅ Static files copied!')\"",
+    "db:deploy": "prisma generate && prisma db push",
+    "deploy": "next build && node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});fs.cpSync('public','.next/standalone/public',{recursive:true});console.log('✅ Done!')\" && prisma generate && prisma db push"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
