@@ -26,7 +26,7 @@ export const POST = withAuth<any>(async (req: NextRequest, context) => {
 
         // Decrement inventory
         await prisma.inventory.upsert({
-            where: { productId_locationId: { productId: product.id, locationId: location.id } },
+            where: { tenantId_productId_locationId: { tenantId, productId: product.id, locationId: location.id } },
             update: { quantity: { decrement: quantity } },
             create: { tenantId, productId: product.id, locationId: location.id, quantity: -quantity, avgCost: 0 }
         })

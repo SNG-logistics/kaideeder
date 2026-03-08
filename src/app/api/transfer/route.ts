@@ -65,21 +65,21 @@ export const POST = withAuth(async (req: NextRequest, { user, tenantId }: any) =
             for (const item of transfer.items) {
                 // ลดสต็อคจากคลังต้นทาง
                 const fromInv = await tx.inventory.findUnique({
-                    where: { productId_locationId: { productId: item.productId, locationId: data.fromLocationId } },
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: data.fromLocationId } },
                 })
                 if (!fromInv || fromInv.quantity < item.quantity) {
                     throw new Error(`สต็อคไม่พอ: ${item.productId}`)
                 }
 
                 await tx.inventory.update({
-                    where: { productId_locationId: { productId: item.productId, locationId: data.fromLocationId } },
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: data.fromLocationId } },
                     data: { quantity: { decrement: item.quantity } },
                 })
 
                 // เพิ่มสต็อคคลังปลายทาง — B-03 Fix: merge WAC ถ้ามีสต็อคเดิม
                 const fromCost = fromInv.avgCost
                 const toInv = await tx.inventory.findUnique({
-                    where: { productId_locationId: { productId: item.productId, locationId: data.toLocationId } },
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: data.toLocationId } },
                 })
                 // คำนวณ WAC ใหม่ที่ Destination
                 const toQty = toInv?.quantity ?? 0
@@ -90,7 +90,7 @@ export const POST = withAuth(async (req: NextRequest, { user, tenantId }: any) =
                     : fromCost
 
                 await tx.inventory.upsert({
-                    where: { productId_locationId: { productId: item.productId, locationId: data.toLocationId } },
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: data.toLocationId } },
                     update: { quantity: { increment: item.quantity }, avgCost: mergedAvgCost },
                     create: {
                         tenantId,

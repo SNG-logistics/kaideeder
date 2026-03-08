@@ -198,17 +198,17 @@ async function deductInventory(
     orderId: string,
     userId: string | null,
     errors: string[],
-    tenantId?: string,
+    tenantId: string,
 ) {
     try {
-        let inventory = await prisma.inventory.findUnique({
-            where: { productId_locationId: { productId, locationId } },
+        let inventory = await prisma.inventory.findFirst({
+            where: { productId, locationId, ...(tenantId ? { tenantId } : {}) },
         })
 
         if (!inventory) {
             inventory = await prisma.inventory.create({
                 data: {
-                    ...(tenantId ? { tenantId } : {}),
+                    tenantId,
                     productId,
                     locationId,
                     quantity: 0,
@@ -225,7 +225,7 @@ async function deductInventory(
 
         // Deduct
         await prisma.inventory.update({
-            where: { productId_locationId: { productId, locationId } },
+            where: { id: inventory.id },
             data: {
                 quantity: { decrement: quantity },
             },
@@ -234,7 +234,7 @@ async function deductInventory(
         // Create stock movement
         await prisma.stockMovement.create({
             data: {
-                ...(tenantId ? { tenantId } : {}),
+                tenantId,
                 productId,
                 fromLocationId: locationId,
                 quantity,

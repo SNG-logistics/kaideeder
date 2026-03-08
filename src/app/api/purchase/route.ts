@@ -78,7 +78,7 @@ export const POST = withAuth(async (req: NextRequest, { user, tenantId }: any) =
             // อัพเดต Inventory + Stock Movement สำหรับแต่ละรายการ
             for (const item of po.items) {
                 const existing = await tx.inventory.findUnique({
-                    where: { productId_locationId: { productId: item.productId, locationId: item.locationId } }
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: item.locationId } }
                 })
 
                 const newAvgCost = calcWAC(
@@ -90,7 +90,7 @@ export const POST = withAuth(async (req: NextRequest, { user, tenantId }: any) =
 
                 // Upsert inventory
                 await tx.inventory.upsert({
-                    where: { productId_locationId: { productId: item.productId, locationId: item.locationId } },
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: item.locationId } },
                     update: {
                         quantity: { increment: item.quantity },
                         avgCost: newAvgCost,

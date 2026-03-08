@@ -58,7 +58,7 @@ export const POST = withAuth(async (req: NextRequest, context: AuthContext) => {
         const totalCost = data.quantity * (data.unitCost || 0);
 
         await prisma.inventory.upsert({
-            where: { productId_locationId: { productId: product.id, locationId: location.id } },
+            where: { tenantId_productId_locationId: { tenantId, productId: product.id, locationId: location.id } },
             create: {
                 tenantId,
                 productId: product.id,

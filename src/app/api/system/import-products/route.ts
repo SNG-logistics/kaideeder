@@ -136,8 +136,9 @@ function nextSku(prefix: string, counters: Record<string, number>): string {
 // ─── API Handler ─────────────────────────────────────────────────────────────
 // POST /api/system/import-products — OWNER only
 // Form: file (xlsx/xls), mode = 'upsert' | 'clear_reimport'
-export const POST = withAuth<any>(async (req: NextRequest) => {
+export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
     try {
+        const { tenantId } = ctx
         const formData = await req.formData()
         const file = formData.get('file') as File | null
         const mode = (formData.get('mode') as string) || 'upsert'
@@ -249,18 +250,26 @@ export const POST = withAuth<any>(async (req: NextRequest) => {
                         updated++
                     } else {
                         const product = await prisma.product.create({
-                            data: { sku: finalSku, name, unit, salePrice, costPrice, categoryId: catRecord.id, productType: productType as any, minQty, reorderPoint: minQty * 2 || 5 }
+                            data: { tenantId, sku: finalSku, name, unit, salePrice, costPrice, categoryId: catRecord.id, productType: productType as any, minQty, reorderPoint: minQty * 2 || 5 }
                         })
                         // Opening stock
                         if (qty > 0) {
                             const loc = await prisma.location.findFirst({ where: { code: locationCode } })
                                 ?? await prisma.location.findFirst({ where: { code: 'WH_MAIN' } })
                             if (loc) {
-                                await prisma.inventory.upsert({
-                                    where: { productId_locationId: { productId: product.id, locationId: loc.id } },
-                                    update: { quantity: qty, avgCost: costPrice },
-                                    create: { productId: product.id, locationId: loc.id, quantity: qty, avgCost: costPrice }
+                                const existingInv = await prisma.inventory.findFirst({
+                                    where: { productId: product.id, locationId: loc.id }
                                 })
+                                if (existingInv) {
+                                    await prisma.inventory.update({
+                                        where: { id: existingInv.id },
+                                        data: { quantity: qty, avgCost: costPrice }
+                                    })
+                                } else {
+                                    await prisma.inventory.create({
+                                        data: { tenantId, productId: product.id, locationId: loc.id, quantity: qty, avgCost: costPrice }
+                                    })
+                                }
                             }
                         }
                         created++

@@ -117,6 +117,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx) => {
                 importedById: user?.userId,
                 items: {
                     create: saleItems.map((item, idx) => ({
+                        tenantId,
                         rowNumber: idx + 1,
                         menuName: item.menuName,
                         unitPrice: item.unitPrice,
@@ -159,7 +160,8 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx) => {
                         // หา inventory ที่ Location
                         const inv = await tx.inventory.findUnique({
                             where: {
-                                productId_locationId: {
+                                tenantId_productId_locationId: {
+                                    tenantId,
                                     productId: bomItem.productId,
                                     locationId: bomItem.locationId,
                                 }
@@ -181,7 +183,8 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx) => {
 
                         await tx.inventory.upsert({
                             where: {
-                                productId_locationId: {
+                                tenantId_productId_locationId: {
+                                    tenantId,
                                     productId: bomItem.productId,
                                     locationId: bomItem.locationId,
                                 }

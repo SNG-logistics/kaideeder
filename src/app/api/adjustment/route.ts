@@ -50,7 +50,7 @@ export const POST = withAuth<any>(async (req: NextRequest, context) => {
 
             for (const item of data.items) {
                 const inv = await tx.inventory.findUnique({
-                    where: { productId_locationId: { productId: item.productId, locationId: data.locationId } },
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: data.locationId } },
                 })
                 const systemQty = inv?.quantity || 0
                 const diffQty = item.actualQty - systemQty
@@ -70,7 +70,7 @@ export const POST = withAuth<any>(async (req: NextRequest, context) => {
 
                 // อัพเดตสต็อค
                 await tx.inventory.upsert({
-                    where: { productId_locationId_tenantId: { productId: item.productId, locationId: data.locationId, tenantId } },
+                    where: { tenantId_productId_locationId: { tenantId, productId: item.productId, locationId: data.locationId } },
                     update: { quantity: item.actualQty },
                     create: {
                         tenantId,
