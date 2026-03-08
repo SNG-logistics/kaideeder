@@ -11,13 +11,13 @@ export const PATCH = withAuth(async (_req: NextRequest, ctx) => {
 
     const order = await prisma.order.findUnique({
         where: { id: orderId },
-        include: { orderItems: { where: { isCancelled: false } } },
+        include: { items: { where: { isCancelled: false } } },
     })
     if (!order) return err('ไม่พบออเดอร์', 404)
     if ((order as any).tenantId !== tenantId) return err('ไม่พบออเดอร์', 404)
     if (order.status !== 'OPEN') return err('ออเดอร์ปิดแล้ว')
 
-    const readyItems = order.orderItems.filter(i => i.kitchenStatus === 'READY')
+    const readyItems = order.items.filter(i => i.kitchenStatus === 'READY')
     if (readyItems.length === 0) return err('ไม่มีรายการที่พร้อมเสิร์ฟ')
 
     await prisma.orderItem.updateMany({
