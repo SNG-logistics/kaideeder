@@ -14,7 +14,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "copy-static": "node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});fs.cpSync('public','.next/standalone/public',{recursive:true});console.log('✅ Static files copied!')\"",
-    "db:deploy": "prisma generate && prisma db push",
+    "db:push:prod": "node scripts/db-push-prod.js",
     "deploy": "next build && node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});fs.cpSync('public','.next/standalone/public',{recursive:true});console.log('✅ Done!')\" && prisma generate && prisma db push"
   },
   "dependencies": {
