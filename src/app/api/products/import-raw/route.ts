@@ -115,8 +115,9 @@ const SKU_PREFIX: Record<string, string> = {
     FOOD_LAAB: 'FL', KARAOKE: 'KR', SET: 'ST', ENTERTAIN: 'EN',
 }
 
-export const POST = withAuth<any>(async (req: NextRequest) => {
+export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
     try {
+        const { tenantId } = ctx
         const formData = await req.formData()
         const file = formData.get('file') as File | null
         if (!file) {
@@ -226,14 +227,14 @@ export const POST = withAuth<any>(async (req: NextRequest) => {
             try {
                 await prisma.product.create({
                     data: {
+                        tenantId,
                         sku, name,
                         categoryId: category.id,
                         productType, unit,
                         unitAlt: unitAlt || undefined,
                         convFactor,
                         costPrice,
-                        salePrice: 0,          // วัตถุดิบไม่มีราคาขาย
-                        // ไม่สร้าง inventory — stock คงเป็น 0 จนกว่าจะนับจริง
+                        salePrice: 0,
                         note: note || undefined,
                     },
                 })
