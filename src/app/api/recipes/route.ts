@@ -48,6 +48,7 @@ export const POST = withAuth<any>(async (req: NextRequest, context: any) => {
                 note: data.note,
                 bom: {
                     create: data.bom.map(item => ({
+                        tenantId,
                         productId: item.productId,
                         locationId: item.locationId,
                         quantity: item.quantity,
