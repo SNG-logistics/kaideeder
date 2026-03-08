@@ -180,8 +180,9 @@ const FOOD_CATEGORIES = new Set([
     'FOOD_SEA', 'FOOD_VEG', 'FOOD_LAAB', 'SET',
 ])
 
-export const POST = withAuth<any>(async (req: NextRequest) => {
+export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
     try {
+        const { tenantId } = ctx
         const formData = await req.formData()
         const file = formData.get('file') as File | null
         if (!file) {
@@ -288,7 +289,7 @@ export const POST = withAuth<any>(async (req: NextRequest) => {
 
             try {
                 await prisma.product.create({
-                    data: { sku, name, categoryId: category.id, productType, unit, costPrice, salePrice, note: note || undefined },
+                    data: { tenantId, sku, name, categoryId: category.id, productType, unit, costPrice, salePrice, note: note || undefined },
                 })
                 existingSkus.add(sku)
                 existingNames.add(name.toLowerCase())
@@ -302,6 +303,7 @@ export const POST = withAuth<any>(async (req: NextRequest) => {
                     if (!recipeExists) {
                         await prisma.recipe.create({
                             data: {
+                                tenantId,
                                 menuName: name,
                                 note: `[Auto] สร้างอัตโนมัติจาก Import — กรุณาเพิ่มส่วนผสมในหน้า Recipe`,
                             },
