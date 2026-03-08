@@ -1469,7 +1469,7 @@ export default function POSPage() {
                                     .then(d => {
                                         if (d.success) {
                                             setKitchenQueue(d.data.queue ?? [])
-                                            setSelectedKitchenOrder(prev => d.data.queue?.find((o: any) => o.orderId === prev?.orderId) ?? d.data.queue?.[0] ?? null)
+                                            setSelectedKitchenOrder((prev: any) => d.data.queue?.find((o: any) => o.orderId === prev?.orderId) ?? d.data.queue?.[0] ?? null)
                                         }
                                     })
                             }} style={{ marginLeft: 12, padding: '5px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
