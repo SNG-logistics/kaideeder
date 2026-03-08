@@ -93,7 +93,7 @@ export default function LoginPage() {
                             fontSize: 28,
                         }}>🍽️</div>
                         <div>
-                            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'white', letterSpacing: '-0.02em', margin: 0 }}>43 Garden</h1>
+                            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'white', letterSpacing: '-0.02em', margin: 0 }}>KAIDEEDER</h1>
                             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.68rem', letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>
                                 Stock Management System
                             </p>
@@ -113,7 +113,7 @@ export default function LoginPage() {
                         }}>🍽️</div>
 
                         <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: 'white', marginBottom: 8, letterSpacing: '-0.02em' }}>
-                            43 Garden
+                            KAIDEEDER
                         </h1>
                         <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.85rem', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '1.5rem' }}>
                             Stock Management System
@@ -142,7 +142,7 @@ export default function LoginPage() {
                         </div>
 
                         <p style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                            43 Garden Cafe &amp; Restaurant · Vientiane, Lao PDR
+                            KAIDEEDER POS &amp; Stock Management · Vientiane, Lao PDR
                         </p>
                     </div>
                 )}
