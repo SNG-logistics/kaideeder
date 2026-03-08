@@ -133,30 +133,36 @@ async function main() {
             const finalSku = sku || `AUTO-${sheetName.substring(0, 3).toUpperCase()}-${i}`
 
             try {
-                const product = await prisma.product.upsert({
-                    where: { sku: finalSku },
-                    update: {
-                        name,
-                        unit,
-                        salePrice,
-                        costPrice: costPrice || undefined,
-                        categoryId: catRecord.id,
-                        productType,
-                        minQty,
-                        reorderPoint: minQty * 2,
-                    },
-                    create: {
-                        sku: finalSku,
-                        name,
-                        unit,
-                        salePrice,
-                        costPrice,
-                        categoryId: catRecord.id,
-                        productType,
-                        minQty,
-                        reorderPoint: minQty * 2 || 5,
-                    }
-                })
+                // ใช้ findFirst แทน upsert เพราะ sku ไม่ได้เป็น unique key เดี่ยวอีกต่อไป
+                // (multi-tenant schema ใช้ compound key: tenantId_sku)
+                const existing = await prisma.product.findFirst({ where: { sku: finalSku } })
+                const product = existing
+                    ? await prisma.product.update({
+                        where: { id: existing.id },
+                        data: {
+                            name,
+                            unit,
+                            salePrice,
+                            costPrice: costPrice || undefined,
+                            categoryId: catRecord.id,
+                            productType,
+                            minQty,
+                            reorderPoint: minQty * 2,
+                        },
+                    })
+                    : await prisma.product.create({
+                        data: {
+                            sku: finalSku,
+                            name,
+                            unit,
+                            salePrice,
+                            costPrice,
+                            categoryId: catRecord.id,
+                            productType,
+                            minQty,
+                            reorderPoint: minQty * 2 || 5,
+                        },
+                    })
 
                 // ถ้ามีจำนวน Opening Stock — บันทึก inventory
                 if (qty > 0) {
