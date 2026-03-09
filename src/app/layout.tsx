@@ -22,11 +22,16 @@ export const metadata: Metadata = {
     description: 'KAIDEEDER.com — ระบบ POS จัดการร้านอาหาร สต็อค และจอครัว',
 }
 
+import AutoLogout from '@/components/AutoLogout'
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="th" suppressHydrationWarning>
             <body className={`${notoSansThai.variable} ${notoSansLao.variable}`}
-                style={{ fontFamily: 'var(--font-lao), var(--font-thai), sans-serif' }}>
+                style={{ fontFamily: 'var(--font-lao), var(--font-thai), sans-serif' }}
+                suppressHydrationWarning // 👈 ADD THIS HERE
+            >
+                <AutoLogout />
                 {children}
                 <Toaster
                     position="top-right"

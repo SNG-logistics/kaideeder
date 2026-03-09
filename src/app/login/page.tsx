@@ -211,36 +211,6 @@ export default function LoginPage() {
                             {loading ? '⏳ กำลังเข้าสู่ระบบ...' : '🔓 เข้าสู่ระบบ'}
                         </button>
                     </form>
-
-                    {/* Quick credentials hint */}
-                    <div style={{ marginTop: '1.5rem', padding: '0.875rem', background: '#FEF2F2', borderRadius: 12, border: '1px solid #FECACA' }}>
-                        <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#DC2626', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                            🔑 รหัสผ่านเริ่มต้น — กดเพื่อกรอกอัตโนมัติ
-                        </p>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr', gap: '4px' }}>
-                            {[
-                                { u: 'owner', p: 'owner1234', label: '👑 เจ้าของร้าน' },
-                                { u: 'manager', p: 'manager1234', label: '📊 ผู้จัดการ' },
-                                { u: 'cashier', p: 'staff1234', label: '💰 แคชเชียร์' },
-                                { u: 'kitchen', p: 'staff1234', label: '🍳 ครัว' },
-                                { u: 'bar', p: 'staff1234', label: '🍸 บาร์' },
-                                { u: 'warehouse', p: 'staff1234', label: '🏭 คลัง' },
-                            ].map(({ u, p, label }) => (
-                                <button key={u} onClick={() => setForm({ username: u, password: p })} style={{
-                                    background: 'none', border: '1px solid #FECACA', borderRadius: 6, cursor: 'pointer',
-                                    textAlign: 'left', padding: '6px 10px', fontFamily: 'inherit', fontSize: '0.75rem',
-                                    color: '#DC2626', display: 'flex', justifyContent: 'space-between', gap: 8,
-                                    transition: 'background 0.15s', minHeight: 36,
-                                }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = '#FEE2E2')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                                >
-                                    <span>{label}</span>
-                                    <span style={{ opacity: 0.6, fontFamily: 'monospace' }}>{u}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

@@ -24,10 +24,23 @@ export function useCurrentUser(): CurrentUser | null {
             setUser(cachedUser)
             return
         }
+
+        // Fast path: if no token cookie exists at all, redirect to login
+        if (typeof document !== 'undefined' && !document.cookie.includes('token=')) {
+            window.location.href = '/login'
+            return
+        }
+
         fetch('/api/auth/me')
-            .then(r => r.json())
+            .then(async r => {
+                if (r.status === 401 || r.status === 403) {
+                    window.location.href = '/login'
+                    return null
+                }
+                return r.json()
+            })
             .then(j => {
-                if (j.success) {
+                if (j && j.success) {
                     // Normalize role to lowercase — JWT may store 'OWNER', 'MANAGER', etc.
                     const data: CurrentUser = {
                         ...j.data,
