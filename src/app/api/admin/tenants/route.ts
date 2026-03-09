@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAdminAuth, ok, err } from '@/lib/admin-auth'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 
 // GET /api/admin/tenants — list all tenants with wallet + active sub
 export const GET = withAdminAuth(async (_req: NextRequest) => {
@@ -89,6 +90,19 @@ export const POST = withAdminAuth(async (req: NextRequest, context) => {
                     action: 'CREATE_TENANT',
                     payload: { code: body.code, name: body.name, trialDays: body.trialDays },
                 },
+            })
+
+            // Seed default owner user
+            const ownerHash = bcrypt.hashSync('owner1234', 12)
+            await tx.user.create({
+                data: {
+                    tenantId: t.id,
+                    username: 'owner',
+                    name: 'เจ้าของร้าน',
+                    passwordHash: ownerHash,
+                    role: 'OWNER',
+                    isActive: true,
+                }
             })
 
             return t
