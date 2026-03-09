@@ -8,7 +8,7 @@ export async function GET() {
         const configs = await prisma.platformConfig.findMany()
 
         // Convert array of {key, value} into a simple key-value object
-        const settings = configs.reduce((acc, curr) => {
+        const settings = configs.reduce((acc: Record<string, string>, curr: any) => {
             acc[curr.key] = curr.value
             return acc
         }, {} as Record<string, string>)
@@ -20,7 +20,7 @@ export async function GET() {
 }
 
 // ─── PATCH (Protected, SuperAdmin only) ─────────────────────────
-export const PATCH = withAdminAuth(async (req: NextRequest, context) => {
+export const PATCH = withAdminAuth<any>(async (req: NextRequest, context) => {
     try {
         const body = await req.json()
 
