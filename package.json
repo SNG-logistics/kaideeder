@@ -15,7 +15,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "copy-static": "node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});fs.cpSync('public','.next/standalone/public',{recursive:true});console.log('✅ Static files copied!')\"",
     "db:push:prod": "node scripts/db-push-prod.js",
-    "deploy": "next build && node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});fs.cpSync('public','.next/standalone/public',{recursive:true});console.log('✅ Done!')\" && prisma generate && npm run db:push:prod"
+    "deploy": "prisma generate && next build && node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});fs.cpSync('public','.next/standalone/public',{recursive:true});console.log('✅ Done!')\" && npm run db:push:prod"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
