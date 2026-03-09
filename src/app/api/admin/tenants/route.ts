@@ -93,11 +93,13 @@ export const POST = withAdminAuth(async (req: NextRequest, context) => {
             })
 
             // Seed default owner user
-            const ownerHash = bcrypt.hashSync('owner1234', 12)
+            // To prevent predictable credentials across all stores, use the store code as the username
+            const ownerPassword = `${body.code}1234`
+            const ownerHash = bcrypt.hashSync(ownerPassword, 12)
             await tx.user.create({
                 data: {
                     tenantId: t.id,
-                    username: 'owner',
+                    username: body.code,
                     name: 'เจ้าของร้าน',
                     passwordHash: ownerHash,
                     role: 'OWNER',
