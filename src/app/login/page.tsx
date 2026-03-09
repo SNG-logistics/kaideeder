@@ -8,11 +8,21 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false)
     const [form, setForm] = useState({ username: '', password: '' })
     const [isMobile, setIsMobile] = useState(false)
+    const [platformConfig, setPlatformConfig] = useState<{ REGISTER_URL?: string, CONTACT_URL?: string } | null>(null)
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 768)
         check()
         window.addEventListener('resize', check)
+
+        // Fetch global platform config (like registration link)
+        fetch('/api/admin/config')
+            .then(res => res.json())
+            .then(d => {
+                if (d.success) setPlatformConfig(d.data)
+            })
+            .catch(() => { })
+
         return () => window.removeEventListener('resize', check)
     }, [])
 
@@ -211,6 +221,40 @@ export default function LoginPage() {
                             {loading ? '⏳ กำลังเข้าสู่ระบบ...' : '🔓 เข้าสู่ระบบ'}
                         </button>
                     </form>
+
+                    {/* Contact & Registration Links */}
+                    {(platformConfig?.REGISTER_URL || platformConfig?.CONTACT_URL) && (
+                        <div style={{ textAlign: 'center', marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {platformConfig?.REGISTER_URL && (
+                                <p style={{ color: '#6B7280', fontSize: '0.9rem' }}>
+                                    ยังไม่มีบัญชีร้านค้า?{' '}
+                                    <a
+                                        href={platformConfig.REGISTER_URL}
+                                        style={{ color: '#E8162A', fontWeight: 600, textDecoration: 'none' }}
+                                        onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                                        onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                                    >
+                                        ลงทะเบียนใช้งาน
+                                    </a>
+                                </p>
+                            )}
+                            {platformConfig?.CONTACT_URL && (
+                                <p style={{ color: '#6B7280', fontSize: '0.9rem' }}>
+                                    ต้องการความช่วยเหลือ?{' '}
+                                    <a
+                                        href={platformConfig.CONTACT_URL}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ color: '#374151', fontWeight: 600, textDecoration: 'none' }}
+                                        onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                                        onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                                    >
+                                        ติดต่อฝ่ายสนับสนุน
+                                    </a>
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

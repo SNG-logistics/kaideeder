@@ -800,6 +800,19 @@ enum MovementType {
   RETURN
 }
 
+// ─────────────────────────────────────────────
+// PLATFORM CONFIGURATION (Global)
+// ─────────────────────────────────────────────
+
+model PlatformConfig {
+  key       String   @id // e.g., 'REGISTER_URL', 'CONTACT_URL'
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+  updatedBy String?  // adminId
+
+  @@map("platform_config")
+}
+
 enum POStatus {
   DRAFT
   CONFIRMED
