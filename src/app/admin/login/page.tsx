@@ -2,34 +2,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-// Pre-computed particle data at module load — stable, no SSR mismatch
-const PARTICLES = Array.from({ length: 20 }, (_, i) => ({
-    size: Math.random() * 4 + 1,
-    left: Math.random() * 100,
-    top: Math.random() * 100,
-    opacity: Math.random() * 0.6 + 0.2,
-    duration: Math.random() * 8 + 6,
-    delay: Math.random() * 4,
-    color: i % 2 === 0 ? '99,102,241' : '139,92,246',
-}))
-
-function Particles() {
-    return (
-        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-            {PARTICLES.map((p, i) => (
-                <div key={i} style={{
-                    position: 'absolute',
-                    width: p.size + 'px', height: p.size + 'px',
-                    borderRadius: '50%',
-                    background: `rgba(${p.color},${p.opacity})`,
-                    left: p.left + '%', top: p.top + '%',
-                    animation: `float ${p.duration}s ease-in-out ${p.delay}s infinite alternate`,
-                }} />
-            ))}
-        </div>
-    )
-}
-
 export default function AdminLoginPage() {
     const router = useRouter()
     const [email, setEmail] = useState('')
@@ -37,11 +9,8 @@ export default function AdminLoginPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [showPass, setShowPass] = useState(false)
-    const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
-        setMounted(true)
-        // If already logged in, redirect to admin
         const token = localStorage.getItem('admin_token')
         if (token) router.replace('/admin')
     }, [router])
@@ -68,257 +37,113 @@ export default function AdminLoginPage() {
     }
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #060818 0%, #0d0f1c 40%, #0a0c1a 60%, #060818 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: "'Inter', system-ui, sans-serif",
-            position: 'relative', overflow: 'hidden',
-        }}>
-            {/* Animated glow orbs */}
-            <div style={{
-                position: 'absolute', top: '-20%', left: '-10%',
-                width: '60vw', height: '60vw', borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)',
-                animation: 'drift 12s ease-in-out infinite alternate',
-            }} />
-            <div style={{
-                position: 'absolute', bottom: '-20%', right: '-10%',
-                width: '50vw', height: '50vw', borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)',
-                animation: 'drift 10s ease-in-out 3s infinite alternate-reverse',
-            }} />
-            <div style={{
-                position: 'absolute', top: '30%', right: '20%',
-                width: '30vw', height: '30vw', borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)',
-                animation: 'drift 14s ease-in-out 1s infinite alternate',
-            }} />
+        <div className="min-h-screen bg-[#080c14] flex items-center justify-center p-4 relative overflow-hidden font-sans">
+            {/* Background glows */}
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-indigo-600/8 rounded-full blur-3xl pointer-events-none" />
 
-            {mounted && <Particles />}
+            {/* Grid overlay */}
+            <div className="absolute inset-0 pointer-events-none"
+                style={{
+                    backgroundImage: 'linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px)',
+                    backgroundSize: '48px 48px'
+                }}
+            />
 
-            {/* Grid pattern overlay */}
-            <div style={{
-                position: 'absolute', inset: 0,
-                backgroundImage: `
-                    linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px)
-                `,
-                backgroundSize: '50px 50px',
-            }} />
+            {/* Card */}
+            <div className="relative z-10 w-full max-w-sm">
+                {/* Top gradient border */}
+                <div className="h-px w-full bg-gradient-to-r from-transparent via-blue-500/60 to-transparent mb-px rounded-full" />
 
-            {/* Login card */}
-            <div style={{
-                position: 'relative', zIndex: 10,
-                width: '100%', maxWidth: 420,
-                margin: '0 20px',
-                background: 'rgba(15, 18, 32, 0.7)',
-                backdropFilter: 'blur(24px)',
-                border: '1px solid rgba(99,102,241,0.25)',
-                borderRadius: 24,
-                padding: '44px 40px',
-                boxShadow: `
-                    0 0 0 1px rgba(255,255,255,0.04),
-                    0 32px 64px rgba(0,0,0,0.5),
-                    0 0 80px rgba(99,102,241,0.08),
-                    inset 0 1px 0 rgba(255,255,255,0.06)
-                `,
-            }}>
-                {/* Top accent line */}
-                <div style={{
-                    position: 'absolute', top: 0, left: '20%', right: '20%', height: 1,
-                    background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.8), rgba(139,92,246,0.8), transparent)',
-                    borderRadius: 1,
-                }} />
+                <div className="bg-[#0d1117]/90 backdrop-blur-2xl border border-white/[0.07] rounded-2xl p-8 shadow-2xl shadow-black/50">
 
-                {/* Logo */}
-                <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                    <div style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 72, height: 72, borderRadius: 20, marginBottom: 20,
-                        background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))',
-                        border: '1px solid rgba(99,102,241,0.4)',
-                        fontSize: 36,
-                        boxShadow: '0 0 40px rgba(99,102,241,0.3)',
-                        position: 'relative', overflow: 'hidden',
-                    }}>
-                        <span>🛡️</span>
-                        <div style={{
-                            position: 'absolute', inset: 0,
-                            background: 'linear-gradient(135deg, rgba(99,102,241,0.15), transparent)',
-                        }} />
-                    </div>
-
-                    <h1 style={{
-                        fontSize: '1.75rem', fontWeight: 800, color: '#f1f5f9',
-                        margin: '0 0 4px', letterSpacing: '-0.03em',
-                        background: 'linear-gradient(135deg, #e2e8f0, #c4b5fd)',
-                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                    }}>
-                        KAIDEEDER.com
-                    </h1>
-                    <p style={{
-                        color: '#94a3b8', fontSize: '0.82rem', fontWeight: 500,
-                        margin: '0 0 6px',
-                    }}>
-                        ระบบจัดการหลังบ้าน
-                    </p>
-                    <p style={{
-                        color: '#6366f1', fontSize: '0.78rem', fontWeight: 600,
-                        letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0,
-                    }}>
-                        ⚡ Super Admin Access
-                    </p>
-                </div>
-
-                {/* Error */}
-                {error && (
-                    <div style={{
-                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                        borderRadius: 12, padding: '10px 14px', marginBottom: 20,
-                        color: '#fca5a5', fontSize: '0.83rem', display: 'flex', alignItems: 'center', gap: 8,
-                        animation: 'shake 0.3s ease',
-                    }}>
-                        <span>⚠️</span> {error}
-                    </div>
-                )}
-
-                {/* Form */}
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div>
-                        <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                            Admin Email
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '1rem', opacity: 0.6 }}>✉️</span>
-                            <input
-                                type="email"
-                                placeholder="admin@example.com"
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                                required
-                                style={{
-                                    width: '100%', paddingLeft: 42, paddingRight: 16, paddingTop: 13, paddingBottom: 13,
-                                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: 12, color: '#f1f5f9', fontSize: '0.9rem',
-                                    outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box',
-                                    fontFamily: 'inherit',
-                                }}
-                                onFocus={e => {
-                                    e.target.style.borderColor = 'rgba(99,102,241,0.6)'
-                                    e.target.style.background = 'rgba(99,102,241,0.08)'
-                                    e.target.style.boxShadow = '0 0 0 4px rgba(99,102,241,0.1)'
-                                }}
-                                onBlur={e => {
-                                    e.target.style.borderColor = 'rgba(255,255,255,0.1)'
-                                    e.target.style.background = 'rgba(255,255,255,0.04)'
-                                    e.target.style.boxShadow = 'none'
-                                }}
-                            />
+                    {/* Logo */}
+                    <div className="text-center mb-8">
+                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600/15 border border-blue-500/25 mb-5 shadow-lg shadow-blue-500/10">
+                            <svg className="w-7 h-7 text-blue-400" style={{ width: 28, height: 28, flex: '0 0 28px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
                         </div>
+                        <h1 className="text-xl font-bold text-white tracking-tight mb-1">KAIDEEDER</h1>
+                        <p className="text-slate-500 text-sm">ระบบจัดการหลังบ้าน</p>
+                        <span className="inline-block mt-2 text-[0.68rem] font-semibold tracking-widest text-blue-400 uppercase bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-0.5">
+                            Super Admin Access
+                        </span>
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                            Password
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '1rem', opacity: 0.6 }}>🔑</span>
-                            <input
-                                type={showPass ? 'text' : 'password'}
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                                required
-                                style={{
-                                    width: '100%', paddingLeft: 42, paddingRight: 48, paddingTop: 13, paddingBottom: 13,
-                                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: 12, color: '#f1f5f9', fontSize: '0.9rem',
-                                    outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box',
-                                    fontFamily: 'inherit',
-                                }}
-                                onFocus={e => {
-                                    e.target.style.borderColor = 'rgba(99,102,241,0.6)'
-                                    e.target.style.background = 'rgba(99,102,241,0.08)'
-                                    e.target.style.boxShadow = '0 0 0 4px rgba(99,102,241,0.1)'
-                                }}
-                                onBlur={e => {
-                                    e.target.style.borderColor = 'rgba(255,255,255,0.1)'
-                                    e.target.style.background = 'rgba(255,255,255,0.04)'
-                                    e.target.style.boxShadow = 'none'
-                                }}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPass(!showPass)}
-                                style={{
-                                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                                    background: 'none', border: 'none', cursor: 'pointer',
-                                    color: '#64748b', fontSize: '1rem', padding: 4,
-                                }}
-                            >
-                                {showPass ? '🙈' : '👁️'}
-                            </button>
+                    {/* Error */}
+                    {error && (
+                        <div className="mb-5 bg-red-500/10 border border-red-500/25 rounded-xl px-4 py-3 flex items-center gap-2.5 text-sm text-red-400">
+                            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                            {error}
                         </div>
-                    </div>
+                    )}
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            marginTop: 8,
-                            padding: '14px 24px',
-                            background: loading
-                                ? 'rgba(99,102,241,0.4)'
-                                : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                            border: 'none', borderRadius: 14,
-                            color: '#fff', fontSize: '1rem', fontWeight: 700,
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            fontFamily: 'inherit',
-                            transition: 'all 0.2s',
-                            position: 'relative', overflow: 'hidden',
-                            boxShadow: loading ? 'none' : '0 8px 24px rgba(99,102,241,0.4)',
-                            letterSpacing: '0.02em',
-                        }}
-                        onMouseEnter={e => { if (!loading) (e.currentTarget.style.transform = 'translateY(-1px)'); (e.currentTarget.style.boxShadow = '0 12px 32px rgba(99,102,241,0.5)') }}
-                        onMouseLeave={e => { (e.currentTarget.style.transform = 'none'); (e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.4)') }}
-                    >
-                        {loading ? (
-                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                                <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
-                                กำลังเข้าสู่ระบบ...
-                            </span>
-                        ) : (
-                            '🛡️ Sign In to Admin'
-                        )}
-                    </button>
-                </form>
+                    {/* Form */}
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Admin Email</label>
+                            <div className="relative">
+                                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
+                                <input
+                                    type="email"
+                                    placeholder="admin@example.com"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    required
+                                    className="w-full bg-white/[0.03] border border-white/[0.08] text-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none transition-all focus:border-blue-500/60 focus:bg-blue-500/[0.05] focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-700"
+                                />
+                            </div>
+                        </div>
 
-                {/* Footer */}
-                <div style={{ marginTop: 28, textAlign: 'center', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
-                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
-                    <p style={{ color: '#334155', fontSize: '0.72rem', margin: 0, whiteSpace: 'nowrap' }}>Restricted Access Only</p>
-                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Password</label>
+                            <div className="relative">
+                                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                <input
+                                    type={showPass ? 'text' : 'password'}
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                    required
+                                    className="w-full bg-white/[0.03] border border-white/[0.08] text-slate-200 rounded-xl pl-10 pr-12 py-3 text-sm outline-none transition-all focus:border-blue-500/60 focus:bg-blue-500/[0.05] focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-700"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPass(!showPass)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors p-1"
+                                >
+                                    {showPass ? (
+                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="mt-1 w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl text-sm transition-all shadow-lg shadow-blue-600/25 hover:shadow-blue-500/35 hover:-translate-y-px active:translate-y-0 flex items-center justify-center gap-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                                    กำลังเข้าสู่ระบบ...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" /></svg>
+                                    Sign In to Admin
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    <p className="mt-6 text-center text-[0.7rem] text-slate-700">Restricted Access Only</p>
                 </div>
             </div>
-
-            <style>{`
-                @keyframes drift {
-                    0% { transform: translate(0, 0) scale(1); }
-                    100% { transform: translate(30px, -30px) scale(1.05); }
-                }
-                @keyframes float {
-                    0% { transform: translateY(0) scale(1); opacity: 0.4; }
-                    100% { transform: translateY(-40px) scale(1.2); opacity: 0.8; }
-                }
-                @keyframes spin { to { transform: rotate(360deg); } }
-                @keyframes shake {
-                    0%, 100% { transform: translateX(0); }
-                    25% { transform: translateX(-6px); }
-                    75% { transform: translateX(6px); }
-                }
-                input::placeholder { color: #334155; }
-            `}</style>
         </div>
     )
 }
