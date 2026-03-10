@@ -1,0 +1,22 @@
+name: Deploy to Plesk
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH to Plesk
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PLESK_HOST }}
+          username: ${{ secrets.PLESK_USER }}
+          key: ${{ secrets.PLESK_SSH_KEY }}
+          port: 22
+          script: |
+            cd ${{ secrets.PLESK_APP_PATH }}
+            git pull origin main
+            npm run deploy
