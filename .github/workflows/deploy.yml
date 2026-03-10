@@ -1,4 +1,8 @@
-name: Deploy to Plesk
+name: Notify on Push (Plesk handles deployment)
+# ⚠️ Deployment is managed by Plesk Git Panel (Plan A)
+# Plesk pulls from GitHub automatically when it receives a webhook call.
+# Setup: Plesk → Domain → Git → Add Repository → Copy Webhook URL → GitHub Settings → Webhooks
+# Deployment action configured in Plesk runs: npm run deploy
 
 on:
   push:
@@ -6,17 +10,9 @@ on:
       - main
 
 jobs:
-  deploy:
+  notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH to Plesk
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.PLESK_HOST }}
-          username: ${{ secrets.PLESK_USER }}
-          key: ${{ secrets.PLESK_SSH_KEY }}
-          port: 22
-          script: |
-            cd ${{ secrets.PLESK_APP_PATH }}
-            git pull origin main
-            npm run deploy
+      - name: Pushed to main
+        run: echo "✅ Pushed to main — Plesk will pull and deploy automatically via webhook."
+
