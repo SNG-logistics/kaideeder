@@ -10,7 +10,7 @@ const resetSchema = z.object({
 
 // PATCH /api/admin/users/[id]/password 
 // Allows a SuperAdmin (or Admin1) to force-reset a tenant user's password.
-export const PATCH = withAdminAuth(async (req: NextRequest, context) => {
+export const PATCH = withAdminAuth(async (req: NextRequest, context): Promise<NextResponse<any>> => {
     // Note: the Next constraint requires awaiting params
     const id = (await context.params)?.id
     if (!id) return err('Missing id', 400)
