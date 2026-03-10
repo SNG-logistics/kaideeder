@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { withAuth, ok, err } from '@/lib/api'
 import { getAiConfig } from '@/lib/ai-config'
+import { shouldExcludeFromStock, guessUnit } from '@/lib/sku-matcher'
 
 /**
  * POST /api/ai/scan-stock-sheet
@@ -122,19 +123,41 @@ Return ONLY valid JSON (no markdown):
 
         const parsed = JSON.parse(jsonStr)
 
-        // Ensure all items have required fields
+        // Normalize + filter + auto-fix unit
         if (Array.isArray(parsed.items)) {
-            parsed.items = parsed.items.map((item: Record<string, unknown>) => ({
-                name: String(item.name || ''),
-                unit: String(item.unit || 'กิโลกรัม'),
-                quantityIn: Number(item.quantityIn) || 0,
-                costPerUnit: Number(item.costPerUnit) || 0,
-                totalCost: Number(item.totalCost) || 0,
-                remaining: item.remaining != null ? Number(item.remaining) : null,
-            }))
+            const beforeCount = parsed.items.length
+            parsed.items = parsed.items
+                .map((item: Record<string, unknown>) => ({
+                    name:        String(item.name || ''),
+                    unit:        String(item.unit || 'กิโลกรัม'),
+                    quantityIn:  Number(item.quantityIn)  || 0,
+                    costPerUnit: Number(item.costPerUnit) || 0,
+                    totalCost:   Number(item.totalCost)   || 0,
+                    remaining:   item.remaining != null ? Number(item.remaining) : null,
+                }))
+                // ── FILTER: ตัดเครื่องดื่ม + บริการออกก่อน ──────────────────
+                .filter((item: { name: string }) => !shouldExcludeFromStock(item.name))
+                // ── AUTO-UNIT: ถ้า unit ยังเป็น default (กิโลกรัม/กก./ชิ้น) → ลอง guess จากชื่อ ─
+                .map((item: { name: string; unit: string; quantityIn: number; costPerUnit: number; totalCost: number; remaining: number | null }) => {
+                    const genericUnit = /^(กิโลกรัม|กิโล|kilogram|kg)$/i.test(item.unit.trim())
+                    if (genericUnit) {
+                        const guessed = guessUnit(item.name, item.unit)
+                        if (guessed !== item.unit) {
+                            console.log(`  🔧 unit fix: "${item.name}" → ${item.unit} → ${guessed}`)
+                        }
+                        return { ...item, unit: guessed }
+                    }
+                    return item
+                })
+
+            const excluded = beforeCount - parsed.items.length
+            if (excluded > 0) {
+                console.log(`\x1b[33m⚠️  [AI Stock] ตัดรายการเครื่องดื่ม/บริการออก ${excluded} รายการ\x1b[0m`)
+            }
         }
 
         return ok(parsed)
+
 
     } catch (e: unknown) {
         console.error('scan-stock-sheet error:', e)

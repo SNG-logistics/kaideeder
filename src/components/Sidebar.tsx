@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
     { href: '/transfer', icon: '🔄', label: 'เบิก / โอนคลัง', permission: 'TRANSFER_USE' },
     { href: '/adjustment', icon: '⚖️', label: 'ปรับสต็อค', permission: 'ADJUSTMENT_USE' },
     { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย', permission: 'SALES_IMPORT' },
+    { href: '/sku-queue', icon: '🔍', label: 'SKU Queue', permission: 'SETTINGS_MANAGE' },
     { href: '/reports', icon: '📈', label: 'Reports', permission: 'REPORT_VIEW' },
     { href: '/ai-chat', icon: '🤖', label: 'AI Assistant', permission: 'AI_CHAT' },
     // ─── ตั้งค่า ───

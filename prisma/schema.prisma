@@ -46,6 +46,8 @@ model Tenant {
   payments         Payment[]
   salesEvents      SalesEvent[]
   tables           DiningTable[]
+  productAliases   ProductAlias[]
+  skuSuggestions   SkuSuggestion[]
 
   // SaaS relations
   wallet           Wallet?
@@ -160,6 +162,8 @@ model Product {
   recipes        RecipeBOM[]     @relation("RecipeProduct")
   bom            RecipeBOM[]
   stockMovements StockMovement[]
+  aliases        ProductAlias[]
+  suggestions    SkuSuggestion[] @relation("MatchedProduct")
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -431,6 +435,55 @@ model RecipeBOM {
   @@index([productId], map: "recipe_bom_productId_fkey")
   @@index([recipeId], map: "recipe_bom_recipeId_fkey")
   @@map("recipe_bom")
+}
+
+// ─────────────────────────────────────────────
+// SKU MASTER — ALIASES & SUGGESTION QUEUE
+// ─────────────────────────────────────────────
+
+/// ชื่อเรียกอื่นของ product (ใช้สำหรับ auto-map ตอน import)
+model ProductAlias {
+  id        String   @id @default(cuid())
+  tenantId  String
+  productId String
+  alias     String   // ชื่อเรียกอื่น / คำในบิล
+  source    String?  // "manual" | "import" | "bill"
+  createdAt DateTime @default(now())
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, alias])
+  @@index([tenantId])
+  @@index([productId], map: "product_aliases_productId_fkey")
+  @@map("product_aliases")
+}
+
+/// คิวอนุมัติ SKU ใหม่ / mapping — สร้างเมื่อ import แล้ว score < 0.85
+model SkuSuggestion {
+  id               String              @id @default(cuid())
+  tenantId         String
+  importSource     String?             // ชื่อไฟล์ที่มาจาก import
+  rawName          String              // ชื่อดิบจาก import/bill
+  rawUnit          String?
+  rawCategory      String?
+  rawCostPrice     Float?
+  rawSalePrice     Float?
+  suggestedSku     String?             // SKU ที่ระบบเสนอ (ยังไม่สร้างจริง)
+  matchedProductId String?             // productId ที่ match ได้ (score 0.60–0.84)
+  matchScore       Float?              // คะแนน similarity
+  status           SkuSuggestionStatus @default(PENDING)
+  resolvedById     String?             // userId ที่ approve/reject
+  resolvedAt       DateTime?
+  note             String?
+  createdAt        DateTime            @default(now())
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  matchedProduct Product? @relation("MatchedProduct", fields: [matchedProductId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([matchedProductId], map: "sku_suggestions_matchedProductId_fkey")
+  @@map("sku_suggestions")
 }
 
 // ─────────────────────────────────────────────
@@ -872,4 +925,11 @@ enum PaymentMethod {
   TRANSFER
   CARD
   QRCODE
+}
+
+enum SkuSuggestionStatus {
+  PENDING
+  APPROVED_MAP  // อนุมัติ map ไป existing SKU
+  APPROVED_NEW  // อนุมัติสร้าง SKU ใหม่
+  REJECTED
 }

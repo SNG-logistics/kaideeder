@@ -23,8 +23,14 @@ async function main() {
 
     console.log('🔍 Sheet ที่มีข้อมูล:', productSheets)
 
+    // โหลด tenant แรกที่ active — script รัน standalone ไม่มี session
+    const tenant = await prisma.tenant.findFirst({ where: { status: 'ACTIVE' } })
+    if (!tenant) { console.error('❌ ไม่พบ Tenant'); process.exit(1) }
+    const tenantId = tenant.id
+    console.log(`🏢 Tenant: ${tenant.code} (${tenantId})`)
+
     // โหลด categories จาก DB
-    const cats = await prisma.category.findMany()
+    const cats = await prisma.category.findMany({ where: { tenantId } })
     const catMap = Object.fromEntries(cats.map(c => [c.code, c]))
 
     // Map ชื่อหมวดหมู่จาก Excel → category code
@@ -152,6 +158,7 @@ async function main() {
                     })
                     : await prisma.product.create({
                         data: {
+                            tenantId,
                             sku: finalSku,
                             name,
                             unit,
@@ -172,9 +179,9 @@ async function main() {
 
                     if (loc) {
                         await prisma.inventory.upsert({
-                            where: { productId_locationId: { productId: product.id, locationId: loc.id } },
+                            where: { tenantId_productId_locationId: { tenantId, productId: product.id, locationId: loc.id } },
                             update: { quantity: qty, avgCost: costPrice || 0 },
-                            create: { productId: product.id, locationId: loc.id, quantity: qty, avgCost: costPrice || 0 }
+                            create: { tenantId, productId: product.id, locationId: loc.id, quantity: qty, avgCost: costPrice || 0 }
                         })
                         console.log(`  ✅ [${finalSku}] ${name} | qty: ${qty} @ ${locationCode}`)
                     }

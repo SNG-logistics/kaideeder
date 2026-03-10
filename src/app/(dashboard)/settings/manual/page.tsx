@@ -1,12 +1,16 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
+import { useEffect, useState } from 'react'
 
 export default function ManualPage() {
     useRoleGuard(['owner', 'manager'])
     const branding = useStoreBranding()
     const storeName = branding.displayName || 'ร้านอาหาร'
-    const printDate = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
+    const [printDate, setPrintDate] = useState('')
+    useEffect(() => {
+        setPrintDate(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }))
+    }, [])
 
     const handlePrint = () => {
         window.print()

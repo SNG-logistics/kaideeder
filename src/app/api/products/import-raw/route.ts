@@ -10,109 +10,15 @@ import * as XLSX from 'xlsx'
 // - auto-detect หมวดหมู่จากชื่อ keyword
 // ────────────────────────────────────────────────────────────
 
-const KEYWORD_MAP: { keywords: string[]; code: string }[] = [
-    // เนื้อสัตว์ / โปรตีน
-    {
-        keywords: [
-            'เนื้อวัว', 'เนื้อโค', 'สันใน', 'สันนอก', 'เนื้อสับ', 'beef', 'tenderloin', 'ribeye', 'sirloin',
-        ], code: 'RAW_MEAT'
-    },
-    {
-        keywords: [
-            'หมู', 'สามชั้น', 'คอหมู', 'สันคอ', 'สันหมู', 'ซี่โครง', 'ไส้กรอก', 'pork', 'bacon', 'ham',
-            'ไก่', 'อกไก่', 'สะโพกไก่', 'ปีกไก่', 'chicken', 'wing',
-            'เนื้อ', 'meat', 'โปรตีน', 'protein',
-        ], code: 'RAW_PORK'
-    },
-    {
-        keywords: [
-            'กุ้ง', 'ปลา', 'หอย', 'ปู', 'หมึก', 'ทะเล', 'seafood',
-            'shrimp', 'fish', 'crab', 'squid', 'oyster',
-        ], code: 'RAW_SEA'
-    },
+import { guessCategory, SKU_PREFIX, DRINK_CODES, ENTERTAIN_CODES } from '@/lib/cat-rules'
 
-    // บรรจุภัณฑ์ (ตรวจก่อน เครื่องดื่ม เพื่อกัน "กระป๋อง" ของบรรจุ)
-    {
-        keywords: [
-            'ถุง', 'กล่อง', 'ฟอยล์', 'ฝาปิด', 'ช้อน', 'ส้อม', 'หลอด',
-            'bag', 'box', 'foil', 'lid', 'spoon', 'fork', 'straw', 'container',
-            'แพ็ค', 'pack', 'wrap', 'บรรจุ', 'packaging',
-            'ถ้วย', 'โฟม', 'cup', 'foam', 'tray',
-        ], code: 'PACKAGING'
-    },
-
-    // เครื่องดื่ม — ตรวจก่อน RAW_VEG/DRY_GOODS เพื่อกัน fallthrough
-    {
-        keywords: [
-            // เบียร์
-            'beer', 'beerlao', 'beelao', 'heineken', 'carlsberg', 'carsberg',
-            'budweiser', 'corona', 'somersby', 'hoegarden', 'hoegaarden',
-            '1664', 'blanc', 'เบียร์', 'เบีย', 'บีร์',
-            // ไวน์
-            'wine', 'ไวน์', 'วาย', 'penfolds', 'jacob', 'jacop', 'rawson',
-            'hoonuga', 'siegel', 'carmenere', 'chardonnay', 'rosé', 'rose',
-            // สุรา / สปิริต
-            'whisky', 'whiskey', 'johnnie walker', 'johny', 'johnny', 'hennessy',
-            'regency', 'singerton', 'singmalt', 'vodka', 'rum', 'gin', 'brandy',
-            'vsop', 'เหล้า', 'วิสกี้', 'บรั่นดี',
-            // น้ำอัดลม
-            'pepsi', 'soda', 'sprite', 'fanta', 'coke', 'cola', 'โซดา',
-            // ชา กาแฟ
-            'กาแฟ', 'กาเฟ', 'coffee', 'maple coffee', 'ชา', 'tea',
-            // น้ำ / เครื่องดื่มทั่วไป
-            'เครื่องดื่ม', 'น้ำดื่ม', 'water', 'drink', 'juice',
-            'น้ำผลไม้', 'สมูทตี้', 'smoothie', 'ปั่น',
-            // tower
-            'ทาวเวอร์', 'tower',
-        ], code: 'DRY_GOODS'
-    },
-
-    // ผัก / เครื่องปรุง
-    {
-        keywords: [
-            'ผัก', 'หัวหอม', 'กระเทียม', 'พริก', 'มะเขือ', 'ฟักทอง', 'แครอท', 'มะนาว', 'ผักชี',
-            'ใบกะเพรา', 'ใบโหระพา', 'ตะไคร้', 'ข่า', 'ขมิ้น', 'ขิง', 'เห็ด',
-            'veg', 'vegetable', 'herb', 'spice',
-            'แป้ง', 'น้ำตาล', 'เกลือ', 'น้ำมัน', 'ซีอิ๊ว', 'น้ำปลา', 'กะปิ',
-            'flour', 'sugar', 'salt', 'oil', 'sauce',
-        ], code: 'RAW_VEG'
-    },
-    {
-        keywords: [
-            'ข้าว', 'ของแห้ง', 'กระป๋อง', 'มาม่า', 'บะหมี่', 'วุ้นเส้น',
-            'dry', 'rice', 'noodle', 'canned', 'dried',
-        ], code: 'DRY_GOODS'
-    },
-
-    // อื่นๆ (fallback)
-    { keywords: ['อื่น', 'other', 'misc', 'เบ็ดเตล็ด'], code: 'OTHER' },
-]
-
-function guessCategory(name: string): string | null {
-    const n = name.toLowerCase()
-    for (const entry of KEYWORD_MAP) {
-        if (entry.keywords.some(kw => n.includes(kw.toLowerCase()))) {
-            return entry.code
-        }
-    }
-    return null
-}
-
+/** อ่านค่าคอลัมน์จาก Excel row (case-insensitive) */
 function col(row: Record<string, unknown>, ...keys: string[]): string {
     for (const k of keys) {
         const found = Object.keys(row).find(r => r.trim().toLowerCase() === k.toLowerCase())
         if (found !== undefined && row[found] !== '') return String(row[found]).trim()
     }
     return ''
-}
-
-const SKU_PREFIX: Record<string, string> = {
-    RAW_MEAT: 'RM', RAW_PORK: 'RP', RAW_SEA: 'RS', RAW_VEG: 'RV',
-    DRY_GOODS: 'DG', PACKAGING: 'PK', OTHER: 'OT',
-    BEER: 'B', BEER_DRAFT: 'BD', WINE: 'W', COCKTAIL: 'CK',
-    DRINK: 'D', WATER: 'WI', FOOD_GRILL: 'FG', FOOD_FRY: 'FF',
-    FOOD_RICE: 'FR', FOOD_NOODLE: 'FN', FOOD_SEA: 'FS', FOOD_VEG: 'FV',
-    FOOD_LAAB: 'FL', KARAOKE: 'KR', SET: 'ST', ENTERTAIN: 'EN',
 }
 
 export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
@@ -145,6 +51,9 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
         const existing = await prisma.product.findMany({ select: { sku: true, name: true } })
         const existingSkus = new Set(existing.map(p => p.sku))
         const existingNames = new Set(existing.map(p => p.name.toLowerCase()))
+
+        // ── Batch ID for rollback ──────────────────────────────────
+        const batchId = `import-${Date.now()}`
 
         const results: {
             row: number
@@ -180,17 +89,23 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             // 3-step category resolution
             let category = catRaw ? findCategoryByExact(catRaw) : null
             let guessed = false
+            let guessedCode: string | null = null
 
             if (!category) {
-                const guessedCode = guessCategory(name)
+                guessedCode = guessCategory(name)
                 if (guessedCode) {
+                    // Skip เครื่องดื่ม — ไม่ควร import เป็นวัตถุดิบ
+                    if (DRINK_CODES.has(guessedCode)) {
+                        results.push({ row: rowNum, status: 'skipped', name, reason: `ข้ามเครื่องดื่ม (${guessedCode}) — import เป็นวัตถุดิบไม่ถูกต้อง` })
+                        continue
+                    }
                     category = catByCode.get(guessedCode.toLowerCase()) || null
                     if (category) guessed = true
                 }
             }
             if (!category) {
-                // fallback → RAW_VEG (เบ็ดเตล็ด/ของแห้ง)
-                category = catByCode.get('raw_veg') || catByCode.get('other') || dbCategories[0] || null
+                // fallback → OTHER
+                category = catByCode.get('other') || dbCategories[0] || null
                 if (category) guessed = true
             }
             if (!category) {
@@ -202,11 +117,13 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             const convFactor = parseFloat(convFactorRaw.replace(/,/g, '').replace(/[^\d.]/g, '')) || undefined
 
             // Determine productType
-            let productType: 'RAW_MATERIAL' | 'PACKAGING' = 'RAW_MATERIAL'
-            if (
+            let productType: 'RAW_MATERIAL' | 'PACKAGING' | 'ENTERTAIN' = 'RAW_MATERIAL'
+            if (ENTERTAIN_CODES.has(guessedCode ?? '') || ENTERTAIN_CODES.has(category.code)) {
+                productType = 'ENTERTAIN'
+            } else if (
                 typeRaw.toLowerCase().includes('packaging') ||
                 typeRaw.toLowerCase().includes('บรรจุ') ||
-                category.code === 'PACKAGING'
+                ['BOX_BAG', 'TISSUE_CLEAN', 'DISPOSABLE', 'PACKAGING'].includes(category.code)
             ) {
                 productType = 'PACKAGING'
             }
@@ -235,7 +152,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
                         convFactor,
                         costPrice,
                         salePrice: 0,
-                        note: note || undefined,
+                        note: `[BATCH:${batchId}]${note ? ' ' + note : ''}`,
                     },
                 })
                 existingSkus.add(sku)
@@ -254,6 +171,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
         return NextResponse.json({
             success: true,
             data: { created, skipped, errors, autoMatched, total: rows.length, results },
+            batchId,
         })
 
     } catch (e: unknown) {

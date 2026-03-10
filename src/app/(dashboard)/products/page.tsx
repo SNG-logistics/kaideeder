@@ -780,6 +780,8 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
     const [importing, setImporting] = useState(false)
     const [summary, setSummary] = useState<RawImportSummary | null>(null)
     const [importError, setImportError] = useState<string | null>(null)
+    const [batchId, setBatchId] = useState<string | null>(null)     // ← ใช้ rollback
+    const [rollingBack, setRollingBack] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const handleFile = (f: File) => {
@@ -799,10 +801,30 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
         try {
             const res = await fetch('/api/products/import-raw', { method: 'POST', body: fd })
             const json = await res.json()
-            if (json.success) { setSummary(json.data); toast.success(`✅ Import สำเร็จ ${json.data.created} รายการ`) }
-            else setImportError(json.error || 'Import ไม่สำเร็จ')
+            if (json.success) {
+                setSummary(json.data)
+                setBatchId(json.batchId || null)
+                toast.success(`✅ Import สำเร็จ ${json.data.created} รายการ`)
+            } else setImportError(json.error || 'Import ไม่สำเร็จ')
         } catch { setImportError('เกิดข้อผิดพลาดในการอัปโหลด') }
         finally { setImporting(false) }
+    }
+
+    const doRollback = async () => {
+        if (!batchId) return
+        if (!confirm(`⚠️ ยืนยันลบสินค้าทั้งหมดจาก batch นี้ (${summary?.created} รายการ)?\n\nการกระทำนี้ไม่สามารถย้อนกลับได้`)) return
+        setRollingBack(true)
+        try {
+            const res = await fetch(`/api/products/import-batches?batchId=${batchId}`, { method: 'DELETE' })
+            const json = await res.json()
+            if (json.success) {
+                toast.success(`🗑️ Rollback สำเร็จ: ลบ ${json.deleted} รายการ`)
+                setBatchId(null)
+                setSummary(null)
+                onDone()
+            } else toast.error(json.error || 'Rollback ไม่สำเร็จ')
+        } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setRollingBack(false) }
     }
 
     const downloadTemplate = () => {
@@ -955,6 +977,17 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
                                 boxShadow: !file || importing ? 'none' : '0 4px 14px rgba(5,150,105,0.35)',
                             }}>
                                 {importing ? '⏳ กำลัง Import...' : '📂 เริ่ม Import'}
+                            </button>
+                        )}
+                        {summary && batchId && (
+                            <button onClick={doRollback} disabled={rollingBack} style={{
+                                flex: 2, minHeight: 44, borderRadius: 12, border: 'none',
+                                background: rollingBack ? '#9CA3AF' : 'linear-gradient(135deg,#EF4444,#DC2626)',
+                                color: '#fff', fontWeight: 700, fontSize: '0.9rem',
+                                cursor: rollingBack ? 'wait' : 'pointer', fontFamily: 'inherit',
+                                boxShadow: rollingBack ? 'none' : '0 4px 14px rgba(239,68,68,0.35)',
+                            }}>
+                                {rollingBack ? '⏳ กำลัง Rollback...' : `🗑️ Rollback ทั้งหมด (${summary.created} รายการ)`}
                             </button>
                         )}
                     </div>

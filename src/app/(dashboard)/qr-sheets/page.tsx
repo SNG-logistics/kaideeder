@@ -30,6 +30,11 @@ export default function QRSheetPage() {
     const [items, setItems] = useState<QRItem[]>([])
     const [locationInfo, setLocationInfo] = useState<{ code: string; name: string } | null>(null)
     const printRef = useRef<HTMLDivElement>(null)
+    const [today, setToday] = useState('')
+
+    useEffect(() => {
+        setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }))
+    }, [])
 
     useEffect(() => {
         fetch('/api/locations').then(r => r.json()).then(d => {
@@ -61,7 +66,6 @@ export default function QRSheetPage() {
         }
     }
 
-    const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
 
     return (
         <>
