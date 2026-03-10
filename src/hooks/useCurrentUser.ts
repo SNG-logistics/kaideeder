@@ -25,11 +25,9 @@ export function useCurrentUser(): CurrentUser | null {
             return
         }
 
-        // Fast path: if no token cookie exists at all, redirect to login
-        if (typeof document !== 'undefined' && !document.cookie.includes('token=')) {
-            window.location.href = '/login'
-            return
-        }
+        // NOTE: Do NOT check document.cookie for 'token=' here.
+        // The token cookie is httpOnly — JavaScript cannot read it.
+        // We rely on /api/auth/me returning 401 to detect unauthenticated state.
 
         fetch('/api/auth/me')
             .then(async r => {
