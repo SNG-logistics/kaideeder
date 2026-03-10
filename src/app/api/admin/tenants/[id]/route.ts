@@ -15,6 +15,10 @@ export const GET = withAdminAuth(async (_req: NextRequest, context) => {
             wallet: { include: { ledger: { orderBy: { createdAt: 'desc' }, take: 50 } } },
             subs: { include: { plan: true }, orderBy: { startAt: 'desc' } },
             topups: { orderBy: { createdAt: 'desc' }, take: 20 },
+            users: {
+                select: { id: true, username: true, name: true, role: true, isActive: true, createdAt: true },
+                orderBy: { createdAt: 'desc' }
+            }
         },
     })
 

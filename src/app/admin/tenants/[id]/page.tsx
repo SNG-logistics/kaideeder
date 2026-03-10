@@ -24,6 +24,15 @@ type LedgerRow = {
     createdAt: string
 }
 
+type User = {
+    id: string
+    username: string
+    name: string
+    role: string
+    isActive: boolean
+    createdAt: string
+}
+
 type Tenant = {
     id: string
     code: string
@@ -34,6 +43,7 @@ type Tenant = {
     createdAt: string
     wallet: { balanceLAK: number; ledger: LedgerRow[] } | null
     subs: Sub[]
+    users: User[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -76,6 +86,11 @@ export default function TenantDetailPage() {
     const [showPlan, setShowPlan] = useState(false)
     const [selectedPlan, setSelectedPlan] = useState('')
     const [planDays, setPlanDays] = useState(30)
+
+    // password reset modal
+    const [resetUser, setResetUser] = useState<User | null>(null)
+    const [newPass, setNewPass] = useState('')
+    const [resetting, setResetting] = useState(false)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -133,6 +148,26 @@ export default function TenantDetailPage() {
             load()
         } else {
             setMsg({ ok: false, text: d.error ?? 'Error' })
+        }
+    }
+
+    // ── Reset password ───────────────────────────────────────────────────────
+    async function handleResetPassword() {
+        if (!resetUser || !newPass) return
+        setResetting(true)
+        const res = await adminFetch(`/api/admin/users/${resetUser.id}/password`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ newPassword: newPass }),
+        })
+        const d = await res.json()
+        setResetting(false)
+        if (res.ok) {
+            setMsg({ ok: true, text: `Password for ${resetUser.name} reset successfully.` })
+            setResetUser(null)
+            setNewPass('')
+        } else {
+            setMsg({ ok: false, text: d.error ?? 'Failed to reset password' })
         }
     }
 
@@ -272,6 +307,87 @@ export default function TenantDetailPage() {
                     </div>
                 </div>
             )}
+
+            {/* ── Reset Password Modal ───────────────────────────────────────── */}
+            {resetUser && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+                        <h2 className="text-lg font-bold text-white">Reset Password</h2>
+                        <p className="text-sm text-gray-400">
+                            Set a new password for <span className="text-white font-semibold">{resetUser.name}</span> (@{resetUser.username}).
+                        </p>
+                        <div>
+                            <input
+                                type="text"
+                                value={newPass}
+                                onChange={e => setNewPass(e.target.value)}
+                                placeholder="Enter new password"
+                                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500"
+                            />
+                        </div>
+                        <div className="flex gap-3 justify-end mt-6">
+                            <button
+                                onClick={() => setResetUser(null)}
+                                disabled={resetting}
+                                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleResetPassword}
+                                disabled={!newPass || resetting}
+                                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition"
+                            >
+                                {resetting ? 'Saving...' : 'Confirm Reset'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Users Management ────────────────────────────────────────────── */}
+            <section>
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-lg font-semibold">Users Management</h2>
+                </div>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-gray-800 text-gray-400 text-left">
+                                <th className="px-5 py-3 font-medium">Username</th>
+                                <th className="px-5 py-3 font-medium">Name</th>
+                                <th className="px-5 py-3 font-medium">Role</th>
+                                <th className="px-5 py-3 font-medium">Status</th>
+                                <th className="px-5 py-3 font-medium text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800">
+                            {tenant.users.length === 0 ? (
+                                <tr><td colSpan={5} className="text-center text-gray-600 py-10">No users found</td></tr>
+                            ) : tenant.users.map(u => (
+                                <tr key={u.id} className="hover:bg-gray-800/30">
+                                    <td className="px-5 py-3 font-mono text-gray-300">{u.username}</td>
+                                    <td className="px-5 py-3 text-white font-medium">{u.name}</td>
+                                    <td className="px-5 py-3">
+                                        <span className="bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded-md border border-gray-700">{u.role}</span>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        {u.isActive ? <span className="text-emerald-400 font-medium text-xs">● Active</span> : <span className="text-red-400 font-medium text-xs">● Inactive</span>}
+                                    </td>
+                                    <td className="px-5 py-3 text-right">
+                                        <button
+                                            onClick={() => { setResetUser(u); setNewPass('') }}
+                                            className="text-xs font-semibold px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/20 transition"
+                                        >
+                                            Reset Password
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
             {/* ── Subscription history ────────────────────────────────────────── */}
             <section>

@@ -74,62 +74,46 @@ export default function TenantsPage() {
     ]
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="flex flex-col gap-6">
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>🏬 Tenants</h1>
-                    <p style={{ color: '#475569', fontSize: '0.875rem' }}>{tenants.length} ร้านค้าในระบบ</p>
+                    <h1 className="text-2xl font-extrabold text-slate-100 mb-1">🏬 Tenants</h1>
+                    <p className="text-slate-400 text-sm">{tenants.length} ร้านค้าในระบบ</p>
                 </div>
                 <Link
                     href="/admin/tenants/new"
-                    style={{
-                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                        color: '#fff', textDecoration: 'none',
-                        fontSize: '0.875rem', fontWeight: 600,
-                        padding: '0.6rem 1.25rem', borderRadius: 10,
-                        boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
-                    }}
+                    className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(99,102,241,0.3)] transition hover:opacity-90"
                 >+ New Tenant</Link>
             </div>
 
             {/* Stats bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                    { label: 'Active', count: counts.ACTIVE, ...STATUS_STYLE.ACTIVE },
-                    { label: 'Past Due', count: counts.PAST_DUE, ...STATUS_STYLE.PAST_DUE },
-                    { label: 'Suspended', count: counts.SUSPENDED, ...STATUS_STYLE.SUSPENDED },
+                    { label: 'Active', count: counts.ACTIVE, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', dot: 'bg-emerald-500' },
+                    { label: 'Past Due', count: counts.PAST_DUE, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/30', dot: 'bg-amber-500' },
+                    { label: 'Suspended', count: counts.SUSPENDED, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/30', dot: 'bg-red-500' },
                 ].map(s => (
-                    <div key={s.label} style={{
-                        background: s.bg, border: `1px solid ${s.border}`,
-                        borderRadius: 12, padding: '1rem',
-                        display: 'flex', alignItems: 'center', gap: 12,
-                    }}>
-                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: s.dot, boxShadow: `0 0 8px ${s.dot}` }} />
+                    <div key={s.label} className={`border rounded-xl p-4 flex items-center gap-4 ${s.bg} ${s.border}`}>
+                        <div className={`w-2.5 h-2.5 rounded-full shadow-[0_0_8px] ${s.dot}`} style={{ boxShadow: `0 0 8px currentColor` }} />
                         <div>
-                            <p style={{ fontSize: '1.25rem', fontWeight: 800, color: s.color }}>{s.count}</p>
-                            <p style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>{s.label}</p>
+                            <p className={`text-xl font-extrabold leading-tight ${s.color}`}>{s.count}</p>
+                            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{s.label}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* Filter + Search */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="flex gap-3 flex-wrap items-center">
                 {/* Tabs */}
-                <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 4 }}>
+                <div className="flex gap-1 bg-white/5 rounded-xl p-1">
                     {TABS.map(t => (
                         <button
                             key={t.key}
                             onClick={() => setTab(t.key)}
-                            style={{
-                                border: 'none', cursor: 'pointer',
-                                padding: '0.4rem 0.875rem', borderRadius: 7,
-                                fontSize: '0.78rem', fontWeight: tab === t.key ? 700 : 400,
-                                background: tab === t.key ? `${t.color}25` : 'transparent',
-                                color: tab === t.key ? t.color : '#64748b',
-                                transition: 'all 0.15s',
-                            }}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs transition-all ${tab === t.key ? 'font-bold bg-white/10' : 'text-slate-400 hover:text-slate-200'}`}
+                            style={tab === t.key ? { color: t.color } : {}}
                         >{t.label}</button>
                     ))}
                 </div>
@@ -138,93 +122,66 @@ export default function TenantsPage() {
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     placeholder="🔍 ค้นหาชื่อหรือ code..."
-                    style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 10, padding: '0.5rem 1rem',
-                        color: '#e2e8f0', fontSize: '0.875rem',
-                        outline: 'none', minWidth: 220,
-                    }}
+                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-slate-200 text-sm outline-none w-full md:w-auto min-w-[220px] focus:border-indigo-500 transition"
                 />
             </div>
 
             {/* Table */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '3rem', color: '#475569' }}>⏳ Loading...</div>
+                <div className="text-center py-12 text-slate-400">⏳ Loading...</div>
             ) : (
-                <div style={{
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: 16, overflow: 'hidden',
-                }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <div className="bg-white/5 border border-white/10 rounded-2xl overflow-x-auto">
+                    <table className="w-full text-sm min-w-[800px]">
                         <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                            <tr className="border-b border-white/10">
                                 {['Tenant', 'Status', 'Plan', 'Wallet (LAK)', 'Expires', 'Actions'].map(h => (
-                                    <th key={h} style={{
-                                        padding: '0.875rem 1.25rem', textAlign: h === 'Wallet (LAK)' ? 'right' : 'left',
-                                        color: '#475569', fontWeight: 600, fontSize: '0.75rem',
-                                        textTransform: 'uppercase', letterSpacing: '0.05em',
-                                    }}>{h}</th>
+                                    <th key={h} className={`py-3.5 px-5 text-slate-400 font-semibold text-xs tracking-wider uppercase ${h === 'Wallet (LAK)' ? 'text-right' : 'text-left'}`}>
+                                        {h}
+                                    </th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-white/5">
                             {filtered.length === 0 ? (
-                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: '#334155' }}>
-                                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
+                                <tr><td colSpan={6} className="text-center py-12 text-slate-500">
+                                    <div className="text-3xl mb-2">🔍</div>
                                     <p>ไม่พบ tenant</p>
                                 </td></tr>
                             ) : filtered.map(t => {
                                 const s = STATUS_STYLE[t.status]
                                 return (
-                                    <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
-                                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                    >
-                                        <td style={{ padding: '1rem 1.25rem' }}>
-                                            <p style={{ color: '#f1f5f9', fontWeight: 600 }}>{t.name}</p>
-                                            <p style={{ color: '#475569', fontSize: '0.75rem', fontFamily: 'monospace' }}>{t.code}</p>
+                                    <tr key={t.id} className="hover:bg-white/5 transition-colors">
+                                        <td className="py-4 px-5">
+                                            <p className="text-slate-100 font-semibold">{t.name}</p>
+                                            <p className="text-slate-400 text-xs font-mono">{t.code}</p>
                                         </td>
-                                        <td style={{ padding: '1rem 1.25rem' }}>
-                                            <span style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: 6,
-                                                padding: '0.25rem 0.75rem', borderRadius: 999,
-                                                fontSize: '0.75rem', fontWeight: 700,
-                                                color: s.color, background: s.bg, border: `1px solid ${s.border}`,
-                                            }}>
-                                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
+                                        <td className="py-4 px-5">
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border" style={{ color: s.color, backgroundColor: s.bg, borderColor: s.border }}>
+                                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.dot }} />
                                                 {t.status}
                                             </span>
                                         </td>
-                                        <td style={{ padding: '1rem 1.25rem', color: '#94a3b8' }}>
-                                            {t.activePlan?.name ?? <span style={{ color: '#334155' }}>—</span>}
+                                        <td className="py-4 px-5 text-slate-400">
+                                            {t.activePlan?.name ?? <span className="text-slate-600">—</span>}
                                         </td>
-                                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right', fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 600 }}>
+                                        <td className="py-4 px-5 text-right font-mono text-slate-200 font-semibold">
                                             {fmt(t.walletLAK)}
                                         </td>
-                                        <td style={{ padding: '1rem 1.25rem', color: '#64748b', fontSize: '0.8rem' }}>
+                                        <td className="py-4 px-5 text-slate-500 text-xs text-nowrap">
                                             {t.activeSubEndAt ? new Date(t.activeSubEndAt).toLocaleDateString('th-TH') : '—'}
                                         </td>
-                                        <td style={{ padding: '1rem 1.25rem' }}>
-                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                <Link href={`/admin/tenants/${t.id}`} style={{
-                                                    color: '#6366f1', fontSize: '0.78rem', fontWeight: 600,
-                                                    textDecoration: 'none', padding: '0.3rem 0.75rem',
-                                                    background: 'rgba(99,102,241,0.1)', borderRadius: 7,
-                                                    border: '1px solid rgba(99,102,241,0.2)',
-                                                }}>View</Link>
+                                        <td className="py-4 px-5">
+                                            <div className="flex gap-2 items-center">
+                                                <Link href={`/admin/tenants/${t.id}`} className="text-indigo-400 text-xs font-semibold px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/20 transition">
+                                                    View
+                                                </Link>
                                                 <button
                                                     onClick={() => toggleSuspend(t)}
                                                     disabled={suspending === t.id}
-                                                    style={{
-                                                        border: 'none', cursor: 'pointer',
-                                                        fontSize: '0.78rem', fontWeight: 600,
-                                                        padding: '0.3rem 0.75rem', borderRadius: 7,
-                                                        background: t.status === 'SUSPENDED' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                                                        color: t.status === 'SUSPENDED' ? '#10b981' : '#ef4444',
-                                                        opacity: suspending === t.id ? 0.5 : 1,
-                                                    }}
+                                                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${t.status === 'SUSPENDED'
+                                                            ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20'
+                                                            : 'text-red-500 bg-red-500/10 border-red-500/20 hover:bg-red-500/20'
+                                                        } ${suspending === t.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 >
                                                     {suspending === t.id ? '...' : t.status === 'SUSPENDED' ? 'Activate' : 'Suspend'}
                                                 </button>
