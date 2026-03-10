@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAdminAuth, ok, err } from '@/lib/admin-auth'
 import { z } from 'zod'
