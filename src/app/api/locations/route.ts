@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { withAuth, ok } from '@/lib/api'
+import { withAuth, ok, err } from '@/lib/api'
 
 // GET /api/locations
 export const GET = withAuth(async (_req, context) => {
@@ -19,12 +19,12 @@ export const GET = withAuth(async (_req, context) => {
 export const POST = withAuth(async (req: NextRequest, context) => {
     const { tenantId } = context as any
     const body = await req.json()
-    const { name, code, description } = body
-    if (!name?.trim()) return NextResponse.json({ success: false, error: 'กรุณาระบุชื่อคลัง' }, { status: 400 })
-    if (!code?.trim()) return NextResponse.json({ success: false, error: 'กรุณาระบุรหัสคลัง' }, { status: 400 })
+    const { name, code, type } = body
+    if (!name?.trim()) return err('กรุณาระบุชื่อคลัง', 400)
+    if (!code?.trim()) return err('กรุณาระบุรหัสคลัง', 400)
 
     const existing = await prisma.location.findFirst({ where: { tenantId, code: code.trim().toUpperCase() } })
-    if (existing) return NextResponse.json({ success: false, error: `รหัส "${code}" มีอยู่แล้ว` }, { status: 409 })
+    if (existing) return err(`รหัส "${code}" มีอยู่แล้ว`, 409)
 
     const count = await prisma.location.count({ where: { tenantId } })
     const loc = await prisma.location.create({
@@ -32,10 +32,11 @@ export const POST = withAuth(async (req: NextRequest, context) => {
             tenantId,
             name: name.trim(),
             code: code.trim().toUpperCase(),
-            description: description?.trim() || null,
+            type: type || 'MAIN_WAREHOUSE',
             isActive: true,
             sortOrder: count,
         },
     })
-    return NextResponse.json({ success: true, data: loc }, { status: 201 })
+    return ok(loc, 201)
 })
+
