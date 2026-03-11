@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚀 KAIDEEDER Deploy Helper</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem 1rem }
+  h1 { font-size: 1.5rem; font-weight: 800; color: #f8fafc; margin-bottom: 4px }
+  .sub { font-size: 0.8rem; color: #64748b; margin-bottom: 2rem }
+  .section { margin-bottom: 2rem }
+  .section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; font-weight: 700; margin-bottom: 10px }
+  .cmd-row { display: flex; align-items: stretch; gap: 0; margin-bottom: 8px; border-radius: 10px; overflow: hidden; border: 1px solid #1e293b }
+  .label { background: #1e293b; color: #94a3b8; font-size: 0.68rem; font-weight: 700; padding: 0 10px; display: flex; align-items: center; white-space: nowrap; min-width: 64px; justify-content: center; border-right: 1px solid #0f172a }
+  .cmd-box { background: #0f172a; font-family: 'Courier New', monospace; font-size: 0.85rem; padding: 10px 14px; flex: 1; display: flex; align-items: center; color: #a3e635; word-break: break-all }
+  .copy-btn { background: #1d4ed8; border: none; color: #fff; padding: 0 16px; cursor: pointer; font-size: 0.75rem; font-weight: 700; font-family: inherit; white-space: nowrap; transition: background 0.15s }
+  .copy-btn:hover { background: #2563eb }
+  .copy-btn.copied { background: #059669 }
+  .note { font-size: 0.72rem; color: #64748b; margin-top: 4px; padding-left: 4px }
+  .divider { border: none; border-top: 1px solid #1e293b; margin: 1.5rem 0 }
+  .badge { display: inline-block; font-size: 0.62rem; background: #0ea5e9; color: #fff; border-radius: 20px; padding: 2px 8px; margin-left: 6px; font-weight: 700; vertical-align: middle }
+  .badge.green { background: #059669 }
+  .badge.yellow { background: #d97706 }
+</style>
+</head>
+<body>
+<h1>🚀 KAIDEEDER Deploy Helper</h1>
+<p class="sub">Plesk → Node.js → Run Node.js commands — เลือก <b>npm</b> แล้วก๊อปคำสั่งด้านล่างวางในช่อง</p>
+
+<div class="section">
+  <div class="section-title">📥 ขั้นตอนที่ 1 — ก่อน build (ถ้า code เปลี่ยน)</div>
+  <div class="cmd-row">
+    <div class="label">Git</div>
+    <div class="cmd-box">ใช้ Plesk → Git → Pull updates</div>
+    <button class="copy-btn" onclick="copy(this, 'git pull origin main')">Copy</button>
+  </div>
+  <p class="note">⚠️ ดึงโค้ดใหม่จาก GitHub ก่อนทุกครั้ง</p>
+</div>
+
+<div class="section">
+  <div class="section-title">📦 ขั้นตอนที่ 2 — Install packages</div>
+  <div class="cmd-row">
+    <div class="label">npm</div>
+    <div class="cmd-box" id="c1">install --omit=dev</div>
+    <button class="copy-btn" onclick="copy(this, 'install --omit=dev')">Copy</button>
+  </div>
+  <p class="note">ติดตั้ง package ที่เพิ่มมาใหม่ (ไม่รวม devDependencies)</p>
+</div>
+
+<hr class="divider">
+
+<div class="section">
+  <div class="section-title">🚀 ขั้นตอนที่ 3 — Deploy <span class="badge green">คำสั่งเดียว!</span></div>
+  <div class="cmd-row">
+    <div class="label">npm</div>
+    <div class="cmd-box" id="c2">run deploy</div>
+    <button class="copy-btn" onclick="copy(this, 'run deploy')">Copy</button>
+  </div>
+  <p class="note">✅ ทำทุกอย่างใน 1 คำสั่ง: prisma generate → next build → copy static → db push</p>
+</div>
+
+<hr class="divider">
+
+<div class="section">
+  <div class="section-title">🔧 คำสั่งแยก (ถ้าต้องการรันทีละขั้น)</div>
+  
+  <div class="cmd-row">
+    <div class="label">npm</div>
+    <div class="cmd-box">run db:generate</div>
+    <button class="copy-btn" onclick="copy(this, 'run db:generate')">Copy</button>
+  </div>
+  <p class="note" style="margin-bottom:8px">Generate Prisma client (v5)</p>
+
+  <div class="cmd-row">
+    <div class="label">npm</div>
+    <div class="cmd-box">run build</div>
+    <button class="copy-btn" onclick="copy(this, 'run build')">Copy</button>
+  </div>
+  <p class="note" style="margin-bottom:8px">Build Next.js (ใช้เวลา 3-5 นาที)</p>
+
+  <div class="cmd-row">
+    <div class="label">npm</div>
+    <div class="cmd-box">run copy-static</div>
+    <button class="copy-btn" onclick="copy(this, 'run copy-static')">Copy</button>
+  </div>
+  <p class="note" style="margin-bottom:8px">Copy static files → standalone folder</p>
+
+  <div class="cmd-row">
+    <div class="label">npm</div>
+    <div class="cmd-box">run db:push:prod</div>
+    <button class="copy-btn" onclick="copy(this, 'run db:push:prod')">Copy</button>
+  </div>
+  <p class="note">Push Prisma schema → production DB</p>
+</div>
+
+<hr class="divider">
+
+<div class="section">
+  <div class="section-title">ℹ️ หมายเหตุ</div>
+  <ul style="font-size:0.78rem;color:#94a3b8;padding-left:1.2rem;line-height:2">
+    <li>Plesk Node.js panel: เลือก <b style="color:#e2e8f0">npm</b> จาก dropdown แล้ววางคำสั่งในช่อง (ไม่ต้องพิมพ์ "npm " นำหน้า)</li>
+    <li>ถ้า error <b style="color:#f87171">prisma not found</b> → รัน <code style="color:#a3e635">install --omit=dev</code> ก่อน</li>
+    <li>ถ้า error <b style="color:#f87171">502 Bad Gateway</b> → restart app ใน Plesk Node.js panel</li>
+  </ul>
+</div>
+
+<script>
+function copy(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent
+    btn.textContent = '✓ Copied!'
+    btn.classList.add('copied')
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied') }, 1800)
+  })
+}
+</script>
+</body>
+</html>
