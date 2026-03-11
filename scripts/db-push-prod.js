@@ -21,7 +21,8 @@ if (!dbUrl || dbUrl.includes('YOUR_PASSWORD')) {
 console.log('📦 DATABASE_URL:', dbUrl.replace(/:([^:@]+)@/, ':****@'))
 console.log('🔄 Running: prisma db push...\n')
 
-execSync('prisma db push', {
+const prismaBin = require('path').join(__dirname, '..', 'node_modules', '.bin', 'prisma')
+execSync(`"${prismaBin}" db push`, {
     env: { ...process.env, DATABASE_URL: dbUrl },
     stdio: 'inherit'
 })
