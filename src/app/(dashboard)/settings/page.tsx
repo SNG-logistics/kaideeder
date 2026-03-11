@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { usePermission } from '@/hooks/usePermission'
 import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBranding'
+import { useTenant } from '@/context/TenantContext'
 
 // ─── Store Branding Card ─────────────────────────────────────
 function StoreBrandingCard() {
@@ -162,6 +163,140 @@ function StoreBrandingCard() {
                     )}
                 </div>
             </div>
+        </div>
+    )
+}
+
+
+// ─── Store Settings Card ──────────────────────────────────────
+function StoreSettingsCard() {
+    const canManage = usePermission('SETTINGS_MANAGE')
+    const { reload } = useTenant()
+    const [form, setForm] = useState({
+        displayName: '', storeNameLao: '',
+        currency: 'LAK', language: 'th',
+        phone: '', address: '', taxId: '', receiptHeader: '',
+    })
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+
+    useEffect(() => {
+        fetch('/api/tenant/settings')
+            .then(r => r.json())
+            .then(d => {
+                if (d.settings) setForm({
+                    displayName: d.settings.displayName ?? '',
+                    storeNameLao: d.settings.storeNameLao ?? '',
+                    currency: d.settings.currency ?? 'LAK',
+                    language: d.settings.language ?? 'th',
+                    phone: d.settings.phone ?? '',
+                    address: d.settings.address ?? '',
+                    taxId: d.settings.taxId ?? '',
+                    receiptHeader: d.settings.receiptHeader ?? '',
+                })
+            })
+            .finally(() => setLoading(false))
+    }, [])
+
+    async function save() {
+        setSaving(true)
+        const res = await fetch('/api/tenant/settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(form),
+        })
+        const d = await res.json()
+        setSaving(false)
+        if (d.success) { reload(); toast.success('✅ บันทึกข้อมูลร้านแล้ว') }
+        else toast.error(d.error || 'เกิดข้อผิดพลาด')
+    }
+
+    if (!canManage) return null
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🏪</span> ข้อมูลร้าน &amp; การตั้งค่า
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>ชื่อร้าน, สกุลเงิน, ภาษา, เบอร์โทร, ที่อยู่ และหัวใบบิล</p>
+
+            {loading ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>⏳ กำลังโหลด...</p>
+            ) : (
+                <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        {/* ชื่อร้าน */}
+                        <div>
+                            <label className="label">🏠 ชื่อร้าน (ไทย/English)</label>
+                            <input value={form.displayName} onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
+                                placeholder="ชื่อร้านของคุณ..." className="input" maxLength={100} />
+                        </div>
+                        <div>
+                            <label className="label">🏠 ຊື່ຮ້ານ (ລາວ)</label>
+                            <input value={form.storeNameLao} onChange={e => setForm(f => ({ ...f, storeNameLao: e.target.value }))}
+                                placeholder="ຊື່ຮ້ານພາສາລາວ..." className="input" maxLength={100} />
+                        </div>
+
+                        {/* สกุลเงิน */}
+                        <div>
+                            <label className="label">💱 สกุลเงิน</label>
+                            <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} className="input">
+                                <option value="LAK">₭ LAK — ກີບລາວ</option>
+                                <option value="THB">฿ THB — บาทไทย</option>
+                            </select>
+                        </div>
+
+                        {/* ภาษา */}
+                        <div>
+                            <label className="label">🌐 ภาษา UI</label>
+                            <select value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))} className="input">
+                                <option value="th">🇹🇭 ไทย (Thai)</option>
+                                <option value="lo">🇱🇦 ລາວ (Lao)</option>
+                                <option value="both">🇹🇭🇱🇦 ไทย / ລາວ (Bilingual)</option>
+                            </select>
+                        </div>
+
+                        {/* เบอร์โทร */}
+                        <div>
+                            <label className="label">📞 เบอร์โทรร้าน</label>
+                            <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                                placeholder="+856 20 xxxx xxxx" className="input" maxLength={30} />
+                        </div>
+
+                        {/* Tax ID */}
+                        <div>
+                            <label className="label">🧾 เลขทะเบียนภาษี (ถ้ามี)</label>
+                            <input value={form.taxId} onChange={e => setForm(f => ({ ...f, taxId: e.target.value }))}
+                                placeholder="xxxxxxxxxx" className="input" maxLength={20} />
+                        </div>
+
+                        {/* ที่อยู่ */}
+                        <div style={{ gridColumn: '1/-1' }}>
+                            <label className="label">📍 ที่อยู่ร้าน</label>
+                            <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                                placeholder="ที่อยู่ร้าน..." className="input" rows={2}
+                                style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: '0.875rem' }} maxLength={300} />
+                        </div>
+
+                        {/* หัวใบบิล */}
+                        <div style={{ gridColumn: '1/-1' }}>
+                            <label className="label">🖨️ หัวใบบิล (แสดงบนใบเสร็จ)</label>
+                            <textarea value={form.receiptHeader} onChange={e => setForm(f => ({ ...f, receiptHeader: e.target.value }))}
+                                placeholder={'ชื่อร้าน\nที่อยู่\nเบอร์โทร\nขอบคุณที่ใช้บริการ 🙏'}
+                                className="input" rows={4}
+                                style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: '0.875rem' }} maxLength={500} />
+                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>ข้อความนี้จะแสดงบนใบเสร็จทุกใบ</p>
+                        </div>
+                    </div>
+
+                    <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                        <button onClick={save} disabled={saving} className="btn-primary"
+                            style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}>
+                            {saving ? '⏳ กำลังบันทึก...' : '💾 บันทึกข้อมูลร้าน'}
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     )
 }
@@ -480,19 +615,8 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* ── Store Info ── */}
-                <div className="card">
-                    <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 16, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}><span>🏪</span> ข้อมูลร้าน</h2>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                        <div><label className="label">ชื่อร้าน</label><input defaultValue="43 Garden Cafe & Restaurant" className="input" /></div>
-                        <div><label className="label">สกุลเงิน</label><input defaultValue="LAK (ກີບລາວ)" className="input" disabled style={{ opacity: 0.5 }} /></div>
-                        <div><label className="label">โซนเวลา</label><input defaultValue="Asia/Vientiane (UTC+7)" className="input" disabled style={{ opacity: 0.5 }} /></div>
-                        <div><label className="label">ภาษา</label><input defaultValue="ລາວ / ไทย (Bilingual)" className="input" disabled style={{ opacity: 0.5 }} /></div>
-                    </div>
-                    <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-                        <button className="btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}>💾 บันทึก</button>
-                    </div>
-                </div>
+                {/* ── Store Info (real form) ── */}
+                <StoreSettingsCard />
 
                 {/* ── POS Integration ── */}
                 <div className="card">

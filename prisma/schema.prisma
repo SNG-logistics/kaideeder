@@ -16,12 +16,22 @@ model Tenant {
   code        String       @unique
   name        String
   displayName String?      // ชื่อร้านที่แสดงใน UI (ถ้าไม่ตั้ง จะใช้ name)
+  storeNameLao String?     // ชื่อร้านภาษาลาว
   logoUrl     String?      // URL รูปโลโก้ (relative path เช่น /uploads/logos/store-001.png)
   status      TenantStatus @default(ACTIVE)
   subEndsAt   DateTime?
   graceEndsAt DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  // ── Store settings ──────────────────────────────
+  currency      String   @default("LAK")  // "LAK" | "THB"
+  language      String   @default("th")   // "th" | "lo" | "both"
+  phone         String?                   // เบอร์โทรร้าน
+  address       String?  @db.Text         // ที่อยู่ร้าน
+  taxId         String?                   // เลขประจำตัวผู้เสียภาษี / ທຸລະກິດ
+  receiptHeader String?  @db.Text         // หัวใบบิล (custom text / HTML)
+  timezone      String   @default("Asia/Vientiane")
 
   // Store data relations
   users            User[]
