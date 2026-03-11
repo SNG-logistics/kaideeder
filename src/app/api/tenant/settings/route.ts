@@ -23,7 +23,8 @@ export const GET = withAuth<any>(async (_req: NextRequest, ctx: any) => {
 // ── PATCH /api/tenant/settings ────────────────────────────────────────────────
 // อัปเดต settings ของ tenant — เฉพาะ OWNER/MANAGER
 export const PATCH = withAuth<any>(async (req: NextRequest, ctx: any) => {
-    const { tenantId, role } = ctx
+    const { tenantId } = ctx
+    const role = (ctx.user?.role || '').toUpperCase()
     if (!['OWNER', 'MANAGER'].includes(role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
