@@ -1,7 +1,8 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useCallback } from 'react'
-import { formatLAK, formatNumber } from '@/lib/utils'
+import { formatNumber } from '@/lib/utils'
+import { useCurrency } from '@/context/TenantContext'
 
 interface InvItem {
     id: string; quantity: number; avgCost: number
@@ -14,6 +15,7 @@ type ViewFilter = 'all' | 'sale' | 'raw'
 
 // ─── Edit Modal ────────────────────────────────────────────────────────────────
 function EditModal({ inv, onClose, onSaved }: { inv: InvItem; onClose: () => void; onSaved: () => void }) {
+    const { fmt } = useCurrency()
     const [qty, setQty] = useState(String(inv.quantity))
     const [cost, setCost] = useState(String(inv.avgCost))
     const [note, setNote] = useState('')
@@ -61,7 +63,7 @@ function EditModal({ inv, onClose, onSaved }: { inv: InvItem; onClose: () => voi
                         </label>
                         <input type="number" inputMode="decimal" value={cost} onChange={e => setCost(e.target.value)}
                             style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: '1rem', fontWeight: 700, textAlign: 'right', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', minHeight: 44 }} />
-                        <p style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: 3 }}>เดิม: {formatLAK(inv.avgCost)}</p>
+                        <p style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: 3 }}>เดิม: {fmt(inv.avgCost)}</p>
                     </div>
                 </div>
 
@@ -90,6 +92,8 @@ function EditModal({ inv, onClose, onSaved }: { inv: InvItem; onClose: () => voi
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function InventoryPage() {
+    const { fmt } = useCurrency();
+
     useRoleGuard(['owner', 'manager', 'warehouse'])
     const [inventory, setInventory] = useState<InvItem[]>([])
     const [summary, setSummary] = useState<Record<string, LocationSummary>>({})
@@ -152,7 +156,7 @@ export default function InventoryPage() {
                 <div>
                     <h1 className="page-title" style={{ fontSize: isMobile ? '1.2rem' : undefined }}>📦 สต็อคคลังสินค้า</h1>
                     <p className="page-subtitle">
-                        มูลค่ารวม <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{formatLAK(totalValue)}</span>
+                        มูลค่ารวม <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{fmt(totalValue)}</span>
                         {lowCount > 0 && <span style={{ marginLeft: 12, color: '#EF4444', fontWeight: 600 }}>⚠️ สต็อคต่ำ {lowCount} รายการ</span>}
                     </p>
                 </div>
@@ -177,7 +181,7 @@ export default function InventoryPage() {
                             <p style={{ fontSize: '0.6rem', fontFamily: 'monospace', color: 'var(--accent)', letterSpacing: '0.06em', fontWeight: 700 }}>{code}</p>
                             <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>{loc.name}</p>
                             <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: 3 }}>{loc.items} SKU</p>
-                            <p style={{ fontSize: isMobile ? '0.78rem' : '0.88rem', fontWeight: 700, color: 'var(--accent)', marginTop: 2 }}>{formatLAK(loc.totalValue)}</p>
+                            <p style={{ fontSize: isMobile ? '0.78rem' : '0.88rem', fontWeight: 700, color: 'var(--accent)', marginTop: 2 }}>{fmt(loc.totalValue)}</p>
                         </div>
                     )
                 })}
@@ -271,7 +275,7 @@ export default function InventoryPage() {
                                     <div style={{ fontWeight: 700, fontSize: '0.9rem', color: isLow ? '#EF4444' : 'var(--text)' }}>
                                         {formatNumber(inv.quantity, 1)} <span style={{ fontSize: '0.72rem', fontWeight: 400 }}>{inv.product.unit}</span>
                                     </div>
-                                    <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600, marginTop: 2 }}>{formatLAK(inv.quantity * inv.avgCost)}</div>
+                                    <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600, marginTop: 2 }}>{fmt(inv.quantity * inv.avgCost)}</div>
                                     {isLow && <span style={{ fontSize: '0.6rem', color: '#DC2626', fontWeight: 600 }}>⚠️ ต่ำ</span>}
                                 </div>
                             </div>
@@ -318,8 +322,8 @@ export default function InventoryPage() {
                                         <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{inv.location.code}</td>
                                         <td style={{ textAlign: 'right', fontWeight: 700, color: isLow ? '#EF4444' : 'var(--text)', fontSize: '0.95rem' }}>{formatNumber(inv.quantity, 1)}</td>
                                         <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{inv.product.unit}</td>
-                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{formatLAK(inv.avgCost)}</td>
-                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 600, color: '#059669' }}>{formatLAK(inv.quantity * inv.avgCost)}</td>
+                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{fmt(inv.avgCost)}</td>
+                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 600, color: '#059669' }}>{fmt(inv.quantity * inv.avgCost)}</td>
                                         <td>{isLow
                                             ? <span style={{ background: '#fef2f2', color: '#dc2626', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>⚠️ ต่ำ</span>
                                             : <span style={{ background: 'rgba(22,163,74,0.08)', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>✓ ปกติ</span>}

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { formatLAK } from '@/lib/utils'
+import { useCurrency } from '@/context/TenantContext'
+
 
 interface SalesSummary {
   totalSales: number; cashSales: number; transferSales: number
@@ -22,6 +23,8 @@ function fmtDate(s: string) {
 }
 
 export default function SalesReportPage() {
+    const { fmt } = useCurrency();
+
   const today = new Date().toISOString().split('T')[0]
   const [startDate, setStartDate] = useState(today)
   const [endDate, setEndDate] = useState(today)
@@ -83,11 +86,11 @@ export default function SalesReportPage() {
           {/* Summary cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
             {[
-              { label: 'ยอดขายรวม', value: formatLAK(data.summary.totalSales), color: '#059669', icon: '💰' },
-              { label: 'เงินสด', value: formatLAK(data.summary.cashSales), color: 'var(--text)', icon: '💵' },
-              { label: 'โอนเงิน', value: formatLAK(data.summary.transferSales), color: '#3B82F6', icon: '📱' },
+              { label: 'ยอดขายรวม', value: fmt(data.summary.totalSales), color: '#059669', icon: '💰' },
+              { label: 'เงินสด', value: fmt(data.summary.cashSales), color: 'var(--text)', icon: '💵' },
+              { label: 'โอนเงิน', value: fmt(data.summary.transferSales), color: '#3B82F6', icon: '📱' },
               { label: 'จำนวนบิล', value: data.summary.orderCount.toString(), color: 'var(--text)', icon: '🧾' },
-              { label: 'เฉลี่ย/บิล', value: formatLAK(data.summary.avgOrderValue), color: '#7C3AED', icon: '📊' },
+              { label: 'เฉลี่ย/บิล', value: fmt(data.summary.avgOrderValue), color: '#7C3AED', icon: '📊' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <p style={{ fontSize: '1.25rem', marginBottom: 6 }}>{s.icon}</p>
@@ -114,7 +117,7 @@ export default function SalesReportPage() {
                       <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</p>
                       <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{m.qty} ชิ้น · {m.category}</p>
                     </div>
-                    <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#059669', flexShrink: 0 }}>{formatLAK(m.revenue)}</p>
+                    <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#059669', flexShrink: 0 }}>{fmt(m.revenue)}</p>
                   </div>
                 ))}
                 {data.topMenus.length === 0 && <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>ไม่มีข้อมูล</p>}
@@ -131,7 +134,7 @@ export default function SalesReportPage() {
                     <div key={i}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                         <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>{c.name}</span>
-                        <span style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 700 }}>{formatLAK(c.revenue)}</span>
+                        <span style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 700 }}>{fmt(c.revenue)}</span>
                       </div>
                       <div style={{ height: 5, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--border)' }}>
                         <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3, transition: 'width 0.5s ease' }} />
@@ -155,9 +158,9 @@ export default function SalesReportPage() {
                   return (
                     <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 40, flex: 1 }}>
                       <p style={{ fontSize: '0.6rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', marginBottom: 2 }}>
-                        {formatLAK(d.revenue)}
+                        {fmt(d.revenue)}
                       </p>
-                      <div title={`${fmtDate(d.date)}: ${formatLAK(d.revenue)}`} style={{
+                      <div title={`${fmtDate(d.date)}: ${fmt(d.revenue)}`} style={{
                         width: '100%', maxWidth: 32, height: `${Math.max(pct, 4)}%`,
                         background: 'var(--accent)', borderRadius: '4px 4px 0 0', opacity: 0.85,
                         transition: 'height 0.3s ease', cursor: 'pointer',

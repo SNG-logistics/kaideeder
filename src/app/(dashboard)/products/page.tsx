@@ -1,9 +1,9 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useCallback, useRef, type ChangeEvent, type DragEvent } from 'react'
-import { formatLAK, formatNumber } from '@/lib/utils'
+import { formatNumber } from '@/lib/utils'
 import toast from 'react-hot-toast'
-
+import { useCurrency } from '@/context/TenantContext'
 interface Product {
     id: string; sku: string; name: string; unit: string; unitAlt?: string
     convFactor?: number; costPrice: number; salePrice: number
@@ -29,6 +29,7 @@ const STOCK_TYPES = ['RAW_MATERIAL', 'PACKAGING']
 type TabKey = 'meat' | 'veg' | 'pkg' | 'drink' | 'all'
 
 export default function ProductsPage() {
+    const { fmt } = useCurrency();
     useRoleGuard(['owner', 'manager', 'cashier', 'warehouse'])
     const [products, setProducts] = useState<Product[]>([])
     const [categories, setCategories] = useState<Category[]>([])
@@ -40,6 +41,8 @@ export default function ProductsPage() {
     const [selectedType, setSelectedType] = useState('')
     const [showForm, setShowForm] = useState(false)
     const [editProduct, setEditProduct] = useState<Product | null>(null)
+    const [addProductType, setAddProductType] = useState<string | null>(null)  // type-pick step
+    const [showTypePicker, setShowTypePicker] = useState(false)
     const [showExportMenu, setShowExportMenu] = useState(false)
     const [activeTab, setActiveTab] = useState<TabKey>('meat')
     const [isMobile, setIsMobile] = useState(false)
@@ -180,7 +183,7 @@ export default function ProductsPage() {
                     >
                         📂 Import Excel
                     </button>
-                    <button onClick={() => { setEditProduct(null); setShowForm(true) }} className="btn-primary" style={{ minHeight: 44, whiteSpace: 'nowrap' }}>➕ เพิ่มวัตถุดิบ</button>
+                    <button onClick={() => { setShowTypePicker(true) }} className="btn-primary" style={{ minHeight: 44, whiteSpace: 'nowrap' }}>➕ เพิ่มสินค้า</button>
                 </div>
             </div>
 
@@ -304,7 +307,7 @@ export default function ProductsPage() {
                                 </div>
                                 {/* Right */}
                                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#059669' }}>{formatLAK(p.salePrice)}</div>
+                                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#059669' }}>{fmt(p.salePrice)}</div>
                                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: isLow ? '#EF4444' : 'var(--text-secondary)', marginTop: 2 }}>
                                         {formatNumber(totalQty, 1)} {p.unit}
                                     </div>
@@ -369,8 +372,8 @@ export default function ProductsPage() {
                                         }}>{p.category.icon} {p.category.name}</span></td>
                                         <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{typeLabels[p.productType]}</td>
                                         <td style={{ color: 'var(--text-secondary)' }}>{p.unit}{p.unitAlt ? ` / ${p.unitAlt}` : ''}</td>
-                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.85rem' }}>{formatLAK(p.costPrice)}</td>
-                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.85rem', color: '#059669' }}>{formatLAK(p.salePrice)}</td>
+                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.85rem' }}>{fmt(p.costPrice)}</td>
+                                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.85rem', color: '#059669' }}>{fmt(p.salePrice)}</td>
                                         <td style={{ textAlign: 'right', fontWeight: 700, color: isLow ? '#EF4444' : 'var(--accent)' }}>
                                             {formatNumber(totalQty, 1)} {p.unit}
                                         </td>
@@ -391,6 +394,18 @@ export default function ProductsPage() {
                 </div>
             )}
 
+            {showTypePicker && (
+                <AddProductTypePicker
+                    onClose={() => setShowTypePicker(false)}
+                    onSelect={(t) => {
+                        setAddProductType(t)
+                        setShowTypePicker(false)
+                        setEditProduct(null)
+                        setShowForm(true)
+                    }}
+                />
+            )}
+
             {photoProduct && (
                 <PhotoCaptureModal
                     product={photoProduct}
@@ -402,9 +417,10 @@ export default function ProductsPage() {
             {showForm && (
                 <ProductModal
                     product={editProduct}
+                    defaultType={editProduct ? undefined : (addProductType || 'RAW_MATERIAL')}
                     categories={allCategories}
-                    onClose={() => { setShowForm(false); setEditProduct(null) }}
-                    onSaved={() => { setShowForm(false); setEditProduct(null); fetchProducts() }}
+                    onClose={() => { setShowForm(false); setEditProduct(null); setAddProductType(null) }}
+                    onSaved={() => { setShowForm(false); setEditProduct(null); setAddProductType(null); fetchProducts() }}
                 />
             )}
 
@@ -420,21 +436,145 @@ export default function ProductsPage() {
     )
 }
 
-function ProductModal({ product, categories, onClose, onSaved }: {
-    product: Product | null; categories: { id: string; name: string; icon: string }[]
+// ─── Type Picker before adding a product ─────────────────────────
+function AddProductTypePicker({ onClose, onSelect }: {
+    onClose: () => void
+    onSelect: (type: string) => void
+}) {
+    const types = [
+        { type: 'RAW_MATERIAL', icon: '🥩', label: 'วัตถุดิบ', desc: 'เนื้อสัตว์ ผัก อาหารเสริม', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA', hoverBorder: '#EF4444', badge: '#FEE2E2' },
+        { type: 'PACKAGING', icon: '📦', label: 'บรรจุภัณฑ์', desc: 'ถุง กล่อง ช้อนฅา', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', hoverBorder: '#F59E0B', badge: '#FEF3C7' },
+        { type: 'SALE_ITEM', icon: '🍽️', label: 'สินค้าขาย', desc: 'เมนูอาหาร ขายให้ลูกค้า', color: '#059669', bg: '#F0FDF4', border: '#BBF7D0', hoverBorder: '#10B981', badge: '#DCFCE7' },
+        { type: 'ENTERTAIN', icon: '🎤', label: 'Entertain', desc: 'คาราโอเค บัตรเติมค่ำ', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', hoverBorder: '#8B5CF6', badge: '#EDE9FE' },
+    ]
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 200, padding: '1rem', backdropFilter: 'blur(5px)',
+        }} onClick={onClose}>
+            <div style={
+                { background: 'var(--white)', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 64px rgba(0,0,0,0.22)' }
+            } onClick={e => e.stopPropagation()}>
+                <div style={{ height: 4, background: 'linear-gradient(135deg,var(--accent),#F59E0B,#10B981,#7C3AED)', borderRadius: '20px 20px 0 0' }} />
+                <div style={{ padding: '1.5rem' }}>
+                    <div style={{ textAlign: 'center', marginBottom: 22 }}>
+                        <div style={{ fontSize: '2rem', marginBottom: 8 }}>➕</div>
+                        <div style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: 4 }}>เพิ่มสินค้าใหม่</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>เลือกประเภทสินค้าที่ต้องการเพิ่ม</div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
+                        {types.map(t => (
+                            <button key={t.type} onClick={() => onSelect(t.type)} style={{
+                                padding: '1.2rem 1rem', borderRadius: 14, cursor: 'pointer',
+                                border: `2px solid ${t.border}`, background: t.bg,
+                                textAlign: 'center', fontFamily: 'inherit', transition: 'all 0.18s',
+                            }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = t.hoverBorder; e.currentTarget.style.transform = 'scale(1.03)' }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.transform = 'scale(1)' }}
+                            >
+                                <div style={{ fontSize: '2rem', marginBottom: 8 }}>{t.icon}</div>
+                                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: t.color, marginBottom: 3 }}>{t.label}</div>
+                                <div style={{ fontSize: '0.68rem', color: '#9CA3AF', lineHeight: 1.4 }}>{t.desc}</div>
+                                <div style={{ marginTop: 10, fontSize: '0.62rem', fontWeight: 700, background: t.badge, color: t.color, borderRadius: 20, padding: '2px 10px', display: 'inline-block' }}>{t.type}</div>
+                            </button>
+                        ))}
+                    </div>
+                    <button onClick={onClose} style={{
+                        width: '100%', minHeight: 42, borderRadius: 12, border: '1px solid var(--border)',
+                        background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit',
+                        fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)',
+                    }}>ยกเลิก</button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
+    product: Product | null
+    defaultType?: string
+    categories: { id: string; code: string; name: string; icon: string }[]
     onClose: () => void; onSaved: () => void
 }) {
     const isEdit = !!product
+    const effectiveType = product?.productType || defaultType || 'RAW_MATERIAL'
+
+    // Smart unit default based on type
+    const defaultUnit = effectiveType === 'RAW_MATERIAL' ? 'กก.' :
+        effectiveType === 'PACKAGING' ? 'ชิ้น' :
+        effectiveType === 'SALE_ITEM' ? 'จาน' : 'ค่ำ'
+
+    const typeLabel: Record<string, string> = {
+        RAW_MATERIAL: '🥩 วัตถุดิบ',
+        PACKAGING: '📦 บรรจุภัณฑ์',
+        SALE_ITEM: '🍽️ สินค้าขาย',
+        ENTERTAIN: '🎤 Entertain',
+    }
+    const typeColor: Record<string, string> = {
+        RAW_MATERIAL: '#DC2626', PACKAGING: '#D97706', SALE_ITEM: '#059669', ENTERTAIN: '#7C3AED',
+    }
+
+    // Filter categories by productType
+    const RAW_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'EGG', 'RAW_VEG', 'DRY_GOODS', 'OTHER', 'DAIRY', 'CHEESE', 'FLOUR_DOUGH', 'BOX_BAG', 'TISSUE_CLEAN', 'DISPOSABLE', 'PACKAGING']
+    const MENU_CODES = ['FOOD_GRILL', 'FOOD_FRY', 'FOOD_RICE', 'FOOD_NOODLE', 'FOOD_SEA', 'FOOD_VEG', 'FOOD_LAAB', 'SET', 'BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'SOFT_DRINK', 'WATER', 'KARAOKE', 'ENTERTAIN']
+    const filteredCats = categories.filter(c => {
+        if (effectiveType === 'SALE_ITEM' || effectiveType === 'ENTERTAIN') return MENU_CODES.includes(c.code) || c.code.startsWith('CUSTOM_')
+        return RAW_CODES.includes(c.code) || c.code.startsWith('CUSTOM_') || !MENU_CODES.includes(c.code)
+    })
+    const defaultCatId = product?.category?.id || filteredCats[0]?.id || categories[0]?.id || ''
+    const defaultCatName = product?.category?.name || filteredCats[0]?.name || ''
+
     const [form, setForm] = useState({
         sku: product?.sku || '', name: product?.name || '',
-        categoryId: product?.category?.id || categories[0]?.id || '',
-        productType: product?.productType || 'RAW_MATERIAL',
-        unit: product?.unit || 'ขวด', unitAlt: product?.unitAlt || '',
+        categoryId: defaultCatId,
+        productType: effectiveType,
+        unit: product?.unit || defaultUnit, unitAlt: product?.unitAlt || '',
         convFactor: product?.convFactor || 0,
         costPrice: product?.costPrice || 0, salePrice: product?.salePrice || 0,
         reorderPoint: product?.reorderPoint || 0, minQty: product?.minQty || 0,
         note: product?.note || '',
     })
+    // Category combobox state
+    const [catSearch, setCatSearch] = useState(() => defaultCatName)
+    const [catOpen, setCatOpen] = useState(false)
+    const [creatingCat, setCreatingCat] = useState(false)
+    const catRef = useRef<HTMLDivElement>(null)
+
+    const filteredCatOptions = filteredCats.filter(c =>
+        c.name.toLowerCase().includes(catSearch.toLowerCase()) ||
+        c.code.toLowerCase().includes(catSearch.toLowerCase())
+    )
+    const isNewCat = catSearch.trim() !== '' &&
+        !filteredCats.some(c => c.name.toLowerCase() === catSearch.trim().toLowerCase())
+
+    useEffect(() => {
+        function handler(e: MouseEvent) {
+            if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    async function handleCreateCat(name: string) {
+        if (!name.trim() || creatingCat) return
+        setCreatingCat(true)
+        try {
+            const res = await fetch('/api/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), code: 'CUSTOM_' + name.trim().replace(/\s+/g, '_').toUpperCase(), icon: '🏷️', color: '#6B7280' }),
+            })
+            const j = await res.json()
+            if (j.success) {
+                setForm(f => ({ ...f, categoryId: j.data.id }))
+                setCatSearch(j.data.name)
+                setCatOpen(false)
+                toast.success(`✅ สร้างหมวด "${j.data.name}" แล้ว`)
+            } else toast.error(j.error || 'สร้างไม่สำเร็จ')
+        } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setCreatingCat(false) }
+    }
     const [saving, setSaving] = useState(false)
     const [imagePreview, setImagePreview] = useState<string | null>(product?.imageUrl || null)
     const [uploading, setUploading] = useState(false)
@@ -509,11 +649,22 @@ function ProductModal({ product, categories, onClose, onSaved }: {
                 border: '1px solid var(--border)', maxHeight: '92vh', overflowY: 'auto',
                 position: 'relative',
             }} onClick={e => e.stopPropagation()}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--accent)', borderRadius: '20px 20px 0 0' }} />
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: typeColor[form.productType] || 'var(--accent)', borderRadius: '20px 20px 0 0' }} />
 
-                <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)', marginBottom: 16, paddingTop: 8 }}>
-                    {isEdit ? '✏️ แก้ไขสินค้า' : '➕ เพิ่มสินค้าใหม่'}
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingTop: 8 }}>
+                    <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+                        {isEdit ? '✏️ แก้ไขสินค้า' : '➕ เพิ่มสินค้าใหม่'}
+                    </h2>
+                    <span style={{
+                        fontSize: '0.73rem', fontWeight: 700,
+                        background: typeColor[form.productType] + '18',
+                        color: typeColor[form.productType] || 'var(--accent)',
+                        border: `1px solid ${typeColor[form.productType] || 'var(--accent)'}40`,
+                        borderRadius: 20, padding: '3px 12px',
+                    }}>
+                        {typeLabel[form.productType] || form.productType}
+                    </span>
+                </div>
 
                 {/* Image Upload Section */}
                 {isEdit && (
@@ -571,17 +722,84 @@ function ProductModal({ product, categories, onClose, onSaved }: {
                         <div><label className="label">ชื่อสินค้า</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input" style={{ minHeight: 40 }} /></div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div><label className="label">หมวดหมู่</label>
-                            <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))} className="input" style={{ minHeight: 40 }}>
-                                {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-                            </select></div>
+                        {/* Category Combobox */}
+                        <div ref={catRef} style={{ position: 'relative' }}>
+                            <label className="label">หมวดหมู่</label>
+                            <div
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    border: `1px solid ${catOpen ? 'var(--accent)' : 'var(--border)'}`,
+                                    borderRadius: 8, background: 'var(--white)', padding: '0 8px',
+                                    minHeight: 40, cursor: 'text', transition: 'border 0.15s',
+                                }}
+                                onClick={() => setCatOpen(true)}
+                            >
+                                <span style={{ fontSize: '1rem', flexShrink: 0 }}>
+                                    {filteredCats.find(c => c.id === form.categoryId)?.icon || '🏷️'}
+                                </span>
+                                <input
+                                    value={catSearch}
+                                    onChange={e => { setCatSearch(e.target.value); setCatOpen(true) }}
+                                    onFocus={() => setCatOpen(true)}
+                                    placeholder="ค้นหา หรือสร้างใหม่..."
+                                    style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '0.875rem', fontFamily: 'inherit' }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Escape') setCatOpen(false)
+                                        if (e.key === 'Enter' && isNewCat) { e.preventDefault(); handleCreateCat(catSearch.trim()) }
+                                    }}
+                                />
+                                <span style={{ color: '#9CA3AF', fontSize: '0.65rem' }}>▼</span>
+                            </div>
+                            {catOpen && (
+                                <div style={{
+                                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                                    background: '#fff', border: '1px solid var(--border)',
+                                    borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                    zIndex: 100, maxHeight: 200, overflowY: 'auto',
+                                }}>
+                                    {filteredCatOptions.map(c => (
+                                        <div key={c.id}
+                                            onClick={() => { setForm(f => ({ ...f, categoryId: c.id })); setCatSearch(c.name); setCatOpen(false) }}
+                                            style={{
+                                                padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                                                background: form.categoryId === c.id ? '#F0FDF4' : 'transparent',
+                                                fontWeight: form.categoryId === c.id ? 700 : 400, fontSize: '0.85rem',
+                                            }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = form.categoryId === c.id ? '#F0FDF4' : 'transparent')}
+                                        >
+                                            <span>{(c as any).icon || '🏷️'}</span>
+                                            <span>{c.name}</span>
+                                            {form.categoryId === c.id && <span style={{ marginLeft: 'auto', color: '#059669' }}>✓</span>}
+                                        </div>
+                                    ))}
+                                    {isNewCat && (
+                                        <div
+                                            onClick={() => handleCreateCat(catSearch.trim())}
+                                            style={{
+                                                padding: '9px 12px', cursor: creatingCat ? 'wait' : 'pointer',
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                borderTop: '1px dashed #D1FAE5', color: '#059669',
+                                                fontWeight: 700, fontSize: '0.85rem',
+                                            }}
+                                        >
+                                            {creatingCat ? '⏳' : '✅'} สร้างหมวดใหม่: &ldquo;{catSearch.trim()}&rdquo;
+                                        </div>
+                                    )}
+                                    {filteredCatOptions.length === 0 && !isNewCat && (
+                                        <div style={{ padding: '12px', color: '#9CA3AF', textAlign: 'center', fontSize: '0.82rem' }}>ไม่พบหมวด</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                         <div><label className="label">ประเภท</label>
                             <select value={form.productType} onChange={e => setForm(f => ({ ...f, productType: e.target.value }))} className="input" style={{ minHeight: 40 }}>
                                 <option value="SALE_ITEM">สินค้าขาย</option>
                                 <option value="RAW_MATERIAL">วัตถุดิบ</option>
                                 <option value="PACKAGING">บรรจุภัณฑ์</option>
                                 <option value="ENTERTAIN">Entertain</option>
-                            </select></div>
+                            </select>
+                        </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                         <div><label className="label">หน่วยหลัก</label><input value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="input" style={{ minHeight: 40 }} /></div>
@@ -770,11 +988,118 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
     )
 }
 
-// ─── Import Raw Materials Modal ───────────────────────────────────
+// ─── Import Modal with Type Selection ────────────────────────────
 type RawImportResult = { row: number; status: 'created' | 'skipped' | 'error'; name: string; category?: string; guessed?: boolean; reason?: string }
 type RawImportSummary = { created: number; skipped: number; errors: number; autoMatched: number; total: number; results: RawImportResult[] }
 
+type ImportType = 'raw' | 'sale' | null
+
 function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+    const [importType, setImportType] = useState<ImportType>(null)  // step 1
+
+    if (!importType) {
+        return (
+            <div style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 200, padding: '1rem', backdropFilter: 'blur(5px)',
+            }} onClick={onClose}>
+                <div style={{
+                    background: 'var(--white)', borderRadius: 20, width: '100%', maxWidth: 500,
+                    boxShadow: '0 24px 64px rgba(0,0,0,0.22)',
+                }} onClick={e => e.stopPropagation()}>
+                    <div style={{ height: 4, background: 'linear-gradient(135deg,var(--accent),#10B981)', borderRadius: '20px 20px 0 0' }} />
+                    <div style={{ padding: '1.5rem' }}>
+                        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                            <div style={{ fontSize: '2rem', marginBottom: 8 }}>📂</div>
+                            <div style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: 4 }}>นำเข้าจาก Excel</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                เลือกประเภทสินค้าที่ต้องการนำเข้า
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+                            {/* วัตถุดิบ */}
+                            <button
+                                onClick={() => setImportType('raw')}
+                                style={{
+                                    padding: '1.5rem 1rem', borderRadius: 16, cursor: 'pointer',
+                                    border: '2px solid #FECACA',
+                                    background: 'linear-gradient(135deg,#FFF5F5,#FEF2F2)',
+                                    textAlign: 'center', fontFamily: 'inherit',
+                                    transition: 'all 0.18s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.transform = 'scale(1.03)' }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#FECACA'; e.currentTarget.style.transform = 'scale(1)' }}
+                            >
+                                <div style={{ fontSize: '2.5rem', marginBottom: 10 }}>🥩</div>
+                                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#DC2626', marginBottom: 4 }}>วัตถุดิบ</div>
+                                <div style={{ fontSize: '0.7rem', color: '#9CA3AF', lineHeight: 1.5 }}>
+                                    เนื้อสัตว์ ผัก ของแห้ง<br />บรรจุภัณฑ์ เครื่องปรุง
+                                </div>
+                                <div style={{
+                                    marginTop: 12, fontSize: '0.68rem', fontWeight: 700,
+                                    background: '#FEE2E2', color: '#DC2626',
+                                    borderRadius: 20, padding: '3px 10px',
+                                    display: 'inline-block',
+                                }}>RAW_MATERIAL</div>
+                            </button>
+
+                            {/* สินค้าขาย */}
+                            <button
+                                onClick={() => setImportType('sale')}
+                                style={{
+                                    padding: '1.5rem 1rem', borderRadius: 16, cursor: 'pointer',
+                                    border: '2px solid #BBF7D0',
+                                    background: 'linear-gradient(135deg,#F0FFF4,#F0FDF4)',
+                                    textAlign: 'center', fontFamily: 'inherit',
+                                    transition: 'all 0.18s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#10B981'; e.currentTarget.style.transform = 'scale(1.03)' }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#BBF7D0'; e.currentTarget.style.transform = 'scale(1)' }}
+                            >
+                                <div style={{ fontSize: '2.5rem', marginBottom: 10 }}>🍽️</div>
+                                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#059669', marginBottom: 4 }}>สินค้าขาย</div>
+                                <div style={{ fontSize: '0.7rem', color: '#9CA3AF', lineHeight: 1.5 }}>
+                                    เมนูอาหาร เครื่องดื่ม<br />สินค้าที่ขายให้ลูกค้า
+                                </div>
+                                <div style={{
+                                    marginTop: 12, fontSize: '0.68rem', fontWeight: 700,
+                                    background: '#DCFCE7', color: '#059669',
+                                    borderRadius: 20, padding: '3px 10px',
+                                    display: 'inline-block',
+                                }}>SALE_ITEM</div>
+                            </button>
+                        </div>
+
+                        <button onClick={onClose} style={{
+                            width: '100%', minHeight: 44, borderRadius: 12, border: '1px solid var(--border)',
+                            background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit',
+                            fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)',
+                        }}>ยกเลิก</button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <ImportUploadModal
+            importType={importType}
+            onBack={() => setImportType(null)}
+            onClose={onClose}
+            onDone={onDone}
+        />
+    )
+}
+
+function ImportUploadModal({ importType, onBack, onClose, onDone }: {
+    importType: 'raw' | 'sale'
+    onBack: () => void
+    onClose: () => void
+    onDone: () => void
+}) {
+    const isRaw = importType === 'raw'
     const [file, setFile] = useState<File | null>(null)
     const [dragging, setDragging] = useState(false)
     const [importing, setImporting] = useState(false)
@@ -797,7 +1122,9 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
     const doImport = async () => {
         if (!file) return
         setImporting(true); setImportError(null)
-        const fd = new FormData(); fd.append('file', file)
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('importType', isRaw ? 'raw' : 'sale')
         try {
             const res = await fetch('/api/products/import-raw', { method: 'POST', body: fd })
             const json = await res.json()
@@ -828,18 +1155,27 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
     }
 
     const downloadTemplate = () => {
-        const rows = [
-            ['ชื่อวัตถุดิบ', 'หน่วย', 'ต้นทุน', 'หน่วยรอง', 'อัตราแปลง', 'หมายเหตุ'],
-            ['หมูสามชั้น', 'กก.', 85000, '', '', ''],
-            ['อกไก่', 'กก.', 60000, '', '', ''],
-            ['กุ้งขาว', 'กก.', 120000, '', '', ''],
-            ['น้ำมันพืช', 'ลิตร', 30000, '', '', ''],
-            ['ถุงซิป 500g', 'ถุง', 1500, '', '', ''],
-        ]
+        const rows = isRaw
+            ? [
+                ['ชื่อวัตถุดิบ', 'หน่วย', 'ต้นทุน', 'หน่วยรอง', 'อัตราแปลง', 'หมายเหตุ'],
+                ['หมูสามชั้น', 'กก.', 85000, '', '', ''],
+                ['อกไก่', 'กก.', 60000, '', '', ''],
+                ['กุ้งขาว', 'กก.', 120000, '', '', ''],
+                ['น้ำมันพืช', 'ลิตร', 30000, '', '', ''],
+                ['ถุงซิป 500g', 'ถุง', 1500, '', '', ''],
+            ]
+            : [
+                ['ชื่อเมนู', 'หน่วย', 'ราคาขาย', 'ต้นทุน', 'หมวดหมู่', 'หมายเหตุ'],
+                ['ไก่ผัดเม็ดมะม่วง', 'จาน', 50000, 15000, 'FOOD_STIR', ''],
+                ['ข้าวผัด', 'จาน', 40000, 10000, 'FOOD_RICE', ''],
+                ['เบียร์ลาว', 'ขวด', 15000, 8000, 'BEER', ''],
+                ['น้ำเปล่า', 'ขวด', 5000, 2000, 'WATER', ''],
+            ]
         const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
         const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
-        a.download = 'template-rawmaterial-import.csv'; a.click()
+        a.download = isRaw ? 'template-rawmaterial-import.csv' : 'template-saleitems-import.csv'
+        a.click()
     }
 
     const statusIcon = (s: string) => s === 'created' ? '✅' : s === 'skipped' ? '⏭️' : '❌'
@@ -859,9 +1195,16 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
                 <div style={{ height: 4, background: 'linear-gradient(135deg,var(--accent),#10B981)', borderRadius: '20px 20px 0 0' }} />
 
                 <div style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-                    <div>
-                        <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--accent)' }}>📂 Import วัตถุดิบจาก Excel</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>สต็อคเริ่มต้นที่ 0 — นับจริงในหน้า Stock Count</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-secondary)', padding: '0 4px' }} title="กลับ">←</button>
+                        <div>
+                            <div style={{ fontWeight: 800, fontSize: '1rem', color: isRaw ? '#DC2626' : '#059669' }}>
+                                {isRaw ? '🥩 Import วัตถุดิบจาก Excel' : '🍽️ Import สินค้าขายจาก Excel'}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                                {isRaw ? 'สต็อคเริ่มต้นที่ 0 — นับจริงในหน้า Stock Count' : 'สินค้าที่จะแสดงในเมนูขาย (POS)'}
+                            </div>
+                        </div>
                     </div>
                     <button onClick={onClose} style={{ background: 'var(--bg)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: '1rem', color: 'var(--text-muted)' }}>✕</button>
                 </div>
@@ -882,9 +1225,10 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
 
                     <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.7 }}>
                         <strong style={{ color: 'var(--text)' }}>คอลัมน์:</strong>{' '}
-                        <span style={{ color: '#DC2626' }}>ชื่อวัตถุดิบ*</span>, หน่วย, ต้นทุน, หน่วยรอง, อัตราแปลง, หมายเหตุ
-                        <br />
-                        <span style={{ color: '#059669' }}>✨ หมวดหมู่อัตโนมัติ จากชื่อวัตถุดิบ</span>
+                        {isRaw
+                            ? <><span style={{ color: '#DC2626' }}>ชื่อวัตถุดิบ*</span>, หน่วย, ต้นทุน, หน่วยรอง, อัตราแปลง, หมายเหตุ<br /><span style={{ color: '#059669' }}>✨ หมวดหมู่อัตโนมัติ จากชื่อวัตถุดิบ</span></>
+                            : <><span style={{ color: '#059669' }}>ชื่อเมนู*</span>, หน่วย, ราคาขาย, ต้นทุน, หมวดหมู่, หมายเหตุ<br /><span style={{ color: '#6366F1' }}>✨ ระบุหมวดด้วย code (BEER, FOOD_RICE ฯลฯ) หรือปล่อยว่างให้ AI เดา</span></>
+                        }
                     </div>
 
                     {!summary && (

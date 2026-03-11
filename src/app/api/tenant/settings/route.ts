@@ -15,6 +15,7 @@ export const GET = withAuth<any>(async (_req: NextRequest, ctx: any) => {
             address: true, taxId: true, receiptHeader: true, timezone: true,
         },
     })
+    console.log('[DEBUG /api/tenant/settings] tenantId:', tenantId, 'found tenant?', !!tenant)
     if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     return NextResponse.json({ settings: tenant })
 })

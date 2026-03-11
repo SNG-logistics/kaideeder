@@ -39,10 +39,8 @@ interface OrderData {
     createdBy?: { id: string; name: string }
 }
 
-// ─── Format LAK ──────────────────────────────────────────────
-function formatLAK(n: number): string {
-    return new Intl.NumberFormat('lo-LA', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)
-}
+import { useCurrency } from '@/context/TenantContext'
+
 
 function formatDateTime(dateStr: string): string {
     const d = new Date(dateStr)
@@ -75,6 +73,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
     const [printed, setPrinted] = useState(false)
     const searchParams = useSearchParams()
     const isPreview = searchParams.get('preview') === '1'
+    const { fmt } = useCurrency()
 
     useEffect(() => {
         async function fetchOrder() {
@@ -275,7 +274,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                             <span style={{ whiteSpace: 'nowrap' }}>x{item.quantity}</span>
                         </div>
                         <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                            {formatLAK(item.quantity * item.unitPrice)} ₭
+                            {fmt(item.quantity * item.unitPrice)}
                         </div>
                         {item.note && (
                             <div style={{ fontSize: 10, color: '#555', paddingLeft: 8 }}>
@@ -289,28 +288,28 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                 <div style={{ textAlign: 'center', fontSize: 11, letterSpacing: 1 }}>{LINE}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                     <span>รวม</span>
-                    <span>{formatLAK(order.subtotal)} ₭</span>
+                    <span>{fmt(order.subtotal)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                     <span>ส่วนลด</span>
-                    <span>{formatLAK(discountAmount)} ₭</span>
+                    <span>{fmt(discountAmount)}</span>
                 </div>
                 {order.serviceCharge > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                         <span>ค่าบริการ</span>
-                        <span>{formatLAK(order.serviceCharge)} ₭</span>
+                        <span>{fmt(order.serviceCharge)}</span>
                     </div>
                 )}
                 {order.vat > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                         <span>VAT</span>
-                        <span>{formatLAK(order.vat)} ₭</span>
+                        <span>{fmt(order.vat)}</span>
                     </div>
                 )}
                 <div style={{ textAlign: 'center', fontSize: 11, letterSpacing: 1 }}>{DASH}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 14, marginBottom: 2 }}>
                     <span>ยอดสุทธิ</span>
-                    <span>{formatLAK(order.totalAmount)} ₭</span>
+                    <span>{fmt(order.totalAmount)}</span>
                 </div>
 
                 {/* Payment */}
@@ -322,18 +321,18 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                             <>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span>รับมา:</span>
-                                    <span>{formatLAK(payment.receivedAmount)} ₭</span>
+                                    <span>{fmt(payment.receivedAmount)}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span>เงินทอน:</span>
-                                    <span>{formatLAK(payment.changeAmount)} ₭</span>
+                                    <span>{fmt(payment.changeAmount)}</span>
                                 </div>
                             </>
                         )}
                         {payment.method === 'TRANSFER' && (
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>ยอดโอน:</span>
-                                <span>{formatLAK(payment.amount)} ₭</span>
+                                <span>{fmt(payment.amount)}</span>
                             </div>
                         )}
                     </div>

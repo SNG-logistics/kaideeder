@@ -5,20 +5,8 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
 }
 
-/** Format LAK currency */
-export function formatLAK(amount: number): string {
-    return new Intl.NumberFormat('lo-LA', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format(amount) + ' ₭'
-}
+// Currency formatting is now handled by useCurrency() in TenantContext
 
-/** Format LAK short (1,500,000 → 1.5M ₭) */
-export function formatLAKShort(amount: number): string {
-    if (amount >= 1_000_000) return (amount / 1_000_000).toFixed(1) + 'M ₭'
-    if (amount >= 1_000) return (amount / 1_000).toFixed(0) + 'K ₭'
-    return amount.toFixed(0) + ' ₭'
-}
 
 /** Format number with commas */
 export function formatNumber(n: number, decimals = 2): string {

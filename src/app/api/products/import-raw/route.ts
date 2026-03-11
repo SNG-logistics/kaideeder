@@ -30,6 +30,10 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             return NextResponse.json({ success: false, error: 'ไม่พบไฟล์ที่อัปโหลด' }, { status: 400 })
         }
 
+        // importType: 'raw' = RAW_MATERIAL, 'sale' = SALE_ITEM
+        const importTypeField = (formData.get('importType') as string | null) || 'raw'
+        const isSale = importTypeField === 'sale'
+
         const buf = Buffer.from(await file.arrayBuffer())
         const wb = XLSX.read(buf, { type: 'buffer' })
         const ws = wb.Sheets[wb.SheetNames[0]]
@@ -68,10 +72,11 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             const row = rows[i]
             const rowNum = i + 2
 
-            const name = col(row, 'ชื่อวัตถุดิบ', 'ชื่อสินค้า', 'ชื่อ', 'name', 'item_name')
+            const name = col(row, 'ชื่อวัตถุดิบ', 'ชื่อสินค้า', 'ชื่อเมนู', 'ชื่อ', 'name', 'item_name', 'menu_name')
             const catRaw = col(row, 'หมวดหมู่', 'หมวด', 'category', 'cat')
             const costPriceRaw = col(row, 'ต้นทุน', 'ราคา', 'cost', 'cost_price', 'ราคา/หน่วย')
-            const unit = col(row, 'หน่วย', 'unit') || 'กก.'
+            const salePriceRaw = col(row, 'ราคาขาย', 'sale_price', 'saleprice', 'ราคาขาย (․)')
+            const unit = col(row, 'หน่วย', 'unit') || (isSale ? 'จาน' : 'กก.')
             const unitAlt = col(row, 'หน่วยรอง', 'unit_alt', 'unitalt')
             const convFactorRaw = col(row, 'อัตราแปลง', 'conv_factor', 'convfactor')
             const typeRaw = col(row, 'ประเภท', 'type', 'producttype', 'product_type')
@@ -94,8 +99,8 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             if (!category) {
                 guessedCode = guessCategory(name)
                 if (guessedCode) {
-                    // Skip เครื่องดื่ม — ไม่ควร import เป็นวัตถุดิบ
-                    if (DRINK_CODES.has(guessedCode)) {
+                    // ที่ import เป็นวัตถุดิบ: skip เครื่องดื่ม
+                    if (!isSale && DRINK_CODES.has(guessedCode)) {
                         results.push({ row: rowNum, status: 'skipped', name, reason: `ข้ามเครื่องดื่ม (${guessedCode}) — import เป็นวัตถุดิบไม่ถูกต้อง` })
                         continue
                     }
@@ -114,18 +119,25 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             }
 
             const costPrice = parseFloat(costPriceRaw.replace(/,/g, '').replace(/[^\d.]/g, '')) || 0
+            const salePrice = parseFloat(salePriceRaw?.replace(/,/g, '').replace(/[^\d.]/g, '') || '0') || 0
             const convFactor = parseFloat(convFactorRaw.replace(/,/g, '').replace(/[^\d.]/g, '')) || undefined
 
-            // Determine productType
-            let productType: 'RAW_MATERIAL' | 'PACKAGING' | 'ENTERTAIN' = 'RAW_MATERIAL'
-            if (ENTERTAIN_CODES.has(guessedCode ?? '') || ENTERTAIN_CODES.has(category.code)) {
-                productType = 'ENTERTAIN'
-            } else if (
-                typeRaw.toLowerCase().includes('packaging') ||
-                typeRaw.toLowerCase().includes('บรรจุ') ||
-                ['BOX_BAG', 'TISSUE_CLEAN', 'DISPOSABLE', 'PACKAGING'].includes(category.code)
-            ) {
-                productType = 'PACKAGING'
+            // Determine productType based on importType
+            let productType: 'RAW_MATERIAL' | 'PACKAGING' | 'SALE_ITEM' | 'ENTERTAIN' = isSale ? 'SALE_ITEM' : 'RAW_MATERIAL'
+            if (!isSale) {
+                if (ENTERTAIN_CODES.has(guessedCode ?? '') || ENTERTAIN_CODES.has(category.code)) {
+                    productType = 'ENTERTAIN'
+                } else if (
+                    typeRaw.toLowerCase().includes('packaging') ||
+                    typeRaw.toLowerCase().includes('บรรจุ') ||
+                    ['BOX_BAG', 'TISSUE_CLEAN', 'DISPOSABLE', 'PACKAGING'].includes(category.code)
+                ) {
+                    productType = 'PACKAGING'
+                }
+            } else {
+                if (ENTERTAIN_CODES.has(guessedCode ?? '') || ENTERTAIN_CODES.has(category.code)) {
+                    productType = 'ENTERTAIN'
+                }
             }
 
             // Generate unique SKU
@@ -151,7 +163,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
                         unitAlt: unitAlt || undefined,
                         convFactor,
                         costPrice,
-                        salePrice: 0,
+                        salePrice: isSale ? salePrice : 0,
                         note: `[BATCH:${batchId}]${note ? ' ' + note : ''}`,
                     },
                 })

@@ -55,8 +55,11 @@ export const PATCH = withAdminAuth(async (req: NextRequest, context) => {
                     ...(body.graceEndsAt && { graceEndsAt: new Date(body.graceEndsAt) }),
                 },
             })
+            return t
+        })
 
-            await tx.auditLog.create({
+        try {
+            await prisma.auditLog.create({
                 data: {
                     actorType: 'ADMIN',
                     adminId: context.admin.adminId,
@@ -65,12 +68,43 @@ export const PATCH = withAdminAuth(async (req: NextRequest, context) => {
                     payload: { before: { status: tenant.status, name: tenant.name }, after: body, note: body.note },
                 },
             })
-
-            return t
-        })
+        } catch (auditErr) {
+            console.warn('[admin/tenants/[id]] auditLog skipped:', auditErr)
+        }
 
         return ok(updated)
     } catch {
         return err('Invalid request')
     }
 }, 'ADMIN1')
+
+// DELETE /api/admin/tenants/[id] — permanently delete a SUSPENDED tenant (SUPERADMIN only)
+export const DELETE = withAdminAuth(async (_req: NextRequest, context) => {
+    const id = (await context.params)?.id
+    if (!id) return err('Missing id', 400)
+
+    const tenant = await prisma.tenant.findUnique({
+        where: { id },
+        include: { wallet: true },
+    })
+    if (!tenant) return err('Tenant not found', 404)
+    if (tenant.status !== 'SUSPENDED') return err('Only SUSPENDED tenants can be deleted. Please suspend first.', 400)
+    if ((tenant.wallet?.balanceLAK ?? 0) > 0) return err('Tenant has wallet balance. Please refund before deleting.', 400)
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            // Delete in FK-safe order
+            await tx.auditLog.deleteMany({ where: { tenantId: id } })
+            await tx.walletLedger.deleteMany({ where: { tenantId: id } })
+            await tx.topupRequest.deleteMany({ where: { tenantId: id } })
+            await tx.subscription.deleteMany({ where: { tenantId: id } })
+            await tx.wallet.deleteMany({ where: { tenantId: id } })
+            await tx.user.deleteMany({ where: { tenantId: id } })
+            await tx.tenant.delete({ where: { id } })
+        })
+        return ok({ message: `Tenant "${tenant.name}" deleted permanently` })
+    } catch (e: any) {
+        console.error('[admin/tenants/[id] DELETE]', e)
+        return err('Failed to delete tenant. Check for linked records.', 500)
+    }
+}, 'SUPERADMIN')

@@ -26,8 +26,11 @@ export const POST = withAdminAuth(async (req: NextRequest, context) => {
 
         const plan = await prisma.$transaction(async (tx) => {
             const p = await tx.plan.create({ data })
+            return p
+        })
 
-            await tx.auditLog.create({
+        try {
+            await prisma.auditLog.create({
                 data: {
                     actorType: 'ADMIN',
                     adminId: context.admin.adminId,
@@ -35,9 +38,9 @@ export const POST = withAdminAuth(async (req: NextRequest, context) => {
                     payload: data,
                 },
             })
-
-            return p
-        })
+        } catch (auditErr) {
+            console.warn('[admin/plans] auditLog skipped:', auditErr)
+        }
 
         return ok(plan, 201)
     } catch (e: any) {

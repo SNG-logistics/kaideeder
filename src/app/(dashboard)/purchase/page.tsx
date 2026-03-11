@@ -1,7 +1,7 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { formatLAK } from '@/lib/utils'
+import { useCurrency } from '@/context/TenantContext'
 import toast from 'react-hot-toast'
 import StockSheetGridModal from '@/components/StockSheetGridModal'
 
@@ -141,6 +141,7 @@ function StockSheetScannerModal({ onClose, onImport }: {
     onClose: () => void
     onImport: (result: { sheetDate: string | null; items: { name: string; unit: string; quantityIn: number; costPerUnit: number; totalCost: number; remaining: number | null }[] }) => void
 }) {
+    const { fmt } = useCurrency()
     const [mode, setMode] = useState<'choose' | 'camera' | 'preview'>('choose')
     const [imageData, setImageData] = useState<string | null>(null)
     const [scanning, setScanning] = useState(false)
@@ -299,6 +300,7 @@ function BillScannerModal({
     onImport: (result: ScanResult) => void
     defaultLocationId: string
 }) {
+    const { fmt } = useCurrency()
     const [mode, setMode] = useState<'choose' | 'camera' | 'preview'>('choose')
     const [imageData, setImageData] = useState<string | null>(null)
     const [scanning, setScanning] = useState(false)
@@ -448,7 +450,7 @@ function BillScannerModal({
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ยอดรวม</div>
-                                    <div style={{ fontWeight: 800, color: '#16a34a' }}>{formatLAK(result.totalAmount)}</div>
+                                    <div style={{ fontWeight: 800, color: '#16a34a' }}>{fmt(result.totalAmount)}</div>
                                 </div>
                             </div>
 
@@ -466,11 +468,11 @@ function BillScannerModal({
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }}>{item.name}</div>
                                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                    {item.quantity} {item.unit} × {formatLAK(item.unitPrice)}
+                                                    {item.quantity} {item.unit} × {fmt(item.unitPrice)}
                                                 </div>
                                             </div>
                                             <div style={{ fontWeight: 700, color: '#16a34a', fontSize: '0.88rem', whiteSpace: 'nowrap' }}>
-                                                {formatLAK(item.totalPrice)}
+                                                {fmt(item.totalPrice)}
                                             </div>
                                         </div>
                                     ))}
@@ -504,6 +506,7 @@ function BillScannerModal({
 
 // ---- Main Page ----
 export default function PurchasePage() {
+    const { fmt } = useCurrency()
     useRoleGuard(['owner', 'manager', 'warehouse'])
     const [products, setProducts] = useState<Product[]>([])
     const [locations, setLocations] = useState<Location[]>([])
@@ -810,7 +813,7 @@ export default function PurchasePage() {
                                             className="input" placeholder="ราคา/หน่วย"
                                             style={{ fontSize: '0.85rem', textAlign: 'right' }} />
                                         <div style={{ textAlign: 'right', fontSize: '0.875rem', fontWeight: 700, color: '#059669' }}>
-                                            {formatLAK(item.quantity * item.unitCost)}
+                                            {fmt(item.quantity * item.unitCost)}
                                         </div>
                                         <button onClick={() => setItems(items.filter((_, idx) => idx !== i))}
                                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: '1rem', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -826,7 +829,7 @@ export default function PurchasePage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
                         <div>
                             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 2 }}>ยอดรวมทั้งหมด</p>
-                            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{formatLAK(total)}</p>
+                            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{fmt(total)}</p>
                             {items.length !== validItems.length && (
                                 <p style={{ fontSize: '0.72rem', color: '#EF4444', marginTop: 4 }}>⚠️ {items.length - validItems.length} รายการยังไม่ได้เลือกสินค้า</p>
                             )}
@@ -855,7 +858,7 @@ export default function PurchasePage() {
                                     <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 700 }}>{o.poNumber}</td>
                                     <td style={{ fontSize: '0.82rem' }}>{new Date(o.purchaseDate).toLocaleDateString('th-TH')}</td>
                                     <td style={{ fontWeight: 600 }}>{o._count.items} รายการ</td>
-                                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a', fontFamily: 'monospace' }}>{formatLAK(o.totalAmount)}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a', fontFamily: 'monospace' }}>{fmt(o.totalAmount)}</td>
                                     <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{o.createdBy?.name || '-'}</td>
                                     <td>
                                         <span style={{ background: 'rgba(22,163,74,0.1)', color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>

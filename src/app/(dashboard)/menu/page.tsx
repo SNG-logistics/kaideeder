@@ -1,6 +1,8 @@
 'use client'
+
+import { useCurrency } from '@/context/TenantContext';
 import { useEffect, useState, useCallback, useRef, type ChangeEvent, type DragEvent } from 'react'
-import { formatLAK } from '@/lib/utils'
+
 import toast from 'react-hot-toast'
 
 interface Product {
@@ -16,6 +18,8 @@ const DRINK_CODES = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER',
 type TabKey = 'food' | 'drink' | 'all'
 
 export default function MenuPage() {
+    const { fmt } = useCurrency();
+
     const [products, setProducts] = useState<Product[]>([])
     const [allCategories, setAllCategories] = useState<Category[]>([])
     const [categories, setCategories] = useState<Category[]>([])
@@ -257,6 +261,7 @@ export default function MenuPage() {
                 <MenuProductModal
                     product={editProduct}
                     categories={allCategories}
+                    defaultTab={activeTab}
                     onClose={() => { setShowForm(false); setEditProduct(null) }}
                     onSaved={() => { setShowForm(false); setEditProduct(null); fetchProducts() }}
                 />
@@ -281,6 +286,7 @@ export default function MenuPage() {
 function MenuCard({ product: p, onEdit, onPhoto }: {
     product: Product; onEdit: () => void; onPhoto: () => void
 }) {
+    const { fmt } = useCurrency();
     return (
         <div
             className="menu-card"
@@ -366,7 +372,7 @@ function MenuCard({ product: p, onEdit, onPhoto }: {
                         color: '#059669',
                         letterSpacing: '-0.02em',
                     }}>
-                        {formatLAK(p.salePrice)}
+                        {fmt(p.salePrice)}
                     </span>
                     <span style={{
                         fontSize: '0.65rem', background: '#D1FAE5',
@@ -381,19 +387,30 @@ function MenuCard({ product: p, onEdit, onPhoto }: {
 }
 
 // ─── Modal สำหรับเพิ่ม/แก้ไข เมนู ──────────────────────────────
-function MenuProductModal({ product, categories, onClose, onSaved }: {
+function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }: {
     product: Product | null
     categories: { id: string; code: string; name: string; icon: string }[]
+    defaultTab?: TabKey
     onClose: () => void; onSaved: () => void
 }) {
     const isEdit = !!product
     const MENU_CATS = [...FOOD_CODES, ...DRINK_CODES]
     const menuCategories = categories.filter(c => MENU_CATS.includes(c.code) || c.code.startsWith('CUSTOM_'))
 
+    // Smart default: อาหาร when tab=food, เครื่องดื่ม when tab=drink
+    const FOOD_PREF = ['FOOD_GRILL', 'FOOD_FRY', 'FOOD_RICE', 'FOOD_BOIL', 'FOOD_STIR', 'FOOD_SNACK', 'FOOD_SALAD', 'FOOD_SEA', 'FOOD_NOODLE', 'SET']
+    const DRINK_PREF = ['BEER', 'BEER_DRAFT', 'SOFT_DRINK', 'WATER', 'COFFEE', 'TEA', 'SMOOTHIE', 'WINE', 'SOJU', 'COCKTAIL', 'DRINK']
+    const preferredCodes = defaultTab === 'drink' ? DRINK_PREF : FOOD_PREF
+    const defaultCat = product?.category?.id
+        || menuCategories.find(c => preferredCodes.includes(c.code))?.id
+        || menuCategories[0]?.id || ''
+    const defaultCatName = product?.category?.name
+        || menuCategories.find(c => c.id === defaultCat)?.name || ''
+
     const [form, setForm] = useState({
         sku: product?.sku || '',
         name: product?.name || '',
-        categoryId: product?.category?.id || menuCategories[0]?.id || categories[0]?.id || '',
+        categoryId: defaultCat,
         productType: product?.productType || 'SALE_ITEM',
         unit: product?.unit || 'จาน',
         costPrice: product?.costPrice || 0,
@@ -407,7 +424,7 @@ function MenuProductModal({ product, categories, onClose, onSaved }: {
 
     // ── Combobox state for category ──────────────────────────────────
     const [catSearch, setCatSearch] = useState(
-        () => product?.category?.name || menuCategories[0]?.name || ''
+        () => defaultCatName
     )
     const [catOpen, setCatOpen] = useState(false)
     const [creatingCat, setCreatingCat] = useState(false)

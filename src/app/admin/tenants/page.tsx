@@ -28,6 +28,7 @@ export default function TenantsPage() {
     const [search, setSearch] = useState('')
     const [tab, setTab] = useState<Tab>('ALL')
     const [suspending, setSuspending] = useState<string | null>(null)
+    const [deleting, setDeleting] = useState<string | null>(null)
 
     async function load() {
         setLoading(true)
@@ -47,6 +48,15 @@ export default function TenantsPage() {
             body: JSON.stringify({ status: next, note: `Manual ${next.toLowerCase()} from admin` }),
         })
         setSuspending(null); load()
+    }
+
+    async function deleteTenant(t: Tenant) {
+        if (!confirm(`⚠️ ลบ "${t.name}" ถาวรเลยไหม?\n\nการลบนี้ไม่สามารถกู้คืนได้!`)) return
+        setDeleting(t.id)
+        const res = await adminFetch(`/api/admin/tenants/${t.id}`, { method: 'DELETE' })
+        const d = await res.json()
+        setDeleting(null)
+        if (d.success) { load() } else { alert(d.error || 'ลบไม่สำเร็จ') }
     }
 
     const counts = {
@@ -170,6 +180,16 @@ export default function TenantsPage() {
                                                         {suspending === t.id ? '...' : t.status === 'SUSPENDED' ? 'Activate' : 'Suspend'}
                                                     </button>
                                                 </div>
+                                                {t.status === 'SUSPENDED' && (
+                                                    <button
+                                                        onClick={() => deleteTenant(t)}
+                                                        disabled={deleting === t.id}
+                                                        title="ลบ Tenant ถาวร"
+                                                        style={{ fontSize: '0.85rem', padding: '5px 10px', borderRadius: 8, cursor: deleting === t.id ? 'not-allowed' : 'pointer', opacity: deleting === t.id ? 0.5 : 1, fontFamily: 'inherit', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.08)', color: '#ef4444' }}
+                                                    >
+                                                        {deleting === t.id ? '...' : '🗑'}
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
                                     )

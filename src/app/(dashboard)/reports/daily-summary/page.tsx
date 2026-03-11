@@ -1,6 +1,8 @@
 'use client'
+
+import { useCurrency } from '@/context/TenantContext';
 import { useEffect, useState } from 'react'
-import { formatLAK } from '@/lib/utils'
+
 
 interface DailyData {
     date: string
@@ -12,6 +14,8 @@ interface DailyData {
 }
 
 export default function DailySummaryPage() {
+    const { fmt } = useCurrency();
+
     const today = new Date().toISOString().split('T')[0]
     const [date, setDate] = useState(today)
     const [data, setData] = useState<DailyData | null>(null)
@@ -63,11 +67,11 @@ export default function DailySummaryPage() {
                     {/* Revenue summary */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 10, marginBottom: 14 }}>
                         {[
-                            { label: 'ยอดขายรวม', value: formatLAK(data.orders.totalRevenue), color: '#059669', icon: '💰', big: true },
-                            { label: 'เงินสด', value: formatLAK(data.orders.cashRevenue), color: 'var(--text)', icon: '💵' },
-                            { label: 'โอนเงิน', value: formatLAK(data.orders.transferRevenue), color: '#3B82F6', icon: '📱' },
+                            { label: 'ยอดขายรวม', value: fmt(data.orders.totalRevenue), color: '#059669', icon: '💰', big: true },
+                            { label: 'เงินสด', value: fmt(data.orders.cashRevenue), color: 'var(--text)', icon: '💵' },
+                            { label: 'โอนเงิน', value: fmt(data.orders.transferRevenue), color: '#3B82F6', icon: '📱' },
                             { label: 'จำนวนบิล', value: String(data.orders.count), color: 'var(--text)', icon: '🧾' },
-                            { label: 'เฉลี่ย/บิล', value: formatLAK(data.orders.avgOrderValue), color: '#7C3AED', icon: '📊' },
+                            { label: 'เฉลี่ย/บิล', value: fmt(data.orders.avgOrderValue), color: '#7C3AED', icon: '📊' },
                         ].map(s => (
                             <div key={s.label} className="stat-card">
                                 <p style={{ fontSize: '1.2rem', marginBottom: 4 }}>{s.icon}</p>
@@ -107,11 +111,11 @@ export default function DailySummaryPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(22,163,74,0.06)', borderRadius: 8, border: '1px solid rgba(22,163,74,0.15)' }}>
                                     <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#15803d' }}>🛒 รับสินค้า</span>
-                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#15803d' }}>{data.purchase.count} รายการ · {formatLAK(data.purchase.totalCost)}</span>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#15803d' }}>{data.purchase.count} รายการ · {fmt(data.purchase.totalCost)}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(220,38,38,0.05)', borderRadius: 8, border: '1px solid rgba(220,38,38,0.15)' }}>
                                     <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>🗑️ ของเสีย</span>
-                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#dc2626' }}>{data.waste.count} รายการ · {formatLAK(data.waste.totalValue)}</span>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#dc2626' }}>{data.waste.count} รายการ · {fmt(data.waste.totalValue)}</span>
                                 </div>
                             </div>
                         </div>

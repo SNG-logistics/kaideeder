@@ -81,16 +81,20 @@ export const POST = withAdminAuth(async (req: NextRequest, context) => {
                 })
             }
 
-            // AuditLog
-            await tx.auditLog.create({
-                data: {
-                    actorType: 'ADMIN',
-                    adminId: context.admin.adminId,
-                    tenantId: t.id,
-                    action: 'CREATE_TENANT',
-                    payload: { code: body.code, name: body.name, trialDays: body.trialDays },
-                },
-            })
+            // AuditLog — wrapped in try/catch in case adminId is stale
+            try {
+                await tx.auditLog.create({
+                    data: {
+                        actorType: 'ADMIN',
+                        adminId: context.admin.adminId,
+                        tenantId: t.id,
+                        action: 'CREATE_TENANT',
+                        payload: { code: body.code, name: body.name, trialDays: body.trialDays },
+                    },
+                })
+            } catch (auditErr) {
+                console.warn('[admin/tenants] auditLog skipped (adminId FK mismatch):', auditErr)
+            }
 
             // Seed default owner user
             // To prevent predictable credentials across all stores, use the store code as the username

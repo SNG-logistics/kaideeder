@@ -1,12 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { formatLAK, formatLAKShort } from '@/lib/utils'
+
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale/th'
 import Link from 'next/link'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
+import { useCurrency } from '@/context/TenantContext'
 
 interface RecentOrder {
     id: string
@@ -41,6 +42,8 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
+    const { fmt } = useCurrency();
+
     const router = useRouter()
     const currentUser = useCurrentUser()
     const branding = useStoreBranding()
@@ -146,14 +149,14 @@ export default function DashboardPage() {
                                 <span className="badge badge-green">วันนี้</span>
                             </div>
                             <p style={{ color: '#9CA3AF', fontSize: '0.75rem' }}>ยอดขายรวม</p>
-                            <p style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 700, color: '#1A1D26', margin: '4px 0' }}>{formatLAKShort(data.sales.total)}</p>
+                            <p style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 700, color: '#1A1D26', margin: '4px 0' }}>{fmt(data.sales.total)}</p>
                             <p style={{ color: '#9CA3AF', fontSize: '0.72rem' }}>
                                 POS {data.sales.posOrders} บิล • {data.sales.items} รายการ • {data.sales.qty} ชิ้น
                             </p>
                             {data.sales.posTotal > 0 && !isMobile && (
                                 <p style={{ color: '#059669', fontSize: '0.72rem', marginTop: 4, fontWeight: 500 }}>
-                                    POS: {formatLAKShort(data.sales.posTotal)}
-                                    {data.sales.importTotal > 0 && ` + Import: ${formatLAKShort(data.sales.importTotal)}`}
+                                    POS: {fmt(data.sales.posTotal)}
+                                    {data.sales.importTotal > 0 && ` + Import: ${fmt(data.sales.importTotal)}`}
                                 </p>
                             )}
                             {!isMobile && <p style={{ color: 'var(--accent)', fontSize: '0.72rem', marginTop: 6, fontWeight: 500 }}>{showRecentOrders ? 'ซ่อนบิล ↑' : 'ดูบิลล่าสุด ↓'}</p>}
@@ -174,7 +177,7 @@ export default function DashboardPage() {
                                 )}
                             </div>
                             <p style={{ color: '#9CA3AF', fontSize: '0.75rem' }}>มูลค่าสต็อครวม</p>
-                            <p style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 700, color: '#1A1D26', margin: '4px 0' }}>{formatLAKShort(data.stock.total)}</p>
+                            <p style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 700, color: '#1A1D26', margin: '4px 0' }}>{fmt(data.stock.total)}</p>
                             <p style={{ color: '#9CA3AF', fontSize: '0.72rem' }}>ทุก 7 คลัง</p>
                             {!isMobile && (
                                 <p style={{ color: 'var(--accent)', fontSize: '0.72rem', marginTop: 10, fontWeight: 500 }}>
@@ -194,7 +197,7 @@ export default function DashboardPage() {
                                 <span className="badge badge-blue">{data.purchase.orders} ใบ</span>
                             </div>
                             <p style={{ color: '#9CA3AF', fontSize: '0.75rem' }}>ซื้อเข้าวันนี้</p>
-                            <p style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 700, color: '#1A1D26', margin: '4px 0' }}>{formatLAKShort(data.purchase.total)}</p>
+                            <p style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 700, color: '#1A1D26', margin: '4px 0' }}>{fmt(data.purchase.total)}</p>
                             <p style={{ color: '#9CA3AF', fontSize: '0.72rem' }}>{data.purchase.orders} ใบสั่งซื้อ</p>
                             {!isMobile && <p style={{ color: 'var(--accent)', fontSize: '0.72rem', marginTop: 10, fontWeight: 500 }}>ดูรายละเอียด →</p>}
                         </Link>
@@ -243,7 +246,7 @@ export default function DashboardPage() {
                                         }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                                 <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--accent)' }}>{o.orderNumber}</span>
-                                                <span style={{ fontWeight: 700, color: '#059669' }}>{formatLAK(o.total)}</span>
+                                                <span style={{ fontWeight: 700, color: '#059669' }}>{fmt(o.total)}</span>
                                             </div>
                                             <div style={{ display: 'flex', gap: 12, fontSize: '0.75rem', color: '#6B7280' }}>
                                                 <span>🍽️ {o.table}</span>
@@ -272,7 +275,7 @@ export default function DashboardPage() {
                                                     <td style={{ fontWeight: 600, color: 'var(--accent)' }}>{o.orderNumber}</td>
                                                     <td>{o.table}</td>
                                                     <td>{o.itemCount} รายการ</td>
-                                                    <td style={{ fontWeight: 700, color: '#059669' }}>{formatLAK(o.total)}</td>
+                                                    <td style={{ fontWeight: 700, color: '#059669' }}>{fmt(o.total)}</td>
                                                     <td>
                                                         <span className={`badge ${o.paymentMethod === 'CASH' ? 'badge-green' : 'badge-blue'}`}>
                                                             {o.paymentMethod === 'CASH' ? '💵 เงินสด' : '💳 โอน'}
@@ -369,7 +372,7 @@ export default function DashboardPage() {
                                         <p style={{
                                             fontSize: '0.88rem', fontWeight: 700, marginTop: 5,
                                             color: loc.value < 0 ? '#DC2626' : '#059669'
-                                        }}>{formatLAK(loc.value)}</p>
+                                        }}>{fmt(loc.value)}</p>
                                     </div>
                                 ))}
                             </div>

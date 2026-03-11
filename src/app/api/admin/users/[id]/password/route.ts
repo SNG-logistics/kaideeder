@@ -23,26 +23,29 @@ export const PATCH = withAdminAuth(async (req: NextRequest, context): Promise<Ne
 
         const passwordHash = await bcryptjs.hash(body.newPassword, 10)
 
-        // Run in transaction to update password and log the action
+        // Run in transaction to update password
         await prisma.$transaction(async (tx) => {
             await tx.user.update({
                 where: { id },
                 data: { passwordHash }
             })
+        })
 
-            await tx.auditLog.create({
+        // AuditLog — wrapped separately to avoid FK mismatch breaking the reset
+        try {
+            await prisma.auditLog.create({
                 data: {
                     actorType: 'ADMIN',
-                    adminId: context.admin.adminId, // The admin doing the reset
-                    tenantId: user.tenantId,        // The tenant the user belongs to
-                    userId: user.id,                // The user whose password was changed
+                    adminId: context.admin.adminId,
+                    tenantId: user.tenantId,
+                    userId: user.id,
                     action: 'RESET_USER_PASSWORD',
-                    payload: {
-                        note: 'Admin initiated password reset'
-                    }
+                    payload: { note: 'Admin initiated password reset' }
                 }
             })
-        })
+        } catch (auditErr) {
+            console.warn('[admin/users/password] auditLog skipped (adminId FK mismatch):', auditErr)
+        }
 
         return ok({ message: 'Password reset successful' })
     } catch (error) {

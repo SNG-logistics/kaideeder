@@ -89,6 +89,29 @@ export default function AdjustmentPage() {
     const [items, setItems] = useState<AdjItem[]>([])
     const [saving, setSaving] = useState(false)
     const [showScanModal, setShowScanModal] = useState(false)
+    const [showCreateLoc, setShowCreateLoc] = useState(false)
+    const [newLocName, setNewLocName] = useState('คลังหลัก')
+    const [newLocCode, setNewLocCode] = useState('MAIN')
+    const [creatingLoc, setCreatingLoc] = useState(false)
+
+    async function createLocation() {
+        if (!newLocName.trim() || !newLocCode.trim()) return
+        setCreatingLoc(true)
+        try {
+            const res = await fetch('/api/locations', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newLocName.trim(), code: newLocCode.trim() }),
+            })
+            const j = await res.json()
+            if (j.success) {
+                setLocations([j.data])
+                setSelectedLoc(j.data.id)
+                setShowCreateLoc(false)
+                toast.success(`✅ สร้างคลัง "${j.data.name}" เรียบร้อย`)
+            } else toast.error(j.error)
+        } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setCreatingLoc(false) }
+    }
 
     useEffect(() => {
         fetch('/api/products?limit=500').then(r => r.json()).then(j => j.success && setProducts(j.data.products))
@@ -141,9 +164,41 @@ export default function AdjustmentPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
                     <div>
                         <label className="label">📍 คลัง *</label>
+                        {locations.length === 0 ? (
+                            <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 12px' }}>
+                                <div style={{ fontSize: '0.78rem', color: '#D97706', fontWeight: 700, marginBottom: 8 }}>⚠ ยังไม่มีคลัง — กรุณาสร้างคลังก่อน</div>
+                                {!showCreateLoc ? (
+                                    <button onClick={() => setShowCreateLoc(true)} style={{
+                                        background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 8,
+                                        padding: '6px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, fontFamily: 'inherit',
+                                    }}>🏠 สร้างคลังใหม่</button>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <input value={newLocName} onChange={e => setNewLocName(e.target.value)}
+                                                placeholder="ชื่อคลัง" className="input" style={{ flex: 2, minHeight: 34, fontSize: '0.82rem' }} />
+                                            <input value={newLocCode} onChange={e => setNewLocCode(e.target.value.toUpperCase())}
+                                                placeholder="รหัส" className="input" style={{ flex: 1, minHeight: 34, fontSize: '0.82rem', fontFamily: 'monospace' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <button onClick={() => setShowCreateLoc(false)} style={{
+                                                flex: 1, padding: '5px', borderRadius: 8, border: '1px solid #D1D5DB',
+                                                background: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'inherit',
+                                            }}>ยกเลิก</button>
+                                            <button onClick={createLocation} disabled={creatingLoc} style={{
+                                                flex: 2, padding: '5px', borderRadius: 8, border: 'none',
+                                                background: creatingLoc ? '#A7F3D0' : '#059669', color: '#fff',
+                                                cursor: creatingLoc ? 'wait' : 'pointer', fontSize: '0.78rem', fontWeight: 700, fontFamily: 'inherit',
+                                            }}>{creatingLoc ? '⏳ กำลังสร้าง...' : '✅ สร้างคลัง'}</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
                         <select value={selectedLoc} onChange={e => setSelectedLoc(e.target.value)} className="input">
                             {locations.map(l => <option key={l.id} value={l.id}>{l.name} ({l.code})</option>)}
                         </select>
+                        )}
                     </div>
                     <div>
                         <label className="label">📝 เหตุผล *</label>

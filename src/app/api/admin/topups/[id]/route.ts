@@ -81,7 +81,10 @@ export const PATCH = withAdminAuth(async (req: NextRequest, context) => {
             })
 
             // 4. Audit
-            await tx.auditLog.create({
+        })
+
+        try {
+            await prisma.auditLog.create({
                 data: {
                     actorType: 'ADMIN',
                     adminId: context.admin.adminId,
@@ -90,28 +93,30 @@ export const PATCH = withAdminAuth(async (req: NextRequest, context) => {
                     payload: {
                         topupId: id,
                         amountLAK: topup.amountLAK,
-                        newBalanceLAK: newBalance,
+                        newBalanceLAK: wallet.balanceLAK + topup.amountLAK,
                         note: body.note,
                     },
                 },
             })
-        })
+        } catch (auditErr) {
+            console.warn('[admin/topups] APPROVE auditLog skipped:', auditErr)
+        }
 
         return ok({ message: 'Topup approved', amountLAK: topup.amountLAK })
     }
 
     // REJECT
-    await prisma.$transaction(async (tx) => {
-        await tx.topupRequest.update({
-            where: { id },
-            data: {
-                status: 'REJECTED',
-                reviewedAt: new Date(),
-                reviewedByAdminId: context.admin.adminId,
-            },
-        })
+    await prisma.topupRequest.update({
+        where: { id },
+        data: {
+            status: 'REJECTED',
+            reviewedAt: new Date(),
+            reviewedByAdminId: context.admin.adminId,
+        },
+    })
 
-        await tx.auditLog.create({
+    try {
+        await prisma.auditLog.create({
             data: {
                 actorType: 'ADMIN',
                 adminId: context.admin.adminId,
@@ -120,7 +125,9 @@ export const PATCH = withAdminAuth(async (req: NextRequest, context) => {
                 payload: { topupId: id, amountLAK: topup.amountLAK, reason: body.note },
             },
         })
-    })
+    } catch (auditErr) {
+        console.warn('[admin/topups] REJECT auditLog skipped:', auditErr)
+    }
 
     return ok({ message: 'Topup rejected' })
 }, 'ADMIN1')

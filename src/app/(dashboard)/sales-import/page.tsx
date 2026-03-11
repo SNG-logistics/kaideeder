@@ -1,7 +1,9 @@
 'use client'
+
+import { useCurrency } from '@/context/TenantContext';
 import { useState, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { formatLAK } from '@/lib/utils'
+
 
 interface ImportResult {
     importId: string; totalItems: number; totalAmount: number
@@ -9,6 +11,8 @@ interface ImportResult {
 }
 
 export default function SalesImportPage() {
+    const { fmt } = useCurrency()
+
     const [file, setFile] = useState<File | null>(null)
     const [saleDate, setSaleDate] = useState('')  // init empty; set client-side to avoid SSR mismatch
     const [loading, setLoading] = useState(false)
@@ -173,7 +177,7 @@ export default function SalesImportPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                         {[
                             { label: 'รายการทั้งหมด', value: result.totalItems, color: 'var(--text)' },
-                            { label: 'ยอดขายรวม', value: formatLAK(result.totalAmount), color: 'var(--accent)' },
+                            { label: 'ยอดขายรวม', value: fmt(result.totalAmount), color: 'var(--accent)' },
                             { label: 'ตัดสต็อคแล้ว', value: result.deducted, color: '#059669' },
                             { label: 'ไม่พบ Recipe', value: result.unmatched, color: result.unmatched > 0 ? '#D97706' : '#059669' },
                         ].map((s, i) => (

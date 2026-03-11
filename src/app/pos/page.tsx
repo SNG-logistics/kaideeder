@@ -2,6 +2,7 @@
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
+import { useCurrency } from '@/context/TenantContext'
 
 // ─── Types ───────────────────────────────────────────────────
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
@@ -96,6 +97,8 @@ function Toast({ message, type, onClose }: { message: string; type: 'error' | 's
 
 // ─── Main POS Component ─────────────────────────────────────
 export default function POSPage() {
+    const { fmt } = useCurrency();
+
     useRoleGuard(['owner', 'manager', 'cashier'])
     const branding = useStoreBranding()
     const [tables, setTables] = useState<DiningTable[]>([])
