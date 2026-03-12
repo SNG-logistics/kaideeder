@@ -305,10 +305,10 @@ function StoreSettingsCard() {
 const sysInfo = [
     { label: 'Framework', value: 'Next.js 15', icon: '⚡' },
     { label: 'Database', value: 'MySQL 9', icon: '🗄️' },
-    { label: 'ORM', value: 'Prisma 5', icon: '🔷' },
+    { label: 'ORM', value: 'Prisma 6', icon: '🔷' },
     { label: 'Currency', value: 'LAK (ກີບ)', icon: '💱' },
     { label: 'Font', value: 'Noto Sans Lao/Thai', icon: '🔤' },
-    { label: 'Version', value: 'v1.2.0', icon: '🏷️' },
+    { label: 'Version', value: 'v1.0.0', icon: '🏷️' },
 ]
 
 const POS_PROVIDERS = [
