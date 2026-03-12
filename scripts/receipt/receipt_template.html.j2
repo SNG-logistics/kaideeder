@@ -1,0 +1,369 @@
+{# ─────────────────────────────────────────────────────────── #}
+{# receipt_template.html.j2                                    #}
+{# Thermal receipt — 80mm, Thai/Lao bilingual                  #}
+{# Variables: store, order, items, qr_b64, logo_b64, currency  #}
+{# ─────────────────────────────────────────────────────────── #}
+<!DOCTYPE html>
+<html lang="lo-TH">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ໃບຮັບເງິນ · ใบเสร็จ — {{ order.number }}</title>
+
+{# ── Google Fonts: Noto Sans Lao + Thai (fallback to monospace for print) ── #}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap">
+
+<style>
+/* ── Reset ──────────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ── Page / Print ───────────────────────────────────────── */
+@page {
+    size: 80mm auto;
+    margin: 0;
+}
+@media print {
+    body { background: #fff !important; }
+    .no-print { display: none !important; }
+    .receipt { box-shadow: none !important; border: none !important; }
+}
+@media screen {
+    body {
+        background: #e8e8e8;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px 12px;
+        gap: 12px;
+    }
+    .receipt { box-shadow: 0 4px 24px rgba(0,0,0,0.18); }
+}
+
+/* ── Typography ─────────────────────────────────────────── */
+body {
+    font-family: 'Noto Sans Lao', 'Noto Sans Thai', 'Courier New', monospace;
+    font-size: 12px;
+    color: #111;
+    line-height: 1.5;
+}
+
+/* ── Receipt wrapper ────────────────────────────────────── */
+.receipt {
+    width: 302px;       /* = ~80mm */
+    background: #fff;
+    padding: 14px 10px;
+}
+
+/* ── Helpers ────────────────────────────────────────────── */
+.center  { text-align: center; }
+.right   { text-align: right; }
+.bold    { font-weight: 700; }
+.small   { font-size: 10px; }
+.muted   { color: #555; }
+.line    { color: #555; letter-spacing: 0.5px; margin: 4px 0; font-size: 11px; }
+.spacer  { height: 6px; }
+
+/* ── Logo ───────────────────────────────────────────────── */
+.logo-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+.logo-wrap img {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+/* ── Store header ────────────────────────────────────────── */
+.store-name    { font-size: 17px; font-weight: 700; letter-spacing: 0.5px; }
+.store-name-lo { font-size: 14px; font-weight: 600; color: #333; }
+.store-sub     { font-size: 11px; color: #444; margin-top: 2px; }
+.receipt-header-text {
+    font-size: 11px;
+    color: #333;
+    margin-top: 4px;
+    white-space: pre-wrap;
+}
+
+/* ── Order meta ─────────────────────────────────────────── */
+.meta-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+.meta-table td { padding: 1px 0; font-size: 11.5px; }
+.meta-table td:last-child { text-align: right; color: #333; }
+
+/* ── Items ───────────────────────────────────────────────── */
+.items-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 11px;
+    margin: 2px 0;
+}
+.item-row { margin: 3px 0; }
+.item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 4px;
+}
+.item-name  { flex: 1; font-size: 12px; font-weight: 600; }
+.item-qty   { font-size: 11px; color: #555; white-space: nowrap; }
+.item-price { text-align: right; font-weight: 700; font-size: 12px; padding-left: 4px; }
+.item-note  { font-size: 10px; color: #666; padding-left: 6px; }
+
+/* ── Totals ──────────────────────────────────────────────── */
+.totals-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin: 2px 0;
+}
+.totals-row.grand {
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 2px solid #111;
+}
+
+/* ── Payment ─────────────────────────────────────────────── */
+.payment-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    margin: 1px 0;
+}
+.payment-row.unpaid { color: #c00; font-weight: 700; }
+
+/* ── QR code ─────────────────────────────────────────────── */
+.qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 6px 0 2px;
+    gap: 2px;
+}
+.qr-wrap img { width: 90px; height: 90px; }
+.qr-url { font-size: 8px; color: #777; word-break: break-all; text-align: center; }
+
+/* ── Footer ──────────────────────────────────────────────── */
+.footer-text {
+    font-size: 12px;
+    white-space: pre-wrap;
+    line-height: 1.6;
+    margin: 4px 0;
+}
+.wifi-box {
+    border: 1px dashed #aaa;
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin-top: 6px;
+    font-size: 10.5px;
+}
+
+/* ── Print button (screen only) ──────────────────────────── */
+.print-btn {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.print-btn button {
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+}
+.print-btn .btn-print { background: #1d4ed8; color: #fff; }
+.print-btn .btn-close { background: #fff; color: #333; border: 1px solid #ccc; }
+</style>
+</head>
+<body>
+
+{# ── Print / Close buttons (screen only) ────────────────── #}
+<div class="no-print print-btn">
+    <button class="btn-print" onclick="window.print()">🖨️ ພິມ · พิมพ์</button>
+    <button class="btn-close" onclick="window.close()">✕ ປິດ · ปิด</button>
+</div>
+
+{# ══════════════════════════════════════════════════════════ #}
+{# RECEIPT                                                    #}
+{# ══════════════════════════════════════════════════════════ #}
+<div class="receipt">
+
+    {# ── HEADER ───────────────────────────────────────────── #}
+    <div class="center">
+        {% if logo_b64 %}
+        <div class="logo-wrap">
+            <img src="{{ logo_b64 }}" alt="logo">
+        </div>
+        {% endif %}
+
+        <div class="line">{{ LINE }}</div>
+
+        <div class="store-name">{{ store.name | upper }}</div>
+        {% if store.name_lo %}
+        <div class="store-name-lo">{{ store.name_lo }}</div>
+        {% endif %}
+
+        {% if store.receipt_header %}
+        <div class="receipt-header-text">{{ store.receipt_header }}</div>
+        {% else %}
+            {% if store.phone %}
+            <div class="store-sub">📞 {{ store.phone }}</div>
+            {% endif %}
+            {% if store.address %}
+            <div class="store-sub small">{{ store.address }}</div>
+            {% endif %}
+        {% endif %}
+
+        <div class="line">{{ LINE }}</div>
+    </div>
+
+    {# ── ORDER META ────────────────────────────────────────── #}
+    <table class="meta-table">
+        <tr>
+            <td>📅 ວັນທີ · วันที่</td>
+            <td>{{ order.date }}</td>
+        </tr>
+        {% if order.table %}
+        <tr>
+            <td>🪑 ໂຕະ · โต๊ะ</td>
+            <td>{{ order.table }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td>🧾 ບິນ · บิล</td>
+            <td class="bold">{{ order.number }}</td>
+        </tr>
+        {% if order.cashier %}
+        <tr>
+            <td>👤 ແຄຊຽ · แคชเชียร์</td>
+            <td>{{ order.cashier }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    {# ── ITEMS ─────────────────────────────────────────────── #}
+    <div class="line center">{{ LINE }}</div>
+    <div class="items-header">
+        <span>ລາຍການ · รายการ</span>
+        <span>ຈຳນວນ · ยอด</span>
+    </div>
+    <div class="line center" style="font-size:10px">{{ DASH }}</div>
+
+    {% for item in items %}
+    {% set subtotal = item.subtotal if item.subtotal is defined else (item.qty * item.price) %}
+    <div class="item-row">
+        <div class="item-top">
+            <span class="item-name">{{ item.name }}</span>
+            <span class="item-qty">x{{ item.qty }}</span>
+        </div>
+        <div class="item-top">
+            <span class="small muted">{{ fmt_currency(item.price) }} / ອັນ</span>
+            <span class="item-price">{{ fmt_currency(subtotal) }}</span>
+        </div>
+        {% if item.note %}
+        <div class="item-note">📝 {{ item.note }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    {# ── TOTALS ────────────────────────────────────────────── #}
+    <div class="line center">{{ LINE }}</div>
+
+    <div class="totals-row">
+        <span>ລວມ · รวม</span>
+        <span>{{ fmt_currency(order.subtotal) }}</span>
+    </div>
+
+    {% set disc = order.discount | default(0) | float %}
+    {% if disc > 0 %}
+    {% set disc_amount = (order.subtotal * disc / 100) if order.discount_type == 'PERCENT' else disc %}
+    <div class="totals-row">
+        <span>ສ່ວນລຸດ · ส่วนลด{% if order.discount_type == 'PERCENT' %} ({{ disc }}%){% endif %}</span>
+        <span>- {{ fmt_currency(disc_amount) }}</span>
+    </div>
+    {% endif %}
+
+    {% if order.service_charge | default(0) | float > 0 %}
+    <div class="totals-row">
+        <span>ຄ່າບໍລິການ · ค่าบริการ</span>
+        <span>{{ fmt_currency(order.service_charge) }}</span>
+    </div>
+    {% endif %}
+
+    {% if order.vat | default(0) | float > 0 %}
+    <div class="totals-row">
+        <span>VAT</span>
+        <span>{{ fmt_currency(order.vat) }}</span>
+    </div>
+    {% endif %}
+
+    <div class="totals-row grand">
+        <span>ຍອດສຸດທ້າຍ · ยอดสุทธิ</span>
+        <span>{{ fmt_currency(order.total) }}</span>
+    </div>
+
+    {# ── PAYMENT ───────────────────────────────────────────── #}
+    <div class="line center">{{ LINE }}</div>
+    {% if order.payment_method %}
+    <div class="spacer"></div>
+    <div class="payment-row">
+        <span>💳 ຊຳລະ · ชำระ</span>
+        <span class="bold">{{ order.payment_method }}</span>
+    </div>
+    {% if order.received is defined and order.received > 0 %}
+    <div class="payment-row">
+        <span>ຮັບມາ · รับมา</span>
+        <span>{{ fmt_currency(order.received) }}</span>
+    </div>
+    {% endif %}
+    {% if order.change is defined and order.change > 0 %}
+    <div class="payment-row bold">
+        <span>ເງິນທອນ · เงินทอน</span>
+        <span>{{ fmt_currency(order.change) }}</span>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="payment-row unpaid center">⏳ ຍັງບໍ່ໄດ້ຊຳລະ · ยังไม่ได้ชำระ</div>
+    {% endif %}
+
+    {# ── QR CODE ───────────────────────────────────────────── #}
+    <div class="line center">{{ LINE }}</div>
+    <div class="qr-wrap">
+        <img src="{{ qr_b64 }}" alt="QR">
+        <div class="qr-url">{{ order.qr_url }}</div>
+    </div>
+
+    {# ── WIFI (optional) ───────────────────────────────────── #}
+    {% if store.wifi %}
+    <div class="wifi-box center">
+        <span class="bold">📶 WiFi: {{ store.wifi }}</span>
+        {% if store.wifi_pass %}
+        <br><span class="muted">Password: {{ store.wifi_pass }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── FOOTER ────────────────────────────────────────────── #}
+    <div class="line center">{{ LINE }}</div>
+    <div class="center footer-text">
+        {% if store.receipt_footer %}
+{{ store.receipt_footer }}
+        {% else %}
+ຂອບໃຈທີ່ໃຊ້ບໍລິການ
+ขอบคุณที่มาอุดหนุน 🙏
+Thank you! ♥
+        {% endif %}
+    </div>
+    <div class="line center">{{ LINE }}</div>
+
+</div>{# /receipt #}
+
+</body>
+</html>

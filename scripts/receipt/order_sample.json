@@ -1,0 +1,41 @@
+{
+  "_comment": "ตัวอย่างข้อมูล order สำหรับ receipt_generator.py",
+
+  "store": {
+    "name": "กิวไก่ ข้าวมันไก่",
+    "name_lo": "ກິວໄກ່ ເຂົ້າໝ່ຳໄກ່",
+    "phone": "+856 20 1234 5678",
+    "address": "ບ້ານ... ເມືອງ... ນະຄອນ ວຽງຈັນ",
+    "currency": "₭",
+    "logo_path": "logo.png",
+    "receipt_header": "ຍິນດີຕ້ອນຮັບ · ยินดีต้อนรับ",
+    "receipt_footer": "ຂອບໃຈທີ່ໃຊ້ບໍລິການ\nขอบคุณที่มาอุดหนุน 🙏\nThank you! ♥",
+    "wifi": "KaiDeer_WiFi",
+    "wifi_pass": "12345678"
+  },
+
+  "order": {
+    "number": "ORD-260312-8483",
+    "table": "ໂຕະ 1 · โต๊ะ 1",
+    "date": "12/03/2026 17:34",
+    "cashier": "ເຈົ້າຂອງຮ້ານ",
+    "qr_url": "http://pos.kaideeder.com/receipt/ORD-260312-8483",
+
+    "items": [
+      { "name": "ນ້ຳໝາກກ້ຽງ · น้ำส้ม",  "qty": 4, "price": 15000 },
+      { "name": "ແປບຊີ · แปบซี",          "qty": 3, "price": 15000 },
+      { "name": "ເຂົ້າໝ່ຳໄກ່ · ข้าวมันไก่", "qty": 2, "price": 30000, "note": "ไม่ใส่ต้นหอม" }
+    ],
+
+    "subtotal": 135000,
+    "discount": 0,
+    "discount_type": "AMOUNT",
+    "service_charge": 0,
+    "vat": 0,
+    "total": 135000,
+
+    "payment_method": "ເງິນສົດ · เงินสด",
+    "received": 150000,
+    "change": 15000
+  }
+}
