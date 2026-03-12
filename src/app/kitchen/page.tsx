@@ -21,11 +21,19 @@ const STATUS_BG: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
     PENDING: '⏳ รอรับ', ACCEPTED: '👌 รับแล้ว', COOKING: '🔥 กำลังทำ', READY: '✅ พร้อมเสิร์ฟ', SERVED: '🍽️ เสิร์ฟแล้ว',
 }
+// Kitchen: full 4-step flow
 const NEXT_STATUS: Record<string, string> = {
     PENDING: 'ACCEPTED', ACCEPTED: 'COOKING', COOKING: 'READY', READY: 'SERVED',
 }
 const NEXT_LABEL: Record<string, string> = {
     PENDING: '👌 รับงาน', ACCEPTED: '🔥 เริ่มทำ', COOKING: '✅ เสร็จแล้ว', READY: '🍽️ เสิร์ฟแล้ว',
+}
+// Bar: 2-step flow — รับงาน → เสิร์ฟทันที
+const BAR_NEXT_STATUS: Record<string, string> = {
+    PENDING: 'ACCEPTED', ACCEPTED: 'SERVED',
+}
+const BAR_NEXT_LABEL: Record<string, string> = {
+    PENDING: '👌 รับงาน', ACCEPTED: '🍹 เสิร์ฟ',
 }
 
 function playBell(freq = 880, times = 2) {
@@ -215,10 +223,17 @@ export default function KitchenPage() {
             {/* Items */}
             <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {selectedOrder.items.map(item => {
+                    const isBar = item.stationId === 'BAR'
                     const isServed = item.kitchenStatus === 'SERVED'
                     const isWorking = updating === item.id
-                    const next = NEXT_STATUS[item.kitchenStatus]
+                    const next = isBar ? BAR_NEXT_STATUS[item.kitchenStatus] : NEXT_STATUS[item.kitchenStatus]
+                    const nextLabel = isBar ? BAR_NEXT_LABEL[item.kitchenStatus] : NEXT_LABEL[item.kitchenStatus]
                     const hasPending = item.kitchenStatus === 'PENDING'
+                    const btnBg = hasPending
+                        ? 'linear-gradient(135deg,#E8364E,#FF6B35)'
+                        : isBar && next === 'SERVED'
+                            ? 'linear-gradient(135deg,#059669,#10B981)'
+                            : STATUS_BG[next ?? '']
                     return (
                         <div key={item.id} style={{ background: '#fff', borderRadius: 14, border: hasPending ? '2px solid #E8364E' : '1px solid #E5E7EB', boxShadow: hasPending ? '0 4px 14px rgba(232,54,78,0.15)' : '0 1px 4px rgba(0,0,0,0.05)', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, opacity: isServed ? 0.45 : 1 }}>
                             <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: hasPending ? 'linear-gradient(135deg,#E8364E,#FF6B35)' : STATUS_BG[item.kitchenStatus] + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.2rem', color: hasPending ? '#fff' : STATUS_BG[item.kitchenStatus] }}>
@@ -233,11 +248,12 @@ export default function KitchenPage() {
                                 <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.product.name}</div>
                                 <div style={{ fontSize: '0.72rem', color: STATUS_BG[item.kitchenStatus], fontWeight: 600, marginTop: 2 }}>{STATUS_LABEL[item.kitchenStatus]}</div>
                                 {item.note && <div style={{ fontSize: '0.72rem', color: '#D97706', marginTop: 2 }}>📝 {item.note}</div>}
+                                {isBar && <div style={{ fontSize: '0.65rem', color: '#8B5CF6', fontWeight: 700, marginTop: 2 }}>🍹 บาร์</div>}
                             </div>
                             {next && (
                                 <button onClick={() => updateStatus(item.id, next)} disabled={isWorking}
-                                    style={{ padding: isMobile ? '8px 10px' : '8px 16px', borderRadius: 10, border: 'none', background: hasPending ? 'linear-gradient(135deg,#E8364E,#FF6B35)' : STATUS_BG[next], color: '#fff', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.83rem', cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', opacity: isWorking ? 0.6 : 1, boxShadow: hasPending ? '0 4px 10px rgba(232,54,78,0.4)' : 'none', whiteSpace: 'nowrap' }}>
-                                    {isWorking ? '⏳' : NEXT_LABEL[item.kitchenStatus]}
+                                    style={{ padding: isMobile ? '8px 10px' : '8px 16px', borderRadius: 10, border: 'none', background: btnBg, color: '#fff', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.83rem', cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', opacity: isWorking ? 0.6 : 1, boxShadow: hasPending ? '0 4px 10px rgba(232,54,78,0.4)' : 'none', whiteSpace: 'nowrap' }}>
+                                    {isWorking ? '⏳' : nextLabel}
                                 </button>
                             )}
                             <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: isServed ? '#10B981' : '#F3F4F6', border: `2px solid ${isServed ? '#10B981' : '#D1D5DB'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.82rem', color: '#fff' }}>
