@@ -23,6 +23,7 @@ export const metadata: Metadata = {
 }
 
 import AutoLogout from '@/components/AutoLogout'
+import { TenantProvider } from '@/context/TenantContext'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
@@ -32,7 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 suppressHydrationWarning // 👈 ADD THIS HERE
             >
                 <AutoLogout />
-                {children}
+                <TenantProvider>
+                    {children}
+                </TenantProvider>
                 <Toaster
                     position="top-right"
                     toastOptions={{

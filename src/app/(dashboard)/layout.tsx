@@ -2,7 +2,6 @@
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import { SidebarProvider, useSidebar } from '@/components/SidebarContext'
-import { TenantProvider } from '@/context/TenantContext'
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
     const { collapsed, isMobile } = useSidebar()
@@ -34,10 +33,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     return (
-        <TenantProvider>
-            <SidebarProvider>
-                <DashboardContent>{children}</DashboardContent>
-            </SidebarProvider>
-        </TenantProvider>
+        <SidebarProvider>
+            <DashboardContent>{children}</DashboardContent>
+        </SidebarProvider>
     )
 }

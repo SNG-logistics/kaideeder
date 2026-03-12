@@ -39,7 +39,8 @@ interface OrderData {
     createdBy?: { id: string; name: string }
 }
 
-import { useCurrency } from '@/context/TenantContext'
+import { useCurrency, useTenant } from '@/context/TenantContext'
+import { useStoreBranding } from '@/hooks/useStoreBranding'
 
 
 function formatDateTime(dateStr: string): string {
@@ -74,6 +75,15 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
     const searchParams = useSearchParams()
     const isPreview = searchParams.get('preview') === '1'
     const { fmt } = useCurrency()
+    const { settings } = useTenant()
+    const branding = useStoreBranding()
+
+    // Store info from tenant settings
+    const storeName = (branding.displayName || settings?.name || '').toUpperCase()
+    const storeNameLao = settings?.storeNameLao ?? ''
+    const storePhone = settings?.phone ?? ''
+    const storeAddress = settings?.address ?? ''
+    const receiptHeader = settings?.receiptHeader ?? ''
 
     useEffect(() => {
         async function fetchOrder() {
@@ -237,8 +247,16 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                 {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: 4 }}>
                     <div style={{ fontSize: 11, letterSpacing: 1 }}>{LINE}</div>
-                    <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>43 GARDEN</div>
-                    <div style={{ fontSize: 12, fontWeight: 'bold' }}>CAFE & RESTAURANT</div>
+                    <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>{storeName}</div>
+                    {storeNameLao && <div style={{ fontSize: 13, fontWeight: 'bold' }}>{storeNameLao}</div>}
+                    {receiptHeader ? (
+                        <pre style={{ fontFamily: 'inherit', fontSize: 11, margin: '4px 0', whiteSpace: 'pre-wrap', textAlign: 'center' }}>{receiptHeader}</pre>
+                    ) : (
+                        <>
+                            {storePhone && <div style={{ fontSize: 11 }}>📞 {storePhone}</div>}
+                            {storeAddress && <div style={{ fontSize: 10 }}>{storeAddress}</div>}
+                        </>
+                    )}
                     <div style={{ fontSize: 11, letterSpacing: 1, marginTop: 4 }}>{LINE}</div>
                 </div>
 
