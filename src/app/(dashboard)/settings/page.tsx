@@ -303,12 +303,12 @@ function StoreSettingsCard() {
 
 
 const sysInfo = [
-    { label: 'Framework', value: 'Next.js 14', icon: '⚡' },
+    { label: 'Framework', value: 'Next.js 15', icon: '⚡' },
     { label: 'Database', value: 'MySQL 9', icon: '🗄️' },
     { label: 'ORM', value: 'Prisma 5', icon: '🔷' },
     { label: 'Currency', value: 'LAK (ກີບ)', icon: '💱' },
     { label: 'Font', value: 'Noto Sans Lao/Thai', icon: '🔤' },
-    { label: 'Version', value: 'v1.0.0', icon: '🏷️' },
+    { label: 'Version', value: 'v1.2.0', icon: '🏷️' },
 ]
 
 const POS_PROVIDERS = [
@@ -700,27 +700,6 @@ export default function SettingsPage() {
                             <div key={s.label} style={{ background: 'var(--bg)', borderRadius: 10, padding: '0.875rem', border: '1px solid var(--border)' }}>
                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'monospace' }}>{s.icon} {s.label}</p>
                                 <p style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)' }}>{s.value}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* ── Credentials ── */}
-                <div className="card">
-                    <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 16, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}><span>🔑</span> รหัสผ่านเริ่มต้น (จาก seed)</h2>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                        {[
-                            { user: 'owner', pass: 'owner1234', role: 'OWNER', icon: '👑' },
-                            { user: 'manager', pass: 'manager1234', role: 'MANAGER', icon: '🏢' },
-                            { user: 'warehouse', pass: 'staff1234', role: 'WAREHOUSE', icon: '📦' },
-                            { user: 'kitchen', pass: 'staff1234', role: 'KITCHEN', icon: '👨‍🍳' },
-                            { user: 'bar', pass: 'staff1234', role: 'BAR', icon: '🍹' },
-                            { user: 'cashier', pass: 'staff1234', role: 'CASHIER', icon: '💳' },
-                        ].map(u => (
-                            <div key={u.user} style={{ background: 'var(--bg)', borderRadius: 10, padding: '0.75rem', border: '1px solid var(--border)' }}>
-                                <p style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: 2 }}>{u.icon} {u.user}</p>
-                                <p style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--accent)' }}>{u.pass}</p>
-                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{u.role}</span>
                             </div>
                         ))}
                     </div>
