@@ -511,7 +511,7 @@ export default function PurchasePage() {
     const [products, setProducts] = useState<Product[]>([])
     const [locations, setLocations] = useState<Location[]>([])
     const [items, setItems] = useState<PurchaseItem[]>([])
-    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0])
+    const [purchaseDate, setPurchaseDate] = useState('')
     const [note, setNote] = useState('')
     const [saving, setSaving] = useState(false)
     const [tab, setTab] = useState<'new' | 'history'>('new')
@@ -521,6 +521,7 @@ export default function PurchasePage() {
     const [showStockGrid, setShowStockGrid] = useState(false)
 
     useEffect(() => {
+        setPurchaseDate(new Date().toISOString().split('T')[0])  // client-only: avoids SSR mismatch
         fetch('/api/products?limit=500').then(r => r.json()).then(j => j.success && setProducts(j.data.products))
         fetch('/api/locations').then(r => r.json()).then(j => j.success && setLocations(j.data))
         fetchOrders()

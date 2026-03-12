@@ -38,6 +38,7 @@ export default function QRMobilePage({ params }: PageProps) {
     const [result, setResult] = useState<{ systemQty: number; actualQty: number; diffQty: number } | null>(null)
     const [payload, setPayload] = useState<QRPayload | null>(null)
     const [expired, setExpired] = useState(false)
+    const [savedTime, setSavedTime] = useState('')  // hydration-safe: set on client only
 
     useEffect(() => {
         const p = decodeJWT(token)
@@ -63,6 +64,7 @@ export default function QRMobilePage({ params }: PageProps) {
             const json = await res.json()
             if (json.success) {
                 setResult(json.data)
+                setSavedTime(new Date().toLocaleTimeString('th-TH'))
                 setDone(true)
             } else {
                 setError(json.error || 'เกิดข้อผิดพลาด')
@@ -133,7 +135,7 @@ export default function QRMobilePage({ params }: PageProps) {
                     </div>
                 </div>
                 <p style={{ marginTop: 16, fontSize: '0.78rem', color: '#9CA3AF' }}>
-                    {payload?.locationCode} · {new Date().toLocaleTimeString('th-TH')}
+                     {payload?.locationCode} · {savedTime}
                 </p>
                 <button
                     onClick={() => { setDone(false); setQty(''); setResult(null) }}
