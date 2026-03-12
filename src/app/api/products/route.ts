@@ -94,7 +94,7 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     if (categoryId) where.categoryId = categoryId
     if (productType) where.productType = productType
 
-    const [products, total] = await Promise.all([
+    const [rawProducts, total] = await Promise.all([
         prisma.product.findMany({
             where,
             include: { category: true, inventory: { include: { location: true } } },
@@ -104,6 +104,16 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
         }),
         prisma.product.count({ where }),
     ])
+
+    // Compute imageUrl: prefer DB base64 (works in production), fallback to stored URL
+    const products = rawProducts.map(p => {
+        const imageUrl = p.imageBase64
+            ? `data:image/webp;base64,${p.imageBase64}`
+            : p.imageUrl || null
+        // Don't leak imageBase64 bytes in list response (it's huge)
+        const { imageBase64, ...rest } = p
+        return { ...rest, imageUrl }
+    })
 
     return ok({ products, total, page, limit, pages: Math.ceil(total / limit) })
 })

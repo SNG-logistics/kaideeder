@@ -6,7 +6,7 @@ import { withAuth, ok, err } from '@/lib/api'
 export const GET = withAuth(async (req: NextRequest, ctx) => {
     const { tenantId } = ctx as any
     const params = await ctx.params
-    const product = await prisma.product.findFirst({
+    const raw = await prisma.product.findFirst({
         where: { id: params?.id, tenantId },
         include: {
             category: true,
@@ -14,8 +14,12 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
             bom: { include: { recipe: true } },
         },
     })
-    if (!product) return err('ไม่พบสินค้า', 404)
-    return ok(product)
+    if (!raw) return err('ไม่พบสินค้า', 404)
+    const imageUrl = raw.imageBase64
+        ? `data:image/webp;base64,${raw.imageBase64}`
+        : raw.imageUrl || null
+    const { imageBase64, ...rest } = raw
+    return ok({ ...rest, imageUrl })
 })
 
 // PATCH /api/products/[id]

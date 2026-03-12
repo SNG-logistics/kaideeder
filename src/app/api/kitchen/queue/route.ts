@@ -24,7 +24,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
     const items = await prisma.orderItem.findMany({
         where,
         include: {
-            product: { select: { id: true, sku: true, name: true, category: true, imageUrl: true } },
+            product: { select: { id: true, sku: true, name: true, category: true, imageUrl: true, imageBase64: true } },
             order: {
                 select: {
                     id: true, orderNumber: true, openedAt: true, note: true,
@@ -39,14 +39,26 @@ export const GET = withAuth(async (req: NextRequest, context) => {
         ],
     })
 
+    // Resolve imageUrl from base64 (production-safe)
+    const itemsWithImages = items.map(item => ({
+        ...item,
+        product: {
+            ...item.product,
+            imageUrl: item.product.imageBase64
+                ? `data:image/webp;base64,${item.product.imageBase64}`
+                : item.product.imageUrl || null,
+            imageBase64: undefined,
+        }
+    }))
+
     // Group by order for display
     const grouped: Record<string, {
         orderId: string; orderNumber: string; tableName: string; zone: string;
         openedAt: Date; orderNote: string | null;
-        items: typeof items;
+        items: typeof itemsWithImages;
     }> = {}
 
-    for (const item of items) {
+    for (const item of itemsWithImages) {
         const key = item.orderId
         if (!grouped[key]) {
             grouped[key] = {
