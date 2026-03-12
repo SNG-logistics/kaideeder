@@ -30,36 +30,147 @@ function printKitchenTicket(opts: {
 }) {
     if (opts.items.length === 0) return
     const { station, items, tableName, orderNumber, storeName } = opts
-    const label = station === 'KITCHEN' ? '🍳 ครัว' : '🍺 บาร์'
-    const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-    const w = window.open('', '_blank', 'width=340,height=500')
+    const isBar = station === 'BAR'
+    const accent = isBar ? '#7C3AED' : '#DC2626'
+    const label  = isBar ? 'BAR' : 'KITCHEN'
+    const emoji  = isBar ? '🍹' : '🍳'
+    const time   = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+    const date   = new Date().toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+    const w = window.open('', '_blank', 'width=794,height=1123')
     if (!w) return
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;900&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
-  @page { size: 80mm auto; margin: 0; }
-  body { font-family: 'Courier New', monospace; font-size: 13px; padding: 6px 8px; width: 80mm; }
-  .h { text-align:center; font-size:11px; border-bottom: 1px dashed #000; padding-bottom:4px; margin-bottom:4px; }
-  .st { font-size:17px; font-weight:900; text-align:center; margin:2px 0; }
-  .tbl { font-size:22px; font-weight:900; text-align:center; margin:2px 0; letter-spacing:-0.5px; }
-  .num { font-size:10px; text-align:center; color:#555; margin-bottom:4px; border-bottom:1px dashed #000; padding-bottom:4px; }
-  .item { display:flex; gap:6px; padding:5px 0; border-bottom:1px dotted #ccc; align-items:flex-start; }
-  .qty { font-size:22px; font-weight:900; min-width:28px; line-height:1; }
-  .name { font-size:14px; font-weight:700; flex:1; line-height:1.3; }
-  .note { font-size:11px; color:#555; margin-top:2px; }
-  .cut { text-align:center; margin-top:6px; font-size:9px; color:#999; border-top:1px dashed #000; padding-top:4px; }
-  @media print { button { display:none; } }
+  @page { size: A4 portrait; margin: 0; }
+  body {
+    font-family: 'Noto Sans Thai', 'Sarabun', Arial, sans-serif;
+    background: #fff;
+    padding: 32px 40px;
+    width: 210mm;
+    min-height: 297mm;
+    color: #111;
+  }
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid ${accent};
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .station-badge {
+    background: ${accent};
+    color: #fff;
+    font-size: 28px;
+    font-weight: 900;
+    padding: 8px 24px;
+    border-radius: 10px;
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .store-info { text-align: right; }
+  .store-name { font-size: 16px; font-weight: 700; color: #1A1D26; }
+  .meta-line  { font-size: 12px; color: #6B7280; margin-top: 2px; }
+  /* Table + Order */
+  .order-meta {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .meta-box {
+    flex: 1;
+    background: #F8F9FC;
+    border: 2px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 12px 18px;
+  }
+  .meta-box.accent { border-color: ${accent}; background: ${accent}10; }
+  .meta-label { font-size: 11px; color: #9CA3AF; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .meta-value { font-size: 26px; font-weight: 900; color: #1A1D26; line-height: 1.1; }
+  .meta-value.small { font-size: 16px; font-weight: 700; }
+  /* Items */
+  .items-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #9CA3AF;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    border-top: 1px solid #E5E7EB;
+    padding-top: 14px;
+  }
+  .item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px dashed #E5E7EB;
+  }
+  .qty-circle {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: ${accent};
+    color: #fff;
+    font-size: 24px;
+    font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .item-body { flex: 1; padding-top: 4px; }
+  .item-name { font-size: 20px; font-weight: 700; color: #1A1D26; line-height: 1.3; }
+  .item-note { font-size: 13px; color: #6B7280; margin-top: 4px; }
+  /* Footer */
+  .footer {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 11px;
+    color: #D1D5DB;
+    border-top: 1px dashed #E5E7EB;
+    padding-top: 12px;
+  }
+  @media print { body { padding: 20px 28px; } }
 </style></head><body>
-<div class="h">${storeName}</div>
-<div class="st">${label}</div>
-<div class="tbl">${tableName}</div>
-<div class="num">#${orderNumber} · ${time}</div>
-${items.map(item => `<div class="item">
-  <div class="qty">${item.quantity}</div>
-  <div><div class="name">${item.product?.name || ''}</div>${item.note ? `<div class="note">📝 ${item.note}</div>` : ''}</div>
+
+<div class="header">
+  <div class="station-badge"><span>${emoji}</span> ${label}</div>
+  <div class="store-info">
+    <div class="store-name">${storeName}</div>
+    <div class="meta-line">${date} · ${time}</div>
+  </div>
+</div>
+
+<div class="order-meta">
+  <div class="meta-box accent">
+    <div class="meta-label">โต๊ะ · Table</div>
+    <div class="meta-value">${tableName}</div>
+  </div>
+  <div class="meta-box">
+    <div class="meta-label">เลขออเดอร์ · Order</div>
+    <div class="meta-value small">#${orderNumber}</div>
+  </div>
+  <div class="meta-box">
+    <div class="meta-label">จำนวนรายการ</div>
+    <div class="meta-value">${items.length} รายการ</div>
+  </div>
+</div>
+
+<div class="items-title">รายการ · Items</div>
+${items.map(item => `
+<div class="item-row">
+  <div class="qty-circle">${item.quantity}</div>
+  <div class="item-body">
+    <div class="item-name">${item.product?.name || ''}</div>
+    ${item.note ? `<div class="item-note">📝 ${item.note}</div>` : ''}
+  </div>
 </div>`).join('')}
-<div class="cut">--- ตัดที่นี่ ---</div>
-<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),800);}<\/script>
+
+<div class="footer">${storeName} · ${label} TICKET · ${orderNumber} · ${time}</div>
+<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200);}<\/script>
 </body></html>`)
     w.document.close()
 }
