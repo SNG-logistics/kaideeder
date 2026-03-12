@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
@@ -299,10 +299,13 @@ export default function POSPage() {
             return
         }
         setOrderItems(prev => {
-            const existing = prev.find(i => i.productId === product.id && !i.note)
+            // Only merge with UNSAVED items (no DB id yet).
+            // If the product is already saved to DB, always add a new line
+            // so kitchen/bar gets a fresh ticket for the re-order.
+            const existing = prev.find(i => i.productId === product.id && !i.note && !i.id)
             if (existing) {
                 return prev.map(i =>
-                    i.productId === product.id && !i.note
+                    i.productId === product.id && !i.note && !i.id
                         ? { ...i, quantity: i.quantity + 1 }
                         : i
                 )
@@ -1135,38 +1138,72 @@ export default function POSPage() {
                 </div>
             )}
 
+            {/* BAR ALERT SOUND via title flash when bar items exist */}
+            {sentItems && sentItems.bar.length > 0 && (
+                <style>{`@keyframes barPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}`}</style>
+            )}
+
             {/* ════ SEND TO KITCHEN MODAL ════ */}
             {sentItems && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
-                    <div style={{ background: '#FFFFFF', borderRadius: 16, width: '100%', maxWidth: 400, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 48px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
-                        <div style={{ padding: '1.25rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
+                    <div style={{ background: '#FFFFFF', borderRadius: 20, width: '100%', maxWidth: 400, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 56px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+
+                        {/* Bar Alert Banner — only when bar has items */}
+                        {sentItems.bar.length > 0 && (
+                            <div style={{ background: 'linear-gradient(135deg,#7C3AED,#9333EA)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                                <span style={{ fontSize: '1.6rem', display: 'inline-block', animation: 'barPulse 0.9s ease-in-out infinite' }}>🍹</span>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fff' }}>แจ้งเตือนบาร์ใหม่! ({sentItems.bar.length} รายการ)</div>
+                                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.8)', marginTop: 1 }}>
+                                        {sentItems.bar.map(i => `${i.quantity}× ${i.product?.name}`).join(' · ')}
+                                    </div>
+                                </div>
+                                <div style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 20, padding: '3px 10px', fontSize: '0.7rem', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>🔔 ใหม่</div>
+                            </div>
+                        )}
+
+                        {/* Header */}
+                        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                             <div>
-                                <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#1A1D26' }}>✅ ส่งออเดอร์สำเร็จ</div>
-                                <div style={{ fontSize: '0.8rem', color: '#9CA3AF', marginTop: 4 }}>โต๊ะ: {sentItems.tableCode}</div>
+                                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1A1D26' }}>✅ ส่งออเดอร์สำเร็จ</div>
+                                <div style={{ fontSize: '0.78rem', color: '#9CA3AF', marginTop: 2 }}>โต๊ะ: {sentItems.tableCode}</div>
                             </div>
                             <button onClick={() => setSentItems(null)} style={{ background: '#F3F4F6', border: 'none', color: '#6B7280', cursor: 'pointer', borderRadius: 8, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>✕</button>
                         </div>
+
+                        {/* Body */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
-                            {[{ title: '👩‍🍳 ส่งครัว', items: sentItems.kitchen }, { title: '🍹 ส่งบาร์', items: sentItems.bar }].map(({ title, items }) => (
-                                <div key={title} style={{ marginBottom: 16 }}>
-                                    <div style={{ fontWeight: 700, color: '#1A1D26', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>{title} ({items.length} รายการ)</div>
+                            {[
+                                { title: '👩‍🍳 ส่งครัว', items: sentItems.kitchen, accent: '#EF4444', bg: '#FFF5F5', border: '#FECACA' },
+                                { title: '🍹 ส่งบาร์', items: sentItems.bar, accent: '#7C3AED', bg: '#FAF5FF', border: '#DDD6FE' },
+                            ].map(({ title, items, accent, bg, border }) => (
+                                <div key={title} style={{ marginBottom: 14 }}>
+                                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: items.length > 0 ? accent : '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                        {title}
+                                        <span style={{ background: items.length > 0 ? accent : '#E5E7EB', color: '#fff', borderRadius: 20, padding: '1px 8px', fontSize: '0.72rem', fontWeight: 700 }}>{items.length}</span>
+                                    </div>
                                     {items.length > 0 ? (
-                                        <div style={{ background: '#F8F9FC', borderRadius: 8, padding: '0.75rem', border: '1px solid #E5E7EB' }}>
+                                        <div style={{ background: bg, borderRadius: 10, padding: '0.7rem', border: `1.5px solid ${border}` }}>
                                             {items.map((item, idx) => (
-                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6 }}>
-                                                    <span>{item.quantity} × {item.product?.name}</span>
-                                                    {item.note && <span style={{ color: '#E8364E', fontSize: '0.8rem' }}>({item.note})</span>}
+                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.87rem', paddingBottom: idx < items.length - 1 ? 6 : 0, marginBottom: idx < items.length - 1 ? 6 : 0, borderBottom: idx < items.length - 1 ? `1px dashed ${border}` : 'none' }}>
+                                                    <span style={{ fontWeight: 600, color: '#1A1D26' }}>{item.product?.name}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        {item.note && <span style={{ color: accent, fontSize: '0.75rem', background: `${accent}15`, borderRadius: 4, padding: '1px 6px' }}>{item.note}</span>}
+                                                        <span style={{ fontWeight: 800, color: accent }}>×{item.quantity}</span>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <div style={{ fontSize: '0.8rem', color: '#9CA3AF', textAlign: 'center' }}>ไม่มีรายการ</div>
+                                        <div style={{ fontSize: '0.78rem', color: '#D1D5DB', textAlign: 'center', padding: '6px 0' }}>ไม่มีรายการ</div>
                                     )}
                                 </div>
                             ))}
                         </div>
-                        <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid #E5E7EB', background: '#FAFBFD' }}>
-                            <button onClick={() => setSentItems(null)} style={{ width: '100%', padding: '0.8rem', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #059669, #10B981)', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(5,150,105,0.3)' }}>ตกลง</button>
+
+                        {/* Footer */}
+                        <div style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid #E5E7EB', background: '#FAFBFD' }}>
+                            <button onClick={() => setSentItems(null)} style={{ width: '100%', padding: '0.8rem', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#059669,#10B981)', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(5,150,105,0.28)' }}>✓ รับทราบ</button>
                         </div>
                     </div>
                 </div>
