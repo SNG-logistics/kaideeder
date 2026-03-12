@@ -202,12 +202,12 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
 
                 {/* ── Totals ──────────────────────────────────────────── */}
                 <div style={{ margin:'0 16px', borderTop:'2px dashed #E5E7EB', paddingTop:12, paddingBottom:4 }}>
-                    {[
+                    {([
                         ['ລວມ · รวม', fmt(order.subtotal), false],
                         discountAmt > 0 ? [`ສ່ວນລຸດ${order.discountType==='PERCENT'?` (${order.discount}%)`:''} · ส่วนลด`, `- ${fmt(discountAmt)}`, false] : null,
                         order.serviceCharge > 0 ? ['ຄ່າບໍລິການ · ค่าบริการ', fmt(order.serviceCharge), false] : null,
                         order.vat > 0 ? ['VAT', fmt(order.vat), false] : null,
-                    ].filter(Boolean).map(([label, value], i) => (
+                    ] as (Array<string|boolean> | null)[]).filter((x): x is Array<string|boolean> => x !== null).map(([label, value], i) => (
                         <div key={i} style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
                             <span style={{ fontSize:12, color:'#6B7280' }}>{label as string}</span>
                             <span style={{ fontSize:12, color:'#6B7280' }}>{value as string}</span>
