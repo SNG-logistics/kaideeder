@@ -164,15 +164,15 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
 
                 {/* ── Order Meta ──────────────────────────────────────── */}
                 <div style={{ padding:'14px 16px 0' }}>
-                    {[
+                    {([
                         ['📅', 'ວັນທີ · วันที่', fmtDate(order.closedAt || order.openedAt)],
                         order.table ? ['🪑', 'ໂຕະ · โต๊ะ', order.table.name] : null,
                         ['🧾', 'ເລກບິນ · เลขบิล', order.orderNumber],
                         order.createdBy ? ['👤', 'ພະນັກງານ · พนักงาน', order.createdBy.name] : null,
-                    ].filter(Boolean).map(([icon, label, value], i) => (
+                    ] as (string[] | null)[]).filter((x): x is string[] => x !== null).map(([icon, label, value], i) => (
                         <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 0', borderBottom:'1px solid #F3F4F6' }}>
-                            <span style={{ fontSize:11, color:'#9CA3AF', display:'flex', alignItems:'center', gap:4 }}>{icon} {label as string}</span>
-                            <span style={{ fontSize:12, fontWeight:600, color:'#1A1D26' }}>{value as string}</span>
+                            <span style={{ fontSize:11, color:'#9CA3AF', display:'flex', alignItems:'center', gap:4 }}>{icon} {label}</span>
+                            <span style={{ fontSize:12, fontWeight:600, color:'#1A1D26' }}>{value}</span>
                         </div>
                     ))}
                 </div>
