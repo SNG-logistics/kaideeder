@@ -4,48 +4,46 @@ import { usePathname } from 'next/navigation'
 import { useSidebar } from './SidebarContext'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
+import { useT } from '@/context/TenantContext'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 const TableManagerPanel = dynamic(() => import('./TableManagerPanel'), { ssr: false })
 
-// ─── Nav items with permission guards ──────────────────────────
+// nav items — label is an i18n key
 type NavItem = {
     href: string
     icon: string
-    label: string
+    labelKey: string
     accent?: boolean
-    dividerBefore?: string
+    dividerKey?: string
     /** If set, user must have this permission to see this item */
     permission?: string
 }
 
 const navItems: NavItem[] = [
-    { href: '/pos', icon: '💰', label: 'POS ขายหน้าร้าน', accent: true, permission: 'POS_USE' },
-    { href: '/kitchen', icon: '🍳', label: 'จอครัว (KDS)', accent: true, permission: 'KITCHEN_VIEW' },
-    { href: '/waiter', icon: '🍽️', label: 'หน้าเสิร์ฟ', accent: true, permission: 'KITCHEN_VIEW' },
-    { href: '/dashboard', icon: '🏠', label: 'Home', permission: 'DASHBOARD_VIEW' },
-    // ─── เมนูขาย ───
-    { href: '/menu', icon: '🍽️', label: 'เมนูร้าน', dividerBefore: 'เมนู & สต็อค', permission: 'MENU_VIEW' },
-    { href: '/recipes', icon: '📋', label: 'สูตรอาหาร (BOM)', permission: 'RECIPE_VIEW' },
-    // ─── คลังสต็อค ───
-    { href: '/products', icon: '🥩', label: 'วัตถุดิบ / Stock', permission: 'PRODUCT_VIEW' },
-    { href: '/inventory', icon: '📦', label: 'สต็อคคลัง', permission: 'INVENTORY_VIEW' },
-    { href: '/purchase', icon: '🛒', label: 'ซื้อเข้า / GR', permission: 'PURCHASE_VIEW' },
-    { href: '/transfer', icon: '🔄', label: 'เบิก / โอนคลัง', permission: 'TRANSFER_USE' },
-    { href: '/adjustment', icon: '⚖️', label: 'ปรับสต็อค', permission: 'ADJUSTMENT_USE' },
-    { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย', permission: 'SALES_IMPORT' },
-    { href: '/sku-queue', icon: '🔍', label: 'SKU Queue', permission: 'SETTINGS_MANAGE' },
-    { href: '/reports', icon: '📈', label: 'Reports', permission: 'REPORT_VIEW' },
-    { href: '/ai-chat', icon: '🤖', label: 'AI Assistant', permission: 'AI_CHAT' },
-    // ─── ตั้งค่า ───
-    { href: '/settings/users', icon: '👥', label: 'จัดการผู้ใช้', dividerBefore: 'จัดการร้าน', permission: 'SETTINGS_MANAGE' },
-    { href: '/settings/manual', icon: '📖', label: 'คู่มือการใช้งาน', permission: 'SETTINGS_MANAGE' },
+    { href: '/pos', icon: '💰', labelKey: 'nav_pos', accent: true, permission: 'POS_USE' },
+    { href: '/kitchen', icon: '🍳', labelKey: 'nav_kitchen', accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/waiter', icon: '🍽️', labelKey: 'nav_waiter', accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/dashboard', icon: '🏠', labelKey: 'nav_home', permission: 'DASHBOARD_VIEW' },
+    { href: '/menu', icon: '🍽️', labelKey: 'nav_menu', dividerKey: 'div_menu_stock', permission: 'MENU_VIEW' },
+    { href: '/recipes', icon: '📋', labelKey: 'nav_recipes', permission: 'RECIPE_VIEW' },
+    { href: '/products', icon: '🥩', labelKey: 'nav_products', permission: 'PRODUCT_VIEW' },
+    { href: '/inventory', icon: '📦', labelKey: 'nav_inventory', permission: 'INVENTORY_VIEW' },
+    { href: '/purchase', icon: '🛒', labelKey: 'nav_purchase', permission: 'PURCHASE_VIEW' },
+    { href: '/transfer', icon: '🔄', labelKey: 'nav_transfer', permission: 'TRANSFER_USE' },
+    { href: '/adjustment', icon: '⚖️', labelKey: 'nav_adjustment', permission: 'ADJUSTMENT_USE' },
+    { href: '/sales-import', icon: '💾', labelKey: 'nav_sales_import', permission: 'SALES_IMPORT' },
+    { href: '/sku-queue', icon: '🔍', labelKey: 'nav_sku_queue', permission: 'SETTINGS_MANAGE' },
+    { href: '/reports', icon: '📈', labelKey: 'nav_reports', permission: 'REPORT_VIEW' },
+    { href: '/ai-chat', icon: '🤖', labelKey: 'nav_ai', permission: 'AI_CHAT' },
+    { href: '/settings/users', icon: '👥', labelKey: 'nav_users', dividerKey: 'div_manage', permission: 'SETTINGS_MANAGE' },
+    { href: '/settings/manual', icon: '📖', labelKey: 'nav_manual', permission: 'SETTINGS_MANAGE' },
 ]
 
 const quickItems: NavItem[] = [
-    { href: '/quick-receive', icon: '⚡', label: 'รับสินค้าด่วน', permission: 'QUICK_RECEIVE' },
-    { href: '/quick-waste', icon: '🗑️', label: 'บันทึก Waste', permission: 'WASTE_LOG' },
-    { href: '/qr-sheets', icon: '🖨️', label: 'พิมพ์ QR Sheet', permission: 'SETTINGS_MANAGE' },
+    { href: '/quick-receive', icon: '⚡', labelKey: 'nav_quick_receive', permission: 'QUICK_RECEIVE' },
+    { href: '/quick-waste', icon: '🗑️', labelKey: 'nav_quick_waste', permission: 'WASTE_LOG' },
+    { href: '/qr-sheets', icon: '🖨️', labelKey: 'nav_qr_sheets', permission: 'SETTINGS_MANAGE' },
 ]
 
 // ─── Role display config ─────────────────────────────────────
@@ -67,6 +65,7 @@ export default function Sidebar() {
     const currentUser = useCurrentUser()
     const userRole = (currentUser?.role || 'owner').toLowerCase()
     const branding = useStoreBranding()
+    const t = useT()
     const [showTableManager, setShowTableManager] = useState(false)
     const [mounted, setMounted] = useState(false)
     useEffect(() => { setMounted(true) }, [])
@@ -195,7 +194,7 @@ export default function Sidebar() {
                     {filteredNav.map(item => {
                         const active = pathname === item.href || pathname.startsWith(item.href + '/')
                         const isPOS = item.accent
-                        const divider = (item as { dividerBefore?: string }).dividerBefore
+                        const divider = item.dividerKey
 
                         let bg = 'transparent', color = '#6B7280', shadow = 'none'
                         if (active && isPOS) { bg = 'linear-gradient(135deg, #059669, #10B981)'; color = '#fff'; shadow = '0 2px 8px rgba(5,150,105,0.35)' }
@@ -205,7 +204,7 @@ export default function Sidebar() {
                         return (
                             <div key={item.href}>
                                 {divider && showLabels && (
-                                    <div style={{ margin: '10px 0 4px', paddingLeft: '0.875rem', fontSize: '0.6rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase', borderTop: '1px solid #F3F4F6', paddingTop: 8 }}>📂 {divider}</div>
+                                    <div style={{ margin: '10px 0 4px', paddingLeft: '0.875rem', fontSize: '0.6rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase', borderTop: '1px solid #F3F4F6', paddingTop: 8 }}>📂 {t(item.dividerKey!)}</div>
                                 )}
                                 {divider && !showLabels && (<div style={{ height: 1, background: '#F3F4F6', margin: '6px 4px' }} />)}
                                 <Link href={item.href} onClick={() => isMobile && setMobileOpen(false)}
@@ -219,10 +218,10 @@ export default function Sidebar() {
                                     }}
                                     onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = isPOS ? 'rgba(5,150,105,0.1)' : '#F3F4F6'; (e.currentTarget as HTMLElement).style.color = isPOS ? '#047857' : '#1A1D26' } }}
                                     onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = isPOS ? 'rgba(5,150,105,0.06)' : 'transparent'; (e.currentTarget as HTMLElement).style.color = isPOS ? '#059669' : '#6B7280' } }}
-                                    title={collapsed && !isMobile ? item.label : undefined}
+                                    title={collapsed && !isMobile ? t(item.labelKey) : undefined}
                                 >
                                     <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
-                                    {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
+                                    {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t(item.labelKey)}</span>}
                                 </Link>
                             </div>
                         )
@@ -232,7 +231,7 @@ export default function Sidebar() {
                     {canManageTables && (
                         <>
                             {showLabels ? (
-                                <div style={{ margin: '8px 0 4px', paddingLeft: '0.875rem', fontSize: '0.65rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase' }}>🪑 จัดการร้าน</div>
+                                <div style={{ margin: '8px 0 4px', paddingLeft: '0.875rem', fontSize: '0.65rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase' }}>🪑 {t('div_manage')}</div>
                             ) : (
                                 <div style={{ height: 1, background: '#E5E7EB', margin: '6px 4px' }} />
                             )}
@@ -250,10 +249,10 @@ export default function Sidebar() {
                                 }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.18)' }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.08)' }}
-                                title={collapsed && !isMobile ? 'จัดการโต๊ะ' : undefined}
+                                title={collapsed && !isMobile ? t('nav_tables') : undefined}
                             >
                                 <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>🪑</span>
-                                {showLabels && <span style={{ whiteSpace: 'nowrap' }}>จัดการโต๊ะและโซน</span>}
+                                {showLabels && <span style={{ whiteSpace: 'nowrap' }}>{t('nav_tables')}</span>}
                             </button>
                         </>
                     )}
@@ -282,10 +281,10 @@ export default function Sidebar() {
                                         }}
                                         onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = '#F0FDF4'; (e.currentTarget as HTMLElement).style.color = '#166534' } }}
                                         onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#6B7280' } }}
-                                        title={collapsed && !isMobile ? item.label : undefined}
+                                        title={collapsed && !isMobile ? t(item.labelKey) : undefined}
                                     >
                                         <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
-                                        {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
+                                        {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t(item.labelKey)}</span>}
                                     </Link>
                                 )
                             })}

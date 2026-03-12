@@ -9,7 +9,42 @@ export type Lang = 'th' | 'lo' | 'both'
 type Dict = Record<string, string>
 
 const th: Dict = {
-    // ── Navigation ──
+    // ── Navigation items ──
+    nav_pos: 'POS ขายหน้าร้าน',
+    nav_kitchen: 'จอครัว (KDS)',
+    nav_waiter: 'หน้าเสิร์ฟ',
+    nav_home: 'Home',
+    nav_menu: 'เมนูร้าน',
+    nav_recipes: 'สูตรอาหาร (BOM)',
+    nav_products: 'วัตถุดิบ / Stock',
+    nav_inventory: 'สต็อคคลัง',
+    nav_purchase: 'ซื้อเข้า / GR',
+    nav_transfer: 'เบิก / โอนคลัง',
+    nav_adjustment: 'ปรับสต็อค',
+    nav_sales_import: 'นำเข้ายอดขาย',
+    nav_sku_queue: 'SKU Queue',
+    nav_reports: 'Reports',
+    nav_ai: 'AI Assistant',
+    nav_users: 'จัดการผู้ใช้',
+    nav_manual: 'คู่มือการใช้งาน',
+    nav_tables: 'จัดการโต๊ะและโซน',
+    nav_quick_receive: 'รับสินค้าด่วน',
+    nav_quick_waste: 'บันทึก Waste',
+    nav_qr_sheets: 'พิมพ์ QR Sheet',
+    // ── Dividers ──
+    div_menu_stock: 'เมนู & สต็อค',
+    div_manage: 'จัดการร้าน',
+    // ── Roles ──
+    role_owner: '👑 เจ้าของ',
+    role_manager: '📊 ผู้จัดการ',
+    role_purchaser: '🛒 ผู้ซื้อ',
+    role_cashier: '💰 แคชเชียร์',
+    role_kitchen: '🍳 ครัว',
+    role_bar: '🍸 บาร์',
+    role_warehouse: '🏭 คลัง',
+    role_waiter: '🍽️ เสิร์ฟ',
+    role_viewer: '👁 ดูข้อมูล',
+    // ── Navigation (old keys kept) ──
     menu: 'เมนู & สต็อค',
     products: 'สินค้า',
     stock: 'คลังสินค้า',
@@ -116,6 +151,41 @@ const th: Dict = {
 }
 
 const lo: Dict = {
+    // ── Navigation items (Lao) ──
+    nav_pos: 'POS ຂາຍໜ້າຮ້ານ',
+    nav_kitchen: 'ຈໍຄົວ (KDS)',
+    nav_waiter: 'ໜ້າເສີບ',
+    nav_home: 'Home',
+    nav_menu: 'ເມນູຮ້ານ',
+    nav_recipes: 'ສູດອາຫານ (BOM)',
+    nav_products: 'ວັດຖຸດິບ / Stock',
+    nav_inventory: 'ສະຕ໋ອກຄັງ',
+    nav_purchase: 'ຊື້ເຂົ້າ / GR',
+    nav_transfer: 'ເບີກ / ໂອນຄັງ',
+    nav_adjustment: 'ປັບສະຕ໋ອກ',
+    nav_sales_import: 'ນຳເຂົ້າຍອດຂາຍ',
+    nav_sku_queue: 'SKU Queue',
+    nav_reports: 'Reports',
+    nav_ai: 'AI Assistant',
+    nav_users: 'ຈັດການຜູ້ໃຊ້',
+    nav_manual: 'ຄູ່ມືການໃຊ້ງານ',
+    nav_tables: 'ຈັດການໂຕ໊ະແລະໂຊນ',
+    nav_quick_receive: 'ຮັບສິນຄ້າດ່ວນ',
+    nav_quick_waste: 'ບັນທຶກ Waste',
+    nav_qr_sheets: 'ພິມ QR Sheet',
+    // ── Dividers ──
+    div_menu_stock: 'ເມນູ & ສະຕ໋ອກ',
+    div_manage: 'ຈັດການຮ້ານ',
+    // ── Roles ──
+    role_owner: '👑 ເຈົ້າຂອງ',
+    role_manager: '📊 ຜູ້ຈັດການ',
+    role_purchaser: '🛒 ຜູ້ຊື້',
+    role_cashier: '💰 ແຄດເຊຍ',
+    role_kitchen: '🍳 ຄົວ',
+    role_bar: '🍸 ບາ',
+    role_warehouse: '🏭 ຄັງ',
+    role_waiter: '🍽️ ເສີບ',
+    role_viewer: '👁 ເບິ່ງຂໍ້ມູນ',
     // ── Navigation ──
     menu: 'ເມນູ & ສະຕ໋ອກ',
     products: 'ສິນຄ້າ',
