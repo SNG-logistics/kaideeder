@@ -4,46 +4,47 @@ import { usePathname } from 'next/navigation'
 import { useSidebar } from './SidebarContext'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
-import { useT } from '@/context/TenantContext'
+import { useT, useTenant } from '@/context/TenantContext'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 const TableManagerPanel = dynamic(() => import('./TableManagerPanel'), { ssr: false })
 
-// nav items — label is an i18n key
+// nav items — label = Thai, labelLo = Lao
 type NavItem = {
     href: string
     icon: string
-    labelKey: string
+    label: string      // Thai (always shown as fallback)
+    labelLo?: string   // Lao (shown when language = 'lo')
     accent?: boolean
-    dividerKey?: string
-    /** If set, user must have this permission to see this item */
+    divider?: string       // Thai divider
+    dividerLo?: string     // Lao divider
     permission?: string
 }
 
 const navItems: NavItem[] = [
-    { href: '/pos', icon: '💰', labelKey: 'nav_pos', accent: true, permission: 'POS_USE' },
-    { href: '/kitchen', icon: '🍳', labelKey: 'nav_kitchen', accent: true, permission: 'KITCHEN_VIEW' },
-    { href: '/waiter', icon: '🍽️', labelKey: 'nav_waiter', accent: true, permission: 'KITCHEN_VIEW' },
-    { href: '/dashboard', icon: '🏠', labelKey: 'nav_home', permission: 'DASHBOARD_VIEW' },
-    { href: '/menu', icon: '🍽️', labelKey: 'nav_menu', dividerKey: 'div_menu_stock', permission: 'MENU_VIEW' },
-    { href: '/recipes', icon: '📋', labelKey: 'nav_recipes', permission: 'RECIPE_VIEW' },
-    { href: '/products', icon: '🥩', labelKey: 'nav_products', permission: 'PRODUCT_VIEW' },
-    { href: '/inventory', icon: '📦', labelKey: 'nav_inventory', permission: 'INVENTORY_VIEW' },
-    { href: '/purchase', icon: '🛒', labelKey: 'nav_purchase', permission: 'PURCHASE_VIEW' },
-    { href: '/transfer', icon: '🔄', labelKey: 'nav_transfer', permission: 'TRANSFER_USE' },
-    { href: '/adjustment', icon: '⚖️', labelKey: 'nav_adjustment', permission: 'ADJUSTMENT_USE' },
-    { href: '/sales-import', icon: '💾', labelKey: 'nav_sales_import', permission: 'SALES_IMPORT' },
-    { href: '/sku-queue', icon: '🔍', labelKey: 'nav_sku_queue', permission: 'SETTINGS_MANAGE' },
-    { href: '/reports', icon: '📈', labelKey: 'nav_reports', permission: 'REPORT_VIEW' },
-    { href: '/ai-chat', icon: '🤖', labelKey: 'nav_ai', permission: 'AI_CHAT' },
-    { href: '/settings/users', icon: '👥', labelKey: 'nav_users', dividerKey: 'div_manage', permission: 'SETTINGS_MANAGE' },
-    { href: '/settings/manual', icon: '📖', labelKey: 'nav_manual', permission: 'SETTINGS_MANAGE' },
+    { href: '/pos',          icon: '💰', label: 'POS ขายหน้าร้าน',      labelLo: 'POS ຂາຍໜ້າຮ້ານ',       accent: true, permission: 'POS_USE' },
+    { href: '/kitchen',      icon: '🍳', label: 'จอครัว (KDS)',           labelLo: 'ຈໍຄົວ (KDS)',             accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/waiter',       icon: '🍽️', label: 'หน้าเสิร์ฟ',             labelLo: 'ໜ້າເສີບ',                accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/dashboard',    icon: '🏠', label: 'Home',                   labelLo: 'Home',                    permission: 'DASHBOARD_VIEW' },
+    { href: '/menu',         icon: '🍽️', label: 'เมนูร้าน',               labelLo: 'ເມນູຮ້ານ',               divider: 'เมนู & สต็อค',   dividerLo: 'ເມນູ & ສະຕ໋ອກ', permission: 'MENU_VIEW' },
+    { href: '/recipes',      icon: '📋', label: 'สูตรอาหาร (BOM)',        labelLo: 'ສູດອາຫານ (BOM)',          permission: 'RECIPE_VIEW' },
+    { href: '/products',     icon: '🥩', label: 'วัตถุดิบ / Stock',       labelLo: 'ວັດຖຸດິບ / Stock',        permission: 'PRODUCT_VIEW' },
+    { href: '/inventory',    icon: '📦', label: 'สต็อคคลัง',             labelLo: 'ສະຕ໋ອກຄັງ',              permission: 'INVENTORY_VIEW' },
+    { href: '/purchase',     icon: '🛒', label: 'ซื้อเข้า / GR',          labelLo: 'ຊື້ເຂົ້າ / GR',          permission: 'PURCHASE_VIEW' },
+    { href: '/transfer',     icon: '🔄', label: 'เบิก / โอนคลัง',        labelLo: 'ເບີກ / ໂອນຄັງ',          permission: 'TRANSFER_USE' },
+    { href: '/adjustment',   icon: '⚖️', label: 'ปรับสต็อค',             labelLo: 'ປັບສະຕ໋ອກ',              permission: 'ADJUSTMENT_USE' },
+    { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย',          labelLo: 'ນຳເຂົ້າຍອດຂາຍ',         permission: 'SALES_IMPORT' },
+    { href: '/sku-queue',    icon: '🔍', label: 'SKU Queue',              labelLo: 'SKU Queue',               permission: 'SETTINGS_MANAGE' },
+    { href: '/reports',      icon: '📈', label: 'Reports',                labelLo: 'Reports',                 permission: 'REPORT_VIEW' },
+    { href: '/ai-chat',      icon: '🤖', label: 'AI Assistant',           labelLo: 'AI Assistant',            permission: 'AI_CHAT' },
+    { href: '/settings/users', icon: '👥', label: 'จัดการผู้ใช้',         labelLo: 'ຈັດການຜູ້ໃຊ້',           divider: 'จัดการร้าน',      dividerLo: 'ຈັດການຮ້ານ', permission: 'SETTINGS_MANAGE' },
+    { href: '/settings/manual', icon: '📖', label: 'คู่มือการใช้งาน',    labelLo: 'ຄູ່ມືການໃຊ້ງານ',         permission: 'SETTINGS_MANAGE' },
 ]
 
 const quickItems: NavItem[] = [
-    { href: '/quick-receive', icon: '⚡', labelKey: 'nav_quick_receive', permission: 'QUICK_RECEIVE' },
-    { href: '/quick-waste', icon: '🗑️', labelKey: 'nav_quick_waste', permission: 'WASTE_LOG' },
-    { href: '/qr-sheets', icon: '🖨️', labelKey: 'nav_qr_sheets', permission: 'SETTINGS_MANAGE' },
+    { href: '/quick-receive', icon: '⚡',  label: 'รับสินค้าด่วน',        labelLo: 'ຮັບສິນຄ້າດ່ວນ',          permission: 'QUICK_RECEIVE' },
+    { href: '/quick-waste',   icon: '🗑️', label: 'บันทึก Waste',         labelLo: 'ບັນທຶກ Waste',            permission: 'WASTE_LOG' },
+    { href: '/qr-sheets',     icon: '🖨️', label: 'พิมพ์ QR Sheet',       labelLo: 'ພິມ QR Sheet',            permission: 'SETTINGS_MANAGE' },
 ]
 
 // ─── Role display config ─────────────────────────────────────
@@ -65,7 +66,9 @@ export default function Sidebar() {
     const currentUser = useCurrentUser()
     const userRole = (currentUser?.role || 'owner').toLowerCase()
     const branding = useStoreBranding()
-    const t = useT()
+    const { settings } = useTenant()
+    const lang = settings?.language ?? 'th'
+    const L = (th: string, lo?: string) => lang === 'lo' && lo ? lo : th
     const [showTableManager, setShowTableManager] = useState(false)
     const [mounted, setMounted] = useState(false)
     useEffect(() => { setMounted(true) }, [])
@@ -194,7 +197,7 @@ export default function Sidebar() {
                     {filteredNav.map(item => {
                         const active = pathname === item.href || pathname.startsWith(item.href + '/')
                         const isPOS = item.accent
-                        const divider = item.dividerKey
+                        const divider = item.divider
 
                         let bg = 'transparent', color = '#6B7280', shadow = 'none'
                         if (active && isPOS) { bg = 'linear-gradient(135deg, #059669, #10B981)'; color = '#fff'; shadow = '0 2px 8px rgba(5,150,105,0.35)' }
@@ -203,8 +206,8 @@ export default function Sidebar() {
 
                         return (
                             <div key={item.href}>
-                                {divider && showLabels && (
-                                    <div style={{ margin: '10px 0 4px', paddingLeft: '0.875rem', fontSize: '0.6rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase', borderTop: '1px solid #F3F4F6', paddingTop: 8 }}>📂 {t(item.dividerKey!)}</div>
+                                 {divider && showLabels && (
+                                    <div style={{ margin: '10px 0 4px', paddingLeft: '0.875rem', fontSize: '0.6rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase', borderTop: '1px solid #F3F4F6', paddingTop: 8 }}>📂 {L(item.divider!, item.dividerLo)}</div>
                                 )}
                                 {divider && !showLabels && (<div style={{ height: 1, background: '#F3F4F6', margin: '6px 4px' }} />)}
                                 <Link href={item.href} onClick={() => isMobile && setMobileOpen(false)}
@@ -218,10 +221,10 @@ export default function Sidebar() {
                                     }}
                                     onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = isPOS ? 'rgba(5,150,105,0.1)' : '#F3F4F6'; (e.currentTarget as HTMLElement).style.color = isPOS ? '#047857' : '#1A1D26' } }}
                                     onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = isPOS ? 'rgba(5,150,105,0.06)' : 'transparent'; (e.currentTarget as HTMLElement).style.color = isPOS ? '#059669' : '#6B7280' } }}
-                                    title={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                                    title={collapsed && !isMobile ? L(item.label, item.labelLo) : undefined}
                                 >
                                     <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
-                                    {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t(item.labelKey)}</span>}
+                                    {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{L(item.label, item.labelLo)}</span>}
                                 </Link>
                             </div>
                         )
@@ -231,7 +234,7 @@ export default function Sidebar() {
                     {canManageTables && (
                         <>
                             {showLabels ? (
-                                <div style={{ margin: '8px 0 4px', paddingLeft: '0.875rem', fontSize: '0.65rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase' }}>🪑 {t('div_manage')}</div>
+                                <div style={{ margin: '8px 0 4px', paddingLeft: '0.875rem', fontSize: '0.65rem', fontWeight: 700, color: '#D1D5DB', letterSpacing: '0.08em', textTransform: 'uppercase' }}>🪑 {L('จัดการร้าน', 'ຈັດການຮ້ານ')}</div>
                             ) : (
                                 <div style={{ height: 1, background: '#E5E7EB', margin: '6px 4px' }} />
                             )}
@@ -249,10 +252,10 @@ export default function Sidebar() {
                                 }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.18)' }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.08)' }}
-                                title={collapsed && !isMobile ? t('nav_tables') : undefined}
+                                title={collapsed && !isMobile ? L('จัดการโต๊ะและโซน', 'ຈັດການໂຕ໊ະແລະໂຊນ') : undefined}
                             >
                                 <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>🪑</span>
-                                {showLabels && <span style={{ whiteSpace: 'nowrap' }}>{t('nav_tables')}</span>}
+                                {showLabels && <span style={{ whiteSpace: 'nowrap' }}>{L('จัดการโต๊ะและโซน', 'ຈັດການໂຕ໊ະແລະໂຊນ')}</span>}
                             </button>
                         </>
                     )}
@@ -281,10 +284,10 @@ export default function Sidebar() {
                                         }}
                                         onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = '#F0FDF4'; (e.currentTarget as HTMLElement).style.color = '#166534' } }}
                                         onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#6B7280' } }}
-                                        title={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                                        title={collapsed && !isMobile ? L(item.label, item.labelLo) : undefined}
                                     >
                                         <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
-                                        {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t(item.labelKey)}</span>}
+                                        {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{L(item.label, item.labelLo)}</span>}
                                     </Link>
                                 )
                             })}
