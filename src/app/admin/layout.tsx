@@ -1,5 +1,5 @@
 'use client'
-import '@premieroctet/next-admin/dist/theme.css'
+import '@premieroctet/next-admin/theme'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { adminFetch, clearAdminToken } from '@/lib/admin-fetch'
