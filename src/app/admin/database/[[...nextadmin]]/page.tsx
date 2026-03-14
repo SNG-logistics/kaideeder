@@ -71,6 +71,16 @@ export default async function AdminDatabasePage(props: {
             <style>{`
                 /* Override next-admin to match dark theme */
                 .na-main * { font-family: 'Inter','Noto Sans Thai',system-ui,sans-serif !important; }
+                /* ── CRITICAL: Cap ALL SVG icons in NextAdmin to a sensible size ── */
+                .na-main svg {
+                    max-width: 20px !important;
+                    max-height: 20px !important;
+                    width: auto !important;
+                    height: auto !important;
+                    display: inline-block !important;
+                    vertical-align: middle !important;
+                    flex-shrink: 0 !important;
+                }
                 .na-main a { color: #93c5fd !important; }
                 .na-main button[type="submit"], .na-main a[href*="new"] {
                     background: #2563eb !important;
