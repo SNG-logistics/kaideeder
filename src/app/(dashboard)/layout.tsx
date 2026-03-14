@@ -2,6 +2,7 @@
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import { SidebarProvider, useSidebar } from '@/components/SidebarContext'
+import NewOrderAlert from '@/components/NewOrderAlert'
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
     const { collapsed, isMobile } = useSidebar()
@@ -26,6 +27,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 }}>
                     {children}
                 </main>
+                <NewOrderAlert />
             </div>
         </div>
     )

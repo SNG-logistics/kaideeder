@@ -915,6 +915,7 @@ enum TableStatus {
 }
 
 enum OrderStatus {
+  PENDING_CONFIRM
   OPEN
   CLOSED
   CANCELLED
