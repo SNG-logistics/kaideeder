@@ -65,8 +65,27 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     if (!delegate) return NextResponse.json({ error: 'Unknown model' }, { status: 400 })
     try {
         await delegate.delete({ where: { id } })
-        return NextResponse.json({ ok: true })
+        return NextResponse.json({ ok: true, deleted: true })
     } catch (e: any) {
+        // Foreign key constraint — product has order items referencing it
+        // Fall back to soft-delete (isActive = false) so data integrity is preserved
+        const isFKError = e.code === 'P2003' || e.code === 'P2014' || e.message?.includes('Foreign key constraint')
+        if (isFKError && model === 'product') {
+            try {
+                await (prisma as any).product.update({
+                    where: { id },
+                    data: { isActive: false },
+                })
+                return NextResponse.json({
+                    ok: true,
+                    deleted: false,
+                    softDeleted: true,
+                    message: 'สินค้ามีออเดอร์ผูกอยู่ — ซ่อนออกจากเมนูแล้ว (ไม่ได้ลบจริง)',
+                })
+            } catch (e2: any) {
+                return NextResponse.json({ error: e2.message }, { status: 400 })
+            }
+        }
         return NextResponse.json({ error: e.message }, { status: 400 })
     }
 }
