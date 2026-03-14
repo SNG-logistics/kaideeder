@@ -20,7 +20,7 @@ export default async function AdminDatabasePage(props: {
         if (tokenStr?.startsWith('Bearer ')) {
             const token = tokenStr.split(' ')[1]
             const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET!) as { role: string }
-            if (decoded.role === 'SUPER_ADMIN') authorized = true
+            if (decoded.role === 'SUPERADMIN') authorized = true
         }
     } catch { }
 
@@ -28,7 +28,7 @@ export default async function AdminDatabasePage(props: {
         return (
             <div className="w-full h-full bg-white rounded-lg shadow-xl overflow-hidden p-8 text-center">
                 <h1 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h1>
-                <p className="text-gray-600">You must be a SUPER_ADMIN to access the direct database management console.</p>
+                <p className="text-gray-600">You must be a SUPERADMIN to access the direct database management console.</p>
             </div>
         )
     }
