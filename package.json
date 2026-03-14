@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
+    "@premieroctet/next-admin": "^8.4.2",
+    "@premieroctet/next-admin-generator-prisma": "^1.1.0",
     "@prisma/client": "^5.19.1",
     "@tanstack/react-table": "^8.20.5",
     "@types/qrcode": "^1.5.6",

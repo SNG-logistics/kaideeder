@@ -22,6 +22,7 @@ const NAV_ITEMS = [
     { href: '/admin/plans', label: 'Plans', icon: (c: string) => <Ico d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" color={c} size={16} /> },
     { href: '/admin/audit-logs', label: 'Audit Logs', icon: (c: string) => <Ico d="M9 12h6M9 8h6M9 16h4M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" color={c} size={16} /> },
     { href: '/admin/config', label: 'Platform Settings', icon: (c: string) => <Ico color={c} size={16}><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" /></Ico> },
+    { href: '/admin/database', label: 'Database', icon: (c: string) => <Ico color={c} size={16}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></Ico> },
 ]
 
 // ── Colors ────────────────────────────────────────────────────────────────────
