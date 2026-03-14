@@ -7,10 +7,12 @@ import RecordEditClient from '../RecordEditClient'
 
 // ── Model metadata ─────────────────────────────────────────────────
 const MODEL_META: Record<string, { label: string; emoji: string }> = {
-    tenant:  { label: 'Tenants',         emoji: '🏪' },
-    user:    { label: 'Store Users',     emoji: '👤' },
-    product: { label: 'Products / Menu', emoji: '🍜' },
-    order:   { label: 'Orders',          emoji: '🧾' },
+    tenant:      { label: 'Tenants',         emoji: '🏪' },
+    user:        { label: 'Store Users',     emoji: '👤' },
+    category:    { label: 'Categories',      emoji: '🏷️' },
+    diningtable: { label: 'Dining Tables',   emoji: '🪑' },
+    product:     { label: 'Products / Menu', emoji: '🍜' },
+    order:       { label: 'Orders',          emoji: '🧾' },
 }
 
 const CUSTOM_MODELS = Object.keys(MODEL_META)

@@ -16,6 +16,8 @@ async function checkAuth() {
 const ALLOWED: Record<string, any> = {
     tenant: (prisma as any).tenant,
     user: (prisma as any).user,
+    category: (prisma as any).category,
+    diningtable: (prisma as any).diningTable,
     product: (prisma as any).product,
     order: (prisma as any).order,
 }
