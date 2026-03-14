@@ -60,10 +60,10 @@ export default function MenuPage() {
     }, [])
 
     useEffect(() => {
-        const isCustom = (code: string) => code.startsWith('CUSTOM_')
-        if (activeTab === 'food') setCategories(allCategories.filter(c => FOOD_CODES.includes(c.code) || isCustom(c.code)))
-        else if (activeTab === 'drink') setCategories(allCategories.filter(c => DRINK_CODES.includes(c.code) || isCustom(c.code)))
-        else setCategories(allCategories.filter(c => [...FOOD_CODES, ...DRINK_CODES].includes(c.code) || isCustom(c.code)))
+        const isCustomMenu = (code: string) => code.startsWith('CUSTOM_MENU_')
+        if (activeTab === 'food') setCategories(allCategories.filter(c => FOOD_CODES.includes(c.code) || isCustomMenu(c.code)))
+        else if (activeTab === 'drink') setCategories(allCategories.filter(c => DRINK_CODES.includes(c.code) || isCustomMenu(c.code)))
+        else setCategories(allCategories.filter(c => [...FOOD_CODES, ...DRINK_CODES].includes(c.code) || isCustomMenu(c.code)))
         setSelectedCat('')
     }, [activeTab, allCategories])
 
@@ -71,8 +71,8 @@ export default function MenuPage() {
     const menuProducts = products
         .filter(p => ['SALE_ITEM', 'ENTERTAIN'].includes(p.productType))
         .filter(p => {
-            if (activeTab === 'food') return FOOD_CODES.includes(p.category?.code) || p.category?.code?.startsWith('CUSTOM_')
-            if (activeTab === 'drink') return DRINK_CODES.includes(p.category?.code) || p.category?.code?.startsWith('CUSTOM_')
+            if (activeTab === 'food') return FOOD_CODES.includes(p.category?.code) || p.category?.code?.startsWith('CUSTOM_MENU')
+            if (activeTab === 'drink') return DRINK_CODES.includes(p.category?.code) || p.category?.code?.startsWith('CUSTOM_MENU')
             return true
         })
         .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()))
@@ -108,6 +108,7 @@ export default function MenuPage() {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
                     {/* Import Button */}
                     <button
+                        suppressHydrationWarning
                         onClick={() => setShowImport(true)}
                         style={{
                             minHeight: 44, whiteSpace: 'nowrap', gap: 8, display: 'flex', alignItems: 'center',
@@ -125,6 +126,7 @@ export default function MenuPage() {
                     </button>
                     {/* Add Menu Button */}
                     <button
+                        suppressHydrationWarning
                         onClick={() => { setEditProduct(null); setShowForm(true) }}
                         style={{
                             minHeight: 44, whiteSpace: 'nowrap', gap: 8, display: 'flex', alignItems: 'center',
@@ -397,7 +399,7 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
 }) {
     const isEdit = !!product
     const MENU_CATS = [...FOOD_CODES, ...DRINK_CODES]
-    const menuCategories = categories.filter(c => MENU_CATS.includes(c.code) || c.code.startsWith('CUSTOM_'))
+    const menuCategories = categories.filter(c => MENU_CATS.includes(c.code) || c.code.startsWith('CUSTOM_MENU_'))
 
     // Keyword Auto-Categorization Dictionary
     const categoryKeywords: Record<string, string[]> = {
