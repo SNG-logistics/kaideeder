@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { options } from '@/lib/next-admin-options'
 import { NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 
 export default async function AdminDatabasePage(props: {
     params: Promise<{ nextadmin: string[] }>
@@ -12,17 +12,15 @@ export default async function AdminDatabasePage(props: {
 }) {
     const params = await props.params
     const searchParams = await props.searchParams
-    // Auth Check manually for page
-    const hdrs = await headers()
-    const tokenStr = hdrs.get('authorization')
+    const cookieStore = await cookies()
+    const tokenStr = cookieStore.get('admin_token')?.value
     let authorized = false
     try {
-        if (tokenStr?.startsWith('Bearer ')) {
-            const token = tokenStr.split(' ')[1]
-            const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET!) as { role: string }
+        if (tokenStr) {
+            const decoded = jwt.verify(tokenStr, process.env.ADMIN_JWT_SECRET!) as { role: string }
             if (decoded.role === 'SUPERADMIN') authorized = true
         }
-    } catch { }
+    } catch (e) { console.error('Token verification failed:', e) }
 
     if (!authorized) {
         return (
