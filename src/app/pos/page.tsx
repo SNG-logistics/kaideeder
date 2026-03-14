@@ -20,7 +20,7 @@ function formatLAK(n: number): string {
 // ─── Raw category codes to exclude ──────────────────────────
 const RAW_CATEGORY_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'RAW_VEG', 'DRY_GOODS', 'PACKAGING', 'OTHER']
 
-// ─── Print Kitchen / Bar Ticket — 80mm Thermal Receipt ───────────
+// ─── Print Kitchen / Bar Ticket — Ultra-compact thermal ──────────
 function printKitchenTicket(opts: {
     station: 'KITCHEN' | 'BAR'
     items: OrderItemData[]
@@ -29,141 +29,34 @@ function printKitchenTicket(opts: {
     storeName: string
 }) {
     if (opts.items.length === 0) return
-    const { station, items, tableName, orderNumber, storeName } = opts
+    const { station, items, tableName, orderNumber } = opts
     const isBar = station === 'BAR'
-    const label  = isBar ? 'BAR 🍹' : 'KITCHEN 🍳'
-    const accent = isBar ? '#7C3AED' : '#DC2626'
-    const time   = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-    const date   = new Date().toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
 
-    // Open a small popup sized exactly for 80mm paper (302px ≈ 80mm at 96dpi)
-    const w = window.open('', '_blank', 'width=302,height=600,toolbar=0,menubar=0,scrollbars=1')
+    const w = window.open('', '_blank', 'width=302,height=400,toolbar=0,menubar=0,scrollbars=0')
     if (!w) return
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>Kitchen Ticket</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  /* 80mm thermal paper — browser must select this printer & paper size */
-  @page {
-    size: 80mm auto;
-    margin: 0;
-  }
-  body {
-    font-family: 'Courier New', 'Noto Sans Thai', 'Sarabun', monospace, sans-serif;
-    background: #fff;
-    color: #000;
-    width: 80mm;
-    padding: 4mm 4mm 6mm;
-    font-size: 13px;
-    line-height: 1.4;
-  }
-  /* ── Station header ── */
-  .header {
-    text-align: center;
-    border-bottom: 2px solid #000;
-    padding-bottom: 6px;
-    margin-bottom: 6px;
-  }
-  .station {
-    font-size: 22px;
-    font-weight: 900;
-    letter-spacing: 2px;
-    color: ${accent};
-  }
-  .store  { font-size: 11px; margin-top: 2px; }
-  .meta   { font-size: 10px; color: #444; }
-  /* ── Table / Order row ── */
-  .info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    border-bottom: 1px dashed #000;
-    padding: 5px 0;
-    margin-bottom: 6px;
-  }
-  .table-num {
-    font-size: 28px;
-    font-weight: 900;
-    line-height: 1;
-  }
-  .order-num {
-    font-size: 11px;
-    color: #444;
-    text-align: right;
-  }
-  /* ── Items ── */
-  .items-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #666;
-    margin-bottom: 4px;
-  }
-  .item {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 6px 0;
-    border-bottom: 1px dotted #ccc;
-  }
-  .qty {
-    font-size: 22px;
-    font-weight: 900;
-    color: ${accent};
-    min-width: 28px;
-    text-align: center;
-    flex-shrink: 0;
-    line-height: 1.1;
-  }
-  .item-body { flex: 1; padding-top: 1px; }
-  .item-name { font-size: 15px; font-weight: 700; line-height: 1.25; }
-  .item-note { font-size: 11px; color: #555; margin-top: 2px; }
-  /* ── Footer ── */
-  .footer {
-    margin-top: 8px;
-    font-size: 9px;
-    color: #999;
-    text-align: center;
-    border-top: 1px dashed #ccc;
-    padding-top: 6px;
-  }
-  /* Print: no buttons, auto-close */
-  @media print {
-    body { padding: 2mm 3mm 4mm; }
-  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  @page{size:80mm auto;margin:3mm 2mm}
+  body{font-family:'Courier New',monospace;font-size:14px;color:#000;width:80mm;line-height:1.35}
+  .top{font-size:18px;font-weight:900;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:baseline}
+  .sub{font-size:10px;color:#444;margin-bottom:6px;border-bottom:1px dashed #000;padding-bottom:4px}
+  .row{display:flex;gap:6px;padding:3px 0;border-bottom:1px dotted #ccc}
+  .q{font-size:17px;font-weight:900;min-width:22px;flex-shrink:0}
+  .n{font-size:14px;font-weight:700;flex:1}
+  .nt{font-size:11px;color:#555}
 </style></head><body>
-
-<div class="header">
-  <div class="station">${label}</div>
-  <div class="store">${storeName}</div>
-  <div class="meta">${date} &nbsp;|&nbsp; ${time}</div>
+<div class="top">
+  <span>โต๊ะ ${tableName}</span>
+  <span style="font-size:13px">${isBar ? '🍹 BAR' : '🍳 ครัว'}</span>
 </div>
-
-<div class="info-row">
-  <div>
-    <div style="font-size:10px;color:#666;font-weight:700;text-transform:uppercase">โต๊ะ / TABLE</div>
-    <div class="table-num">${tableName}</div>
-  </div>
-  <div class="order-num">
-    <div style="font-size:9px;color:#888">ออเดอร์ #</div>
-    <div style="font-weight:800;font-size:13px">${orderNumber}</div>
-    <div style="font-size:9px;color:#888">${items.length} รายการ</div>
-  </div>
-</div>
-
-<div class="items-label">รายการ / ITEMS</div>
-${items.map(item => `
-<div class="item">
-  <div class="qty">${item.quantity}</div>
-  <div class="item-body">
-    <div class="item-name">${item.product?.name || ''}</div>
-    ${item.note ? `<div class="item-note">📝 ${item.note}</div>` : ''}
-  </div>
+<div class="sub">#${orderNumber} &nbsp;·&nbsp; ${time}</div>
+${items.map(i => `<div class="row">
+  <span class="q">${i.quantity}</span>
+  <span class="n">${i.product?.name || ''}${i.note ? `<br><span class="nt">📝 ${i.note}</span>` : ''}</span>
 </div>`).join('')}
-
-<div class="footer">${station} &bull; ${orderNumber} &bull; ${time}</div>
-<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200);}<\/script>
+<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1000);}<\/script>
 </body></html>`)
     w.document.close()
 }
