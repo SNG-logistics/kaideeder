@@ -4,15 +4,17 @@ import { options } from '@/lib/next-admin-options'
 import { NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 
+import { cookies } from 'next/headers'
+
 const authGuard = async (req: Request) => {
     try {
-        const authHeader = req.headers.get('authorization')
-        if (!authHeader?.startsWith('Bearer ')) return false
+        const cookieStore = await cookies()
+        const token = cookieStore.get('admin_token')?.value
+        if (!token) return false
         
-        const token = authHeader.split(' ')[1]
         const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET!) as { role: string }
         
-        return decoded.role === 'SUPER_ADMIN'
+        return decoded.role === 'SUPERADMIN'
     } catch {
         return false
     }
@@ -24,12 +26,13 @@ const { run } = createHandler({
     options,
 })
 
-const withAuth = (handler: any) => async (req: Request, ...args: any[]) => {
+const withAuth = (handler: any) => async (req: Request, context: any) => {
     const isAuthorized = await authGuard(req)
     if (!isAuthorized) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    return handler(req, ...args)
+    // Pass context entirely unchanged so Next-Admin and next-connect can handle the Next.js 15 Promise naturally
+    return handler(req, context)
 }
 
 export const GET = withAuth(run)
