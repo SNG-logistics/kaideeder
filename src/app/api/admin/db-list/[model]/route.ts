@@ -26,8 +26,14 @@ const ALLOWED: Record<string, any> = {
     order: (prisma as any).order,
 }
 
-function getOrderBy(model: string) {
-    return { createdAt: 'desc' as const }
+// Some models don't have createdAt — use appropriate fallback sort field
+const ORDER_BY: Record<string, object> = {
+    category:    { name: 'asc' as const },
+    diningtable: { number: 'asc' as const },
+}
+
+function getOrderBy(model: string): object {
+    return ORDER_BY[model] ?? { createdAt: 'desc' as const }
 }
 
 // GET /api/admin/db-list/[model] — list records
