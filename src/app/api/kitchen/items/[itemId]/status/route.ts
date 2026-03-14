@@ -29,13 +29,19 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
         if (item.order.status !== 'OPEN') return err('ออเดอร์ปิดแล้ว')
 
 
-        // Validate status transition
-        const validTransitions: Record<string, string[]> = {
-            PENDING: ['ACCEPTED'],
-            ACCEPTED: ['COOKING'],
-            COOKING: ['READY'],
-            READY: ['SERVED'],
-        }
+        // Validate status transition — BAR items have a shorter flow
+        const isBar = item.stationId === 'BAR'
+        const validTransitions: Record<string, string[]> = isBar
+            ? {
+                PENDING:  ['ACCEPTED'],
+                ACCEPTED: ['SERVED'],         // BAR: รับงาน → เสิร์ฟทันที (ไม่ผ่านครัว)
+            }
+            : {
+                PENDING:  ['ACCEPTED'],
+                ACCEPTED: ['COOKING'],
+                COOKING:  ['READY'],
+                READY:    ['SERVED'],
+            }
 
         const allowed = validTransitions[item.kitchenStatus] || []
         if (!allowed.includes(status)) {
