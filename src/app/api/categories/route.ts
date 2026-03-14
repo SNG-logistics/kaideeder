@@ -17,11 +17,12 @@ export const GET = withAuth(async (_req, context) => {
 export const POST = withAuth(async (req: NextRequest, context) => {
     const { tenantId } = context as any
     const body = await req.json()
-    const { name, icon, color } = body
+    const { name, icon, color, type } = body
     if (!name?.trim()) return err('กรุณาระบุชื่อหมวด')
 
     // Generate code from name (slug-like, ASCII letters/digits/underscore)
-    const code = 'CUSTOM_' + name.trim().toUpperCase()
+    const prefix = type === 'MENU' ? 'CUSTOM_MENU_' : type === 'STOCK' ? 'CUSTOM_RAW_' : 'CUSTOM_'
+    const code = prefix + name.trim().toUpperCase()
         .replace(/[^A-Z0-9ก-๙]/g, '_')
         .replace(/_+/g, '_')
         .slice(0, 30)

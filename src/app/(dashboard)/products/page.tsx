@@ -126,7 +126,7 @@ export default function ProductsPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ position: 'relative' }}>
-                        <button
+                        <button suppressHydrationWarning
                             onClick={() => setShowExportMenu(prev => !prev)}
                             className="btn-secondary"
                             style={{ minHeight: 44, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.85rem' }}
@@ -145,7 +145,7 @@ export default function ProductsPage() {
                                     { label: '🥩 วัตถุดิบ (นับสต็อค)', type: 'raw' },
                                     { label: '🛒 สินค้าขาย', type: 'sale' },
                                 ].map(opt => (
-                                    <button
+                                    <button suppressHydrationWarning
                                         key={opt.type}
                                         onClick={() => {
                                             window.open(`/api/products/export?type=${opt.type}`, '_blank')
@@ -169,7 +169,7 @@ export default function ProductsPage() {
                         )}
                     </div>
                     {/* Import Button */}
-                    <button
+                    <button suppressHydrationWarning
                         onClick={() => setShowImportRaw(true)}
                         style={{
                             minHeight: 44, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6,
@@ -183,7 +183,7 @@ export default function ProductsPage() {
                     >
                         📂 Import Excel
                     </button>
-                    <button onClick={() => { setShowTypePicker(true) }} className="btn-primary" style={{ minHeight: 44, whiteSpace: 'nowrap' }}>➕ เพิ่มสินค้า</button>
+                    <button suppressHydrationWarning onClick={() => { setShowTypePicker(true) }} className="btn-primary" style={{ minHeight: 44, whiteSpace: 'nowrap' }}>➕ เพิ่มสินค้า</button>
                 </div>
             </div>
 
@@ -194,7 +194,7 @@ export default function ProductsPage() {
                 width: isMobile ? '100%' : 'fit-content',
             }}>
                 {tabs.map(tab => (
-                    <button
+                    <button suppressHydrationWarning
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
                         style={{
@@ -216,7 +216,7 @@ export default function ProductsPage() {
 
             {/* Category chips */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                <button onClick={() => setSelectedCat('')}
+                <button suppressHydrationWarning onClick={() => setSelectedCat('')}
                     style={{
                         padding: '6px 14px', borderRadius: 20, fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
                         background: !selectedCat ? 'var(--accent)' : 'var(--white)',
@@ -225,7 +225,7 @@ export default function ProductsPage() {
                         transition: 'all 0.15s', minHeight: 32,
                     }}>ทั้งหมด</button>
                 {categories.map(c => (
-                    <button key={c.id} onClick={() => setSelectedCat(selectedCat === c.id ? '' : c.id)}
+                    <button suppressHydrationWarning key={c.id} onClick={() => setSelectedCat(selectedCat === c.id ? '' : c.id)}
                         style={{
                             padding: '6px 14px', borderRadius: 20, fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
                             background: selectedCat === c.id ? (c.color || 'var(--accent)') : 'var(--white)',
@@ -241,16 +241,16 @@ export default function ProductsPage() {
                 padding: '0.75rem 1rem', marginBottom: 14,
                 display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center',
             }}>
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                <input suppressHydrationWarning type="text" value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="🔍 ค้นหาชื่อ, SKU..." className="input"
                     style={{ width: isMobile ? '100%' : 200, minHeight: 40 }} />
                 {!isMobile && (
-                    <select value={selectedType} onChange={e => setSelectedType(e.target.value)} className="input" style={{ width: 180, minHeight: 40 }}>
+                    <select suppressHydrationWarning value={selectedType} onChange={e => setSelectedType(e.target.value)} className="input" style={{ width: 180, minHeight: 40 }}>
                         <option value="">ทุกประเภท</option>
                         {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
                 )}
-                <button onClick={() => { setSearch(''); setSelectedCat(''); setSelectedType('') }} className="btn-secondary" style={{ fontSize: '0.8rem', minHeight: 40 }}>🔄 รีเซ็ต</button>
+                <button suppressHydrationWarning onClick={() => { setSearch(''); setSelectedCat(''); setSelectedType('') }} className="btn-secondary" style={{ fontSize: '0.8rem', minHeight: 40 }}>🔄 รีเซ็ต</button>
             </div>
 
             {/* Content: Table on desktop, Cards on mobile */}
@@ -378,7 +378,7 @@ export default function ProductsPage() {
                                             {formatNumber(totalQty, 1)} {p.unit}
                                         </td>
                                         <td>
-                                            <button onClick={() => { setEditProduct(p); setShowForm(true) }}
+                                            <button suppressHydrationWarning onClick={() => { setEditProduct(p); setShowForm(true) }}
                                                 style={{
                                                     background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
                                                     borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
@@ -465,7 +465,7 @@ function AddProductTypePicker({ onClose, onSelect }: {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
                         {types.map(t => (
-                            <button key={t.type} onClick={() => onSelect(t.type)} style={{
+                            <button suppressHydrationWarning key={t.type} onClick={() => onSelect(t.type)} style={{
                                 padding: '1.2rem 1rem', borderRadius: 14, cursor: 'pointer',
                                 border: `2px solid ${t.border}`, background: t.bg,
                                 textAlign: 'center', fontFamily: 'inherit', transition: 'all 0.18s',
@@ -480,7 +480,7 @@ function AddProductTypePicker({ onClose, onSelect }: {
                             </button>
                         ))}
                     </div>
-                    <button onClick={onClose} style={{
+                    <button suppressHydrationWarning onClick={onClose} style={{
                         width: '100%', minHeight: 42, borderRadius: 12, border: '1px solid var(--border)',
                         background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit',
                         fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)',
@@ -503,7 +503,7 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
     // Smart unit default based on type
     const defaultUnit = effectiveType === 'RAW_MATERIAL' ? 'กก.' :
         effectiveType === 'PACKAGING' ? 'ชิ้น' :
-        effectiveType === 'SALE_ITEM' ? 'จาน' : 'ค่ำ'
+            effectiveType === 'SALE_ITEM' ? 'จาน' : 'ค่ำ'
 
     const typeLabel: Record<string, string> = {
         RAW_MATERIAL: '🥩 วัตถุดิบ',
@@ -516,8 +516,29 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
     }
 
     // Filter categories by productType
-    const RAW_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'EGG', 'RAW_VEG', 'DRY_GOODS', 'OTHER', 'DAIRY', 'CHEESE', 'FLOUR_DOUGH', 'BOX_BAG', 'TISSUE_CLEAN', 'DISPOSABLE', 'PACKAGING']
+    const RAW_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_POULTRY', 'RAW_CHICKEN', 'RAW_CHINKEN', 'RAW_SEA', 'EGG', 'RAW_VEG', 'DRY_GOODS', 'OTHER', 'DAIRY', 'CHEESE', 'FLOUR_DOUGH', 'BOX_BAG', 'TISSUE_CLEAN', 'DISPOSABLE', 'PACKAGING']
     const MENU_CODES = ['FOOD_GRILL', 'FOOD_FRY', 'FOOD_RICE', 'FOOD_NOODLE', 'FOOD_SEA', 'FOOD_VEG', 'FOOD_LAAB', 'SET', 'BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'SOFT_DRINK', 'WATER', 'KARAOKE', 'ENTERTAIN']
+
+    // Keyword Auto-Categorization Dictionary
+    const categoryKeywords: Record<string, string[]> = {
+        'DRY_GOODS': ['เครื่องปรุง', 'ซอส', 'เกลือ', 'น้ำตาล', 'ผงชูรส', 'พริกไทย', 'น้ำปลา', 'ซีอิ๊ว', 'กะทิ', 'พริกป่น', 'ข้าวคั่ว', 'น้ำมัน'],
+        'RAW_MEAT': ['เนื้อวัว', 'เสือร้องไห้', 'น่องลาย', 'เศษเนื้อ'],
+        'RAW_PORK': ['หมู', 'สามชั้น', 'ซี่โครง', 'สันคอ', 'หมูสับ', 'เบคอน', 'กากหมู'],
+        'RAW_POULTRY': ['เป็ด', 'ห่าน'],
+        'RAW_CHICKEN': ['ไก่', 'ปีกไก่', 'น่องไก่', 'อกไก่', 'ตีนไก่', 'น่องไก่ติดสะโพก', 'ปีกบน', 'ปีกล่าง', 'ปีกกลาง', 'สันในไก่', 'โครงไก่', 'เครื่องในไก่', 'กึ๋นไก่', 'ตับไก่', 'หัวใจไก่', 'สะโพกไก่', 'น่องติดสะโพก', 'เศษเนื้อไก่', 'หนังไก่', 'ตูดไก่', 'ข้อไก่'],
+        'RAW_SEA': ['กุ้ง', 'หมึก', 'ปลา', 'หอย', 'ปู', 'แซลมอน', 'ดอลลี่', 'แมงกะพรุน'],
+        'RAW_VEG': ['ผัก', 'พริก', 'กระเทียม', 'หอม', 'มะนาว', 'กะหล่ำ', 'เห็ด', 'แตงกวา', 'มะเขือ', 'ผักชี', 'ใบมะกรูด'],
+        'EGG': ['ไข่', 'ไข่ไก่', 'ไข่เป็ด', 'ไข่นกกระทา'],
+        'DAIRY': ['นม', 'เนย', 'วิปครีม', 'ชีส'],
+        'BOX_BAG': ['กล่อง', 'ถุง', 'ถุงพลาสติก', 'ถุงหูหิ้ว', 'ถุงขยะ'],
+        'TISSUE_CLEAN': ['ทิชชู่', 'น้ำยาล้างจาน', 'ฟองน้ำ', 'สบู่', 'ผงซักฟอก'],
+        'DISPOSABLE': ['แก้ว', 'ช้อน', 'ส้อม', 'ตะเกียบ', 'หลอด', 'ไม้เสียบ'],
+        'WATER': ['น้ำเปล่า', 'โซดา', 'น้ำแข็ง'],
+        'SOFT_DRINK': ['โค้ก', 'เป๊ปซี่', 'สไปรท์', 'น้ำส้ม', 'น้ำแดง', 'แฟนต้า'],
+        'BEER': ['เบียร์', 'ลีโอ', 'ช้าง', 'สิงห์', 'ไฮเนเก้น', 'โฮการ์เด้น'],
+        'WINE': ['ไวน์'],
+    }
+
     const filteredCats = categories.filter(c => {
         if (effectiveType === 'SALE_ITEM' || effectiveType === 'ENTERTAIN') return MENU_CODES.includes(c.code) || c.code.startsWith('CUSTOM_')
         return RAW_CODES.includes(c.code) || c.code.startsWith('CUSTOM_') || !MENU_CODES.includes(c.code)
@@ -595,6 +616,28 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
             .catch(() => { })
             .finally(() => setSkuLoading(false))
     }, [form.categoryId, isEdit])
+
+    function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const newName = e.target.value
+        setForm(f => ({ ...f, name: newName }))
+
+        if (!isEdit && newName.trim().length > 1) {
+            let matchedCategoryCode: string | null = null
+            for (const [code, keywords] of Object.entries(categoryKeywords)) {
+                if (keywords.some(k => newName.toLowerCase().includes(k.toLowerCase()))) {
+                    matchedCategoryCode = code
+                    break
+                }
+            }
+            if (matchedCategoryCode) {
+                const targetCat = filteredCats.find(c => c.code === matchedCategoryCode)
+                if (targetCat && form.categoryId !== targetCat.id) {
+                    setForm(f => ({ ...f, categoryId: targetCat.id }))
+                    setCatSearch(targetCat.name)
+                }
+            }
+        }
+    }
 
     async function handleSave() {
         if (!form.name.trim()) { toast.error('กรุณากรอกชื่อสินค้า'); return }
@@ -682,8 +725,8 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
                             )}
                         </div>
                         <div>
-                            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-                            <button
+                            <input suppressHydrationWarning ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                            <button suppressHydrationWarning
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={uploading}
                                 style={{
@@ -705,7 +748,7 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
                             <label className="label">SKU <span style={{ color: '#059669', fontWeight: 500 }}>{!isEdit && form.sku ? '✓ อัตโนมัติ' : ''}</span></label>
-                            <input
+                            <input suppressHydrationWarning
                                 value={skuLoading ? '...' : form.sku}
                                 readOnly={!isEdit}
                                 onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
@@ -719,7 +762,7 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
                                 }}
                             />
                         </div>
-                        <div><label className="label">ชื่อสินค้า</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">ชื่อสินค้า</label><input suppressHydrationWarning value={form.name} onChange={handleNameChange} className="input" style={{ minHeight: 40 }} /></div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         {/* Category Combobox */}
@@ -737,7 +780,7 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
                                 <span style={{ fontSize: '1rem', flexShrink: 0 }}>
                                     {filteredCats.find(c => c.id === form.categoryId)?.icon || '🏷️'}
                                 </span>
-                                <input
+                                <input suppressHydrationWarning
                                     value={catSearch}
                                     onChange={e => { setCatSearch(e.target.value); setCatOpen(true) }}
                                     onFocus={() => setCatOpen(true)}
@@ -793,7 +836,7 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
                             )}
                         </div>
                         <div><label className="label">ประเภท</label>
-                            <select value={form.productType} onChange={e => setForm(f => ({ ...f, productType: e.target.value }))} className="input" style={{ minHeight: 40 }}>
+                            <select suppressHydrationWarning value={form.productType} onChange={e => setForm(f => ({ ...f, productType: e.target.value }))} className="input" style={{ minHeight: 40 }}>
                                 <option value="SALE_ITEM">สินค้าขาย</option>
                                 <option value="RAW_MATERIAL">วัตถุดิบ</option>
                                 <option value="PACKAGING">บรรจุภัณฑ์</option>
@@ -802,24 +845,24 @@ function ProductModal({ product, defaultType, categories, onClose, onSaved }: {
                         </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                        <div><label className="label">หน่วยหลัก</label><input value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="input" style={{ minHeight: 40 }} /></div>
-                        <div><label className="label">หน่วยรอง</label><input value={form.unitAlt} onChange={e => setForm(f => ({ ...f, unitAlt: e.target.value }))} className="input" placeholder="เช่น ตัว" style={{ minHeight: 40 }} /></div>
-                        <div><label className="label">อัตราแปลง</label><input type="number" value={form.convFactor} onChange={e => setForm(f => ({ ...f, convFactor: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">หน่วยหลัก</label><input suppressHydrationWarning value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="input" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">หน่วยรอง</label><input suppressHydrationWarning value={form.unitAlt} onChange={e => setForm(f => ({ ...f, unitAlt: e.target.value }))} className="input" placeholder="เช่น ตัว" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">อัตราแปลง</label><input suppressHydrationWarning type="number" value={form.convFactor} onChange={e => setForm(f => ({ ...f, convFactor: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div><label className="label">ต้นทุน (LAK)</label><input type="number" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
-                        <div><label className="label">ราคาขาย (LAK)</label><input type="number" value={form.salePrice} onChange={e => setForm(f => ({ ...f, salePrice: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">ต้นทุน (LAK)</label><input suppressHydrationWarning type="number" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">ราคาขาย (LAK)</label><input suppressHydrationWarning type="number" value={form.salePrice} onChange={e => setForm(f => ({ ...f, salePrice: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div><label className="label">จุดสั่งซื้อใหม่</label><input type="number" value={form.reorderPoint} onChange={e => setForm(f => ({ ...f, reorderPoint: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
-                        <div><label className="label">สต็อคขั้นต่ำ</label><input type="number" value={form.minQty} onChange={e => setForm(f => ({ ...f, minQty: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">จุดสั่งซื้อใหม่</label><input suppressHydrationWarning type="number" value={form.reorderPoint} onChange={e => setForm(f => ({ ...f, reorderPoint: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
+                        <div><label className="label">สต็อคขั้นต่ำ</label><input suppressHydrationWarning type="number" value={form.minQty} onChange={e => setForm(f => ({ ...f, minQty: parseFloat(e.target.value) || 0 }))} className="input" style={{ minHeight: 40 }} /></div>
                     </div>
-                    <div><label className="label">หมายเหตุ</label><input value={form.note || ''} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} className="input" style={{ minHeight: 40 }} /></div>
+                    <div><label className="label">หมายเหตุ</label><input suppressHydrationWarning value={form.note || ''} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} className="input" style={{ minHeight: 40 }} /></div>
                 </div>
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-                    <button onClick={onClose} className="btn-secondary" style={{ flex: 1, minHeight: 44 }}>ยกเลิก</button>
-                    <button onClick={handleSave} disabled={saving || !form.name} className="btn-success" style={{ flex: 1, minHeight: 44 }}>
+                    <button suppressHydrationWarning onClick={onClose} className="btn-secondary" style={{ flex: 1, minHeight: 44 }}>ยกเลิก</button>
+                    <button suppressHydrationWarning onClick={handleSave} disabled={saving || !form.name} className="btn-success" style={{ flex: 1, minHeight: 44 }}>
                         {saving ? '⏳ กำลังบันทึก...' : isEdit ? '✅ บันทึก' : '➕ เพิ่ม'}
                     </button>
                 </div>
@@ -920,7 +963,7 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
                         <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text)' }}>📷 รูปสินค้า</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{product.name}</div>
                     </div>
-                    <button onClick={() => { stopCamera(); onClose() }}
+                    <button suppressHydrationWarning onClick={() => { stopCamera(); onClose() }}
                         style={{ background: 'var(--bg)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-muted)' }}>✕</button>
                 </div>
 
@@ -928,7 +971,7 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
                     {mode === 'choose' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                                <button onClick={startCamera} style={{
+                                <button suppressHydrationWarning onClick={startCamera} style={{
                                     padding: '1.75rem 0.75rem', borderRadius: 14, border: '2px dashed var(--border)',
                                     background: 'var(--bg)', cursor: 'pointer', fontFamily: 'inherit',
                                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.18s',
@@ -938,7 +981,7 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
                                     <span style={{ fontSize: '1.8rem' }}>📷</span>
                                     <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)' }}>ถ่ายรูป</span>
                                 </button>
-                                <button onClick={() => fileInputRef.current?.click()} style={{
+                                <button suppressHydrationWarning onClick={() => fileInputRef.current?.click()} style={{
                                     padding: '1.75rem 0.75rem', borderRadius: 14, border: '2px dashed var(--border)',
                                     background: 'var(--bg)', cursor: 'pointer', fontFamily: 'inherit',
                                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.18s',
@@ -948,7 +991,7 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
                                     <span style={{ fontSize: '1.8rem' }}>🖼️</span>
                                     <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)' }}>อัปโหลด</span>
                                 </button>
-                                <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileChange} />
+                                <input suppressHydrationWarning ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileChange} />
                             </div>
                             {product.imageUrl && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.6rem', background: 'var(--bg)', borderRadius: 10 }}>
@@ -965,8 +1008,8 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
                                 <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             </div>
                             <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                                <button onClick={reset} style={{ flex: 1, padding: '0.6rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.85rem' }}>← กลับ</button>
-                                <button onClick={capture} style={{ flex: 2, padding: '0.6rem', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.92rem', cursor: 'pointer', fontFamily: 'inherit' }}>📸 ถ่ายรูป</button>
+                                <button suppressHydrationWarning onClick={reset} style={{ flex: 1, padding: '0.6rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.85rem' }}>← กลับ</button>
+                                <button suppressHydrationWarning onClick={capture} style={{ flex: 2, padding: '0.6rem', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.92rem', cursor: 'pointer', fontFamily: 'inherit' }}>📸 ถ่ายรูป</button>
                             </div>
                         </div>
                     )}
@@ -975,8 +1018,8 @@ function PhotoCaptureModal({ product, onClose, onDone }: {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                             <img src={imageData} alt="preview" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 12, border: '1px solid var(--border)' }} />
                             <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                                <button onClick={reset} style={{ flex: 1, padding: '0.6rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.85rem' }}>🔄 ใหม่</button>
-                                <button onClick={upload} disabled={uploading} style={{ flex: 2, padding: '0.6rem', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#059669,#10B981)', color: '#fff', fontWeight: 700, fontSize: '0.92rem', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: uploading ? 0.7 : 1 }}>
+                                <button suppressHydrationWarning onClick={reset} style={{ flex: 1, padding: '0.6rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.85rem' }}>🔄 ใหม่</button>
+                                <button suppressHydrationWarning onClick={upload} disabled={uploading} style={{ flex: 2, padding: '0.6rem', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#059669,#10B981)', color: '#fff', fontWeight: 700, fontSize: '0.92rem', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: uploading ? 0.7 : 1 }}>
                                     {uploading ? '⏳ กำลังอัปโหลด...' : '✅ ใช้รูปนี้'}
                                 </button>
                             </div>
@@ -1020,7 +1063,7 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
                             {/* วัตถุดิบ */}
-                            <button
+                            <button suppressHydrationWarning
                                 onClick={() => setImportType('raw')}
                                 style={{
                                     padding: '1.5rem 1rem', borderRadius: 16, cursor: 'pointer',
@@ -1046,7 +1089,7 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
                             </button>
 
                             {/* สินค้าขาย */}
-                            <button
+                            <button suppressHydrationWarning
                                 onClick={() => setImportType('sale')}
                                 style={{
                                     padding: '1.5rem 1rem', borderRadius: 16, cursor: 'pointer',
@@ -1072,7 +1115,7 @@ function ImportRawModal({ onClose, onDone }: { onClose: () => void; onDone: () =
                             </button>
                         </div>
 
-                        <button onClick={onClose} style={{
+                        <button suppressHydrationWarning onClick={onClose} style={{
                             width: '100%', minHeight: 44, borderRadius: 12, border: '1px solid var(--border)',
                             background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit',
                             fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)',
@@ -1196,7 +1239,7 @@ function ImportUploadModal({ importType, onBack, onClose, onDone }: {
 
                 <div style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-secondary)', padding: '0 4px' }} title="กลับ">←</button>
+                        <button suppressHydrationWarning onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-secondary)', padding: '0 4px' }} title="กลับ">←</button>
                         <div>
                             <div style={{ fontWeight: 800, fontSize: '1rem', color: isRaw ? '#DC2626' : '#059669' }}>
                                 {isRaw ? '🥩 Import วัตถุดิบจาก Excel' : '🍽️ Import สินค้าขายจาก Excel'}
@@ -1206,7 +1249,7 @@ function ImportUploadModal({ importType, onBack, onClose, onDone }: {
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} style={{ background: 'var(--bg)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: '1rem', color: 'var(--text-muted)' }}>✕</button>
+                    <button suppressHydrationWarning onClick={onClose} style={{ background: 'var(--bg)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: '1rem', color: 'var(--text-muted)' }}>✕</button>
                 </div>
 
                 <div style={{ padding: '1.25rem' }}>
@@ -1216,7 +1259,7 @@ function ImportUploadModal({ importType, onBack, onClose, onDone }: {
                         border: '1px solid #BBF7D0',
                     }}>
                         <span style={{ fontSize: '0.78rem', color: '#065F46', fontWeight: 500 }}>📋 ดาวน์โหลด template ก่อนกรอกข้อมูล</span>
-                        <button onClick={downloadTemplate} style={{
+                        <button suppressHydrationWarning onClick={downloadTemplate} style={{
                             padding: '5px 12px', borderRadius: 8, border: '1px solid #10B981', flexShrink: 0,
                             background: '#fff', color: '#059669', fontWeight: 700,
                             fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
@@ -1244,7 +1287,7 @@ function ImportUploadModal({ importType, onBack, onClose, onDone }: {
                                 cursor: 'pointer', transition: 'all 0.18s', marginBottom: 12,
                             }}
                         >
-                            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onFilePick} />
+                            <input suppressHydrationWarning ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onFilePick} />
                             <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>{file ? '📊' : '📦'}</div>
                             {file ? (
                                 <>
@@ -1307,13 +1350,13 @@ function ImportUploadModal({ importType, onBack, onClose, onDone }: {
                     )}
 
                     <div style={{ display: 'flex', gap: 10 }}>
-                        <button onClick={summary ? onDone : onClose} style={{
+                        <button suppressHydrationWarning onClick={summary ? onDone : onClose} style={{
                             flex: 1, minHeight: 44, borderRadius: 12, border: '1px solid var(--border)',
                             background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit',
                             fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)',
                         }}>ปิด</button>
                         {!summary && (
-                            <button onClick={doImport} disabled={!file || importing} style={{
+                            <button suppressHydrationWarning onClick={doImport} disabled={!file || importing} style={{
                                 flex: 2, minHeight: 44, borderRadius: 12, border: 'none',
                                 background: !file || importing ? '#9CA3AF' : 'linear-gradient(135deg,var(--accent),#10B981)',
                                 color: '#fff', fontWeight: 700, fontSize: '0.9rem',
@@ -1324,7 +1367,7 @@ function ImportUploadModal({ importType, onBack, onClose, onDone }: {
                             </button>
                         )}
                         {summary && batchId && (
-                            <button onClick={doRollback} disabled={rollingBack} style={{
+                            <button suppressHydrationWarning onClick={doRollback} disabled={rollingBack} style={{
                                 flex: 2, minHeight: 44, borderRadius: 12, border: 'none',
                                 background: rollingBack ? '#9CA3AF' : 'linear-gradient(135deg,#EF4444,#DC2626)',
                                 color: '#fff', fontWeight: 700, fontSize: '0.9rem',
@@ -1340,3 +1383,4 @@ function ImportUploadModal({ importType, onBack, onClose, onDone }: {
         </div>
     )
 }
+

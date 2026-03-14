@@ -324,7 +324,8 @@ export default function POSPage() {
             const catJson = await res.json()
             if (catJson.success) {
                 const saleCategories = (catJson.data as Category[]).filter(c =>
-                    !RAW_CATEGORY_CODES.includes(c.code)
+                    !RAW_CATEGORY_CODES.includes(c.code) &&
+                    !c.name.includes('เครื่องปรุง')
                 )
                 setCategories(saleCategories)
             }
@@ -334,7 +335,10 @@ export default function POSPage() {
             const pJson = await pRes.json()
             if (pJson.success) {
                 const allProducts = (pJson.data.products ?? pJson.data) as Product[]
-                const saleProducts = allProducts.filter(p => p.productType === 'SALE_ITEM' || p.productType === 'ENTERTAIN')
+                const saleProducts = allProducts.filter(p => 
+                    (p.productType === 'SALE_ITEM' || p.productType === 'ENTERTAIN') &&
+                    !(p.category?.name || '').includes('เครื่องปรุง')
+                )
                 setProducts(saleProducts)
             }
         } catch (e) {

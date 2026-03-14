@@ -87,7 +87,7 @@ export default function MenuPage() {
     const totalMenuCount = products.filter(p => ['SALE_ITEM', 'ENTERTAIN'].includes(p.productType)).length
 
     return (
-        <div className="page-container" style={{ maxWidth: 1400 }}>
+        <div className="page-container" suppressHydrationWarning style={{ maxWidth: 1400 }}>
             {/* Header */}
             <div style={{
                 display: 'flex', flexDirection: isMobile ? 'column' : 'row',
@@ -260,6 +260,7 @@ export default function MenuPage() {
             {showForm && (
                 <MenuProductModal
                     product={editProduct}
+                    allProducts={products}
                     categories={allCategories}
                     defaultTab={activeTab}
                     onClose={() => { setShowForm(false); setEditProduct(null) }}
@@ -387,8 +388,9 @@ function MenuCard({ product: p, onEdit, onPhoto }: {
 }
 
 // ─── Modal สำหรับเพิ่ม/แก้ไข เมนู ──────────────────────────────
-function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }: {
+function MenuProductModal({ product, allProducts, categories, defaultTab, onClose, onSaved }: {
     product: Product | null
+    allProducts: Product[]
     categories: { id: string; code: string; name: string; icon: string }[]
     defaultTab?: TabKey
     onClose: () => void; onSaved: () => void
@@ -396,6 +398,26 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
     const isEdit = !!product
     const MENU_CATS = [...FOOD_CODES, ...DRINK_CODES]
     const menuCategories = categories.filter(c => MENU_CATS.includes(c.code) || c.code.startsWith('CUSTOM_'))
+
+    // Keyword Auto-Categorization Dictionary
+    const categoryKeywords: Record<string, string[]> = {
+        'DRY_GOODS': ['เครื่องปรุง', 'ซอส', 'เกลือ', 'น้ำตาล', 'ผงชูรส', 'พริกไทย', 'น้ำปลา', 'ซีอิ๊ว', 'กะทิ', 'พริกป่น', 'ข้าวคั่ว', 'น้ำมัน'],
+        'RAW_MEAT': ['เนื้อวัว', 'เสือร้องไห้', 'น่องลาย', 'เศษเนื้อ'],
+        'RAW_PORK': ['หมู', 'สามชั้น', 'ซี่โครง', 'สันคอ', 'หมูสับ', 'เบคอน', 'กากหมู'],
+        'RAW_POULTRY': ['เป็ด', 'ห่าน'],
+        'RAW_CHICKEN': ['ไก่', 'ปีกไก่', 'น่องไก่', 'อกไก่', 'ตีนไก่', 'น่องไก่ติดสะโพก', 'ปีกบน', 'ปีกล่าง', 'ปีกกลาง', 'สันในไก่', 'โครงไก่', 'เครื่องในไก่', 'กึ๋นไก่', 'ตับไก่', 'หัวใจไก่', 'สะโพกไก่', 'น่องติดสะโพก', 'เศษเนื้อไก่', 'หนังไก่', 'ตูดไก่', 'ข้อไก่'],
+        'RAW_SEA': ['กุ้ง', 'หมึก', 'ปลา', 'หอย', 'ปู', 'แซลมอน', 'ดอลลี่', 'แมงกะพรุน'],
+        'RAW_VEG': ['ผัก', 'พริก', 'กระเทียม', 'หอม', 'มะนาว', 'กะหล่ำ', 'เห็ด', 'แตงกวา', 'มะเขือ', 'ผักชี', 'ใบมะกรูด'],
+        'EGG': ['ไข่', 'ไข่ไก่', 'ไข่เป็ด', 'ไข่นกกระทา'],
+        'DAIRY': ['นม', 'เนย', 'วิปครีม', 'ชีส'],
+        'BOX_BAG': ['กล่อง', 'ถุง', 'ถุงพลาสติก', 'ถุงหูหิ้ว', 'ถุงขยะ'],
+        'TISSUE_CLEAN': ['ทิชชู่', 'น้ำยาล้างจาน', 'ฟองน้ำ', 'สบู่', 'ผงซักฟอก'],
+        'DISPOSABLE': ['แก้ว', 'ช้อน', 'ส้อม', 'ตะเกียบ', 'หลอด', 'ไม้เสียบ'],
+        'WATER': ['น้ำเปล่า', 'โซดา', 'น้ำแข็ง'],
+        'SOFT_DRINK': ['โค้ก', 'เป๊ปซี่', 'สไปรท์', 'น้ำส้ม', 'น้ำแดง', 'แฟนต้า'],
+        'BEER': ['เบียร์', 'ลีโอ', 'ช้าง', 'สิงห์', 'ไฮเนเก้น', 'โฮการ์เด้น'],
+        'WINE': ['ไวน์'],
+    }
 
     // Smart default: อาหาร when tab=food, เครื่องดื่ม when tab=drink
     const FOOD_PREF = ['FOOD_GRILL', 'FOOD_FRY', 'FOOD_RICE', 'FOOD_BOIL', 'FOOD_STIR', 'FOOD_SNACK', 'FOOD_SALAD', 'FOOD_SEA', 'FOOD_NOODLE', 'SET']
@@ -408,6 +430,7 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
         || menuCategories.find(c => c.id === defaultCat)?.name || ''
 
     const [form, setForm] = useState({
+        id: product?.id || '',
         sku: product?.sku || '',
         name: product?.name || '',
         categoryId: defaultCat,
@@ -437,9 +460,18 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
     const isNewCat = catSearch.trim() !== '' &&
         !menuCategories.some(c => c.name.toLowerCase() === catSearch.trim().toLowerCase())
 
+    // ── Combobox state for SKU (Stock items) ─────────────────────────
+    const [skuSearch, setSkuSearch] = useState(() => product?.sku || '')
+    const [skuOpen, setSkuOpen] = useState(false)
+    const skuRef = useRef<HTMLDivElement>(null)
+
+    const filteredStockProducts = allProducts.filter(p => !['SALE_ITEM', 'ENTERTAIN'].includes(p.productType))
+        .filter(p => p.sku.toLowerCase().includes(skuSearch.toLowerCase()) || p.name.toLowerCase().includes(skuSearch.toLowerCase()))
+
     useEffect(() => {
         function handler(e: MouseEvent) {
             if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+            if (skuRef.current && !skuRef.current.contains(e.target as Node)) setSkuOpen(false)
         }
         document.addEventListener('mousedown', handler)
         return () => document.removeEventListener('mousedown', handler)
@@ -452,7 +484,7 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
             const res = await fetch('/api/categories', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name.trim() }),
+                body: JSON.stringify({ name: name.trim(), type: 'MENU', icon: '🍽️', color: '#059669' }),
             })
             const j = await res.json()
             if (j.success || j.data) {
@@ -480,13 +512,35 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
             .finally(() => setSkuLoading(false))
     }, [form.categoryId, isEdit])
 
+    function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const newName = e.target.value
+        setForm(f => ({ ...f, name: newName }))
+
+        if (!isEdit && newName.trim().length > 1) {
+            let matchedCategoryCode: string | null = null
+            for (const [code, keywords] of Object.entries(categoryKeywords)) {
+                if (keywords.some(k => newName.toLowerCase().includes(k.toLowerCase()))) {
+                    matchedCategoryCode = code
+                    break
+                }
+            }
+            if (matchedCategoryCode) {
+                const targetCat = menuCategories.find(c => c.code === matchedCategoryCode)
+                if (targetCat && form.categoryId !== targetCat.id) {
+                    setForm(f => ({ ...f, categoryId: targetCat.id }))
+                    setCatSearch(targetCat.name)
+                }
+            }
+        }
+    }
+
     async function handleSave() {
         if (!form.name.trim()) { toast.error('กรุณากรอกชื่อเมนู'); return }
         if (!form.categoryId) { toast.error('กรุณาเลือกหมวดเมนู'); return }
         setSaving(true)
         try {
-            const url = isEdit ? `/api/products/${product.id}` : '/api/products'
-            const method = isEdit ? 'PATCH' : 'POST'
+            const url = (isEdit || form.id) ? `/api/products/${product?.id || form.id}` : '/api/products'
+            const method = (isEdit || form.id) ? 'PATCH' : 'POST'
             const res = await fetch(url, {
                 method, headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...form, costPrice: Number(form.costPrice), salePrice: Number(form.salePrice) }),
@@ -495,6 +549,23 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
             if (json.success) { toast.success(isEdit ? '✅ แก้ไขเรียบร้อย' : '✅ เพิ่มเมนูเรียบร้อย'); onSaved() }
             else toast.error(json.error || 'บันทึกไม่สำเร็จ')
         } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setSaving(false) }
+    }
+
+    const handleDelete = async () => {
+        if (!product?.id) return
+        if (!window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเมนู "${product.name}"?`)) return
+        setSaving(true)
+        try {
+            const res = await fetch(`/api/products/${product.id}`, { method: 'DELETE' })
+            const json = await res.json()
+            if (json.success || json.deleted) {
+                toast.success('🗑️ ลบเมนูเรียบร้อย')
+                onSaved()
+            } else {
+                toast.error(json.error || 'ลบไม่สำเร็จ')
+            }
+        } catch { toast.error('เกิดข้อผิดพลาดในการลบ') }
         finally { setSaving(false) }
     }
 
@@ -523,15 +594,69 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div>
-                            <label className="label">SKU{!isEdit && <span style={{ color: '#059669', fontWeight: 500 }}> (อัตโนมัติ)</span>}</label>
-                            <input value={skuLoading ? '...' : form.sku} readOnly={!isEdit}
-                                onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
-                                className="input" style={{ minHeight: 40, background: isEdit ? undefined : '#F3F4F6', fontWeight: 700, color: 'var(--accent)' }} />
+                        <div ref={skuRef} style={{ position: 'relative' }}>
+                            <label className="label">SKU {!isEdit && '(ตั้งใหม่ หรือค้นหาสต็อก)'}</label>
+                            <input
+                                value={skuLoading ? '...' : (isEdit ? form.sku : skuSearch)}
+                                readOnly={isEdit}
+                                onChange={e => {
+                                    setSkuSearch(e.target.value)
+                                    setForm(f => ({ ...f, sku: e.target.value, id: '' }))
+                                    setSkuOpen(true)
+                                }}
+                                onFocus={() => !isEdit && setSkuOpen(true)}
+                                className="input" style={{ minHeight: 40, background: isEdit ? undefined : '#F3F4F6', fontWeight: 700, color: 'var(--accent)' }}
+                                placeholder="ค้นหา รหัส, ชื่อวัตถุดิบ..."
+                            />
+                            {!isEdit && skuOpen && (
+                                <div style={{
+                                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                                    background: '#fff', border: '1px solid var(--border)',
+                                    borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                    zIndex: 100, maxHeight: 200, overflowY: 'auto',
+                                }}>
+                                    {filteredStockProducts.map(p => (
+                                        <div
+                                            key={p.id}
+                                            onClick={() => {
+                                                setForm(f => ({
+                                                    ...f,
+                                                    id: p.id,
+                                                    sku: p.sku,
+                                                    name: p.name,
+                                                    categoryId: p.category?.id || f.categoryId,
+                                                    unit: p.unit,
+                                                    costPrice: p.costPrice,
+                                                    salePrice: p.salePrice || f.salePrice,
+                                                }))
+                                                setSkuSearch(p.sku)
+                                                setCatSearch(p.category?.name || catSearch)
+                                                setSkuOpen(false)
+                                            }}
+                                            style={{
+                                                padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6',
+                                                display: 'flex', flexDirection: 'column', gap: 2,
+                                                background: form.id === p.id ? '#F0FDF4' : 'transparent',
+                                            }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = form.id === p.id ? '#F0FDF4' : 'transparent')}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#059669' }}>{p.sku}</span>
+                                                <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{p.category.name}</span>
+                                            </div>
+                                            <span style={{ fontSize: '0.85rem' }}>{p.name}</span>
+                                        </div>
+                                    ))}
+                                    {filteredStockProducts.length === 0 && skuSearch.trim() && (
+                                        <div style={{ padding: '12px', color: '#9CA3AF', textAlign: 'center', fontSize: '0.82rem' }}>เพิ่มใหม่รหัส: {skuSearch}</div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="label">ชื่อเมนู *</label>
-                            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                            <input value={form.name} onChange={handleNameChange}
                                 className="input" style={{ minHeight: 40 }} placeholder="เช่น ไก่ผัดเม็ดมะม่วง" />
                         </div>
                     </div>
@@ -643,6 +768,9 @@ function MenuProductModal({ product, categories, defaultTab, onClose, onSaved }:
                 </div>
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+                    {isEdit && (
+                        <button onClick={handleDelete} disabled={saving} className="btn-secondary" style={{ flex: 1, minHeight: 44, background: '#FEE2E2', color: '#DC2626', borderColor: '#FCA5A5' }}>🗑️ ลบ</button>
+                    )}
                     <button onClick={onClose} className="btn-secondary" style={{ flex: 1, minHeight: 44 }}>ยกเลิก</button>
                     <button onClick={handleSave} disabled={saving || !form.name} className="btn-success" style={{ flex: 2, minHeight: 44 }}>
                         {saving ? '⏳ กำลังบันทึก...' : isEdit ? '✅ บันทึก' : '➕ เพิ่มเมนู'}

@@ -48,7 +48,7 @@ export default function Topbar() {
     const breadcrumb = pathname.split('/').filter(Boolean)
 
     return (
-        <header style={{
+        <header suppressHydrationWarning style={{
             height: 56,
             background: '#FFFFFF',
             borderBottom: '1px solid #E5E7EB',
@@ -65,6 +65,7 @@ export default function Topbar() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 {/* Hamburger for mobile / collapse toggle */}
                 <button
+                    suppressHydrationWarning
                     onClick={toggle}
                     style={{
                         background: 'none', border: 'none', cursor: 'pointer',
@@ -102,6 +103,7 @@ export default function Topbar() {
                 {!isMobile && (
                     <div style={{ position: 'relative' }}>
                         <input
+                            suppressHydrationWarning
                             placeholder="ค้นหา..."
                             style={{
                                 width: 180, padding: '0.4rem 0.7rem 0.4rem 2rem',

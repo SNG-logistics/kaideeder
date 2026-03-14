@@ -37,7 +37,8 @@ const navItems: NavItem[] = [
     { href: '/sku-queue',    icon: '🔍', label: 'SKU Queue',              labelLo: 'SKU Queue',               permission: 'SETTINGS_MANAGE' },
     { href: '/reports',      icon: '📈', label: 'Reports',                labelLo: 'Reports',                 permission: 'REPORT_VIEW' },
     { href: '/ai-chat',      icon: '🤖', label: 'AI Assistant',           labelLo: 'AI Assistant',            permission: 'AI_CHAT' },
-    { href: '/settings/users', icon: '👥', label: 'จัดการผู้ใช้',         labelLo: 'ຈັດການຜູ້ໃຊ້',           divider: 'จัดการร้าน',      dividerLo: 'ຈັດການຮ້ານ', permission: 'SETTINGS_MANAGE' },
+    { href: '/settings/categories', icon: '📂', label: 'จัดการหมวดหมู่',      labelLo: 'ຈັດການໝວດໝູ່',           divider: 'จัดการร้าน',      dividerLo: 'ຈັດການຮ້ານ', permission: 'SETTINGS_MANAGE' },
+    { href: '/settings/users', icon: '👥', label: 'จัดการผู้ใช้',         labelLo: 'ຈັດການຜູ້ໃຊ້',           permission: 'SETTINGS_MANAGE' },
     { href: '/settings/manual', icon: '📖', label: 'คู่มือการใช้งาน',    labelLo: 'ຄູ່ມືການໃຊ້ງານ',         permission: 'SETTINGS_MANAGE' },
 ]
 
@@ -101,7 +102,7 @@ export default function Sidebar() {
                 />
             )}
 
-            <aside style={{
+            <aside suppressHydrationWarning style={{
                 width: sidebarWidth, minWidth: sidebarWidth,
                 background: 'var(--white)', borderRight: '1px solid var(--border)',
                 height: '100vh', position: 'fixed', left: 0, top: 0,
@@ -147,7 +148,7 @@ export default function Sidebar() {
                             </div>
                         )}
                     </div>
-                    <button onClick={toggle} style={{
+                    <button suppressHydrationWarning onClick={toggle} style={{
                         background: 'none', border: 'none', cursor: 'pointer',
                         fontSize: '1.1rem', color: '#9CA3AF', padding: 4,
                         borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -316,7 +317,7 @@ export default function Sidebar() {
 
                 {/* Logout */}
                 <div style={{ borderTop: '1px solid #E5E7EB', padding: '0.75rem' }}>
-                    <button onClick={async () => {
+                    <button suppressHydrationWarning onClick={async () => {
                         await fetch('/api/auth/login', { method: 'DELETE' })
                         window.location.href = '/login'
                     }} style={{
