@@ -96,6 +96,24 @@ export default async function AdminDatabasePage(props: {
                     padding: 11px 14px !important;
                 }
                 .na-main tbody tr:hover td { background: rgba(255,255,255,0.025) !important; }
+                /* ── Cap oversized empty-state illustrations from NextAdmin ── */
+                .na-main svg[height="200"], .na-main svg[height="300"],
+                .na-main svg[height="400"], .na-main svg[height="500"],
+                .na-main svg[height*="px"][style*="height"],
+                .na-main > * > svg, .na-main section > svg, .na-main div > svg:first-child:last-child,
+                .na-main [class*="empty"] svg, .na-main [class*="placeholder"] svg,
+                .na-main [class*="Empty"] svg, .na-main [class*="illustration"] {
+                    max-width: 64px !important;
+                    max-height: 64px !important;
+                    width: 64px !important;
+                    height: 64px !important;
+                }
+                /* Hide full-bleed decorative illustration wrappers */
+                .na-main [class*="emptyState"], .na-main [class*="empty-state"],
+                .na-main [class*="no-data"], .na-main [class*="NoData"] {
+                    padding: 32px !important;
+                    text-align: center !important;
+                }
                 .na-main input, .na-main select, .na-main textarea {
                     background: rgba(255,255,255,0.05) !important;
                     border: 1px solid rgba(255,255,255,0.1) !important;
