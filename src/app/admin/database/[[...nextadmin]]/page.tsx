@@ -2,6 +2,7 @@
 import jwt from 'jsonwebtoken'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
+import PrismaGridClient from '../PrismaGridClient'
 import DatabaseModelClient from '../DatabaseModelClient'
 import RecordEditClient from '../RecordEditClient'
 
@@ -106,12 +107,22 @@ export default async function AdminDatabasePage(props: {
         </div>
     )
 
-    // ── Route: /admin/database  OR  /admin/database/[model] ────────
-    if (!recordId && (!modelKey || CUSTOM_MODELS.includes(modelKey))) {
+    // ── Route: /admin/database (root) ──────────────────────────────
+    if (!modelKey) {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <Header />
-                <DatabaseModelClient modelKey={modelKey} />
+                <DatabaseModelClient modelKey={null} />
+            </div>
+        )
+    }
+
+    // ── Route: /admin/database/[model] list ─────────────────────────
+    if (!recordId && CUSTOM_MODELS.includes(modelKey)) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <Header />
+                <PrismaGridClient modelKey={modelKey} />
             </div>
         )
     }
