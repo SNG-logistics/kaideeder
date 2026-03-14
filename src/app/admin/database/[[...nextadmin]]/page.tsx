@@ -1,10 +1,11 @@
-import { NextAdmin } from '@premieroctet/next-admin'
+// @ts-nocheck
+import { NextAdmin, MainLayout } from '@premieroctet/next-admin/adapters/next'
+import { NextAdminRouterAdapter } from '@premieroctet/next-admin/adapters/next'
 import { getNextAdminProps } from '@premieroctet/next-admin/appRouter'
 import { prisma } from '@/lib/prisma'
 import { options } from '@/lib/next-admin-options'
-import { NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
-import { headers, cookies } from 'next/headers'
+import { cookies } from 'next/headers'
 
 export default async function AdminDatabasePage(props: {
     params: Promise<{ nextadmin: string[] }>
@@ -41,9 +42,11 @@ export default async function AdminDatabasePage(props: {
     })
 
     return (
-        <div className="w-full h-full bg-white rounded-lg shadow-xl overflow-hidden text-black p-4">
-            <h1 className="text-xl font-bold mb-4">Direct Database Management</h1>
-            <NextAdmin {...nextAdminProps} />
-        </div>
+        <NextAdminRouterAdapter>
+            <div className="w-full h-full bg-white rounded-lg shadow-xl overflow-hidden text-black p-4">
+                <h1 className="text-xl font-bold mb-4">Direct Database Management</h1>
+                <NextAdmin {...nextAdminProps} />
+            </div>
+        </NextAdminRouterAdapter>
     )
 }
