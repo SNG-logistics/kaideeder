@@ -121,6 +121,13 @@ export default async function AdminDatabasePage(props: {
                     border: none !important;
                     box-shadow: none !important;
                 }
+                .db-model-card {
+                    transition: background 0.15s, border-color 0.15s;
+                }
+                .db-model-card:hover {
+                    background: rgba(37,99,235,0.08) !important;
+                    border-color: rgba(37,99,235,0.25) !important;
+                }
             `}</style>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -203,15 +210,12 @@ export default async function AdminDatabasePage(props: {
                 {!modelKey && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '12px' }}>
                         {Object.entries(MODEL_META).map(([key, m]) => (
-                            <a key={key} href={`/admin/database/${key}`} style={{
+                            <a key={key} href={`/admin/database/${key}`} className="db-model-card" style={{
                                 display: 'flex', flexDirection: 'column', gap: '10px',
                                 padding: '16px', borderRadius: 12, textDecoration: 'none',
                                 background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)',
-                                transition: 'all 0.15s', cursor: 'pointer', color: 'inherit',
-                            }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(37,99,235,0.08)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(37,99,235,0.25)' }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.025)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.07)' }}
-                            >
+                                cursor: 'pointer', color: 'inherit',
+                            }}>
                                 <span style={{ fontSize: '1.4rem' }}>{m.emoji}</span>
                                 <div>
                                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>{m.label}</div>
