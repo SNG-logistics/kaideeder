@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 // GET /api/public/bill/[tenantCode]/[tableNum]
-// Returns the current OPEN order for a table (for customers to view their own bill)
-// POST — customer requests bill check (appends a note to the open order)
+// Returns ALL active orders for the table (OPEN + PENDING_CONFIRM) as one unified bill
+// Customers see every round they ordered in this session
 export async function GET(
     _req: Request,
     { params }: { params: Promise<{ tenantCode: string; tableNum: string }> }
@@ -26,9 +26,14 @@ export async function GET(
         })
         if (!table) return NextResponse.json({ error: 'Table not found' }, { status: 404 })
 
-        const order = await prisma.order.findFirst({
-            where: { tenantId: tenant.id, tableId: table.id, status: { in: ['OPEN', 'PENDING_CONFIRM'] } },
-            orderBy: { openedAt: 'desc' },
+        // Fetch ALL active orders for this table (could be multiple rounds)
+        const orders = await prisma.order.findMany({
+            where: {
+                tenantId: tenant.id,
+                tableId: table.id,
+                status: { in: ['OPEN', 'PENDING_CONFIRM'] },
+            },
+            orderBy: { openedAt: 'asc' },  // oldest first = round 1, 2, 3…
             include: {
                 items: {
                     where: { isCancelled: false },
@@ -37,31 +42,46 @@ export async function GET(
             },
         })
 
-        if (!order) {
+        if (orders.length === 0) {
             return NextResponse.json({ hasOrder: false, currency: tenant.currency })
         }
 
-        const items = order.items.map(i => ({
-            name: i.product?.name ?? 'รายการ',
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            note: i.note,
-            kitchenStatus: i.kitchenStatus,
-        }))
+        // Build per-round summary
+        const rounds = orders.map((order, idx) => {
+            const items = order.items.map(i => ({
+                name: i.product?.name ?? 'รายการ',
+                quantity: i.quantity,
+                unitPrice: i.unitPrice,
+                note: i.note,
+            }))
+            const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+            return {
+                round: idx + 1,
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                status: order.status,   // 'OPEN' or 'PENDING_CONFIRM'
+                openedAt: order.openedAt,
+                items,
+                subtotal,
+            }
+        })
 
-        const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+        const grandTotal = rounds.reduce((s, r) => s + r.subtotal, 0)
+        const billRequested = orders.some(o => o.note?.includes('🧾 เรียกเช็คบิล'))
+        const hasOpenRound = orders.some(o => o.status === 'OPEN')
+        const hasPending = orders.some(o => o.status === 'PENDING_CONFIRM')
 
         return NextResponse.json({
             hasOrder: true,
-            status: order.status,
-            orderNumber: order.orderNumber,
-            orderId: order.id,
             tableNumber,
             currency: tenant.currency,
             storeName: tenant.displayName || tenant.name,
-            billRequested: order.note?.includes('🧾 เรียกเช็คบิล') ?? false,
-            items,
-            subtotal,
+            totalRounds: rounds.length,
+            hasOpenRound,
+            hasPending,
+            billRequested,
+            rounds,
+            grandTotal,
         })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
@@ -69,7 +89,7 @@ export async function GET(
 }
 
 // POST /api/public/bill/[tenantCode]/[tableNum]
-// Customer taps "เรียกเช็คบิล" — appends a note to the OPEN order
+// Customer taps "เรียกเช็คบิล" — marks ALL OPEN orders for the table
 export async function POST(
     _req: Request,
     { params }: { params: Promise<{ tenantCode: string; tableNum: string }> }
@@ -89,22 +109,28 @@ export async function POST(
         })
         if (!table) return NextResponse.json({ error: 'Table not found' }, { status: 404 })
 
-        const order = await prisma.order.findFirst({
+        // Get all OPEN orders for this table
+        const openOrders = await prisma.order.findMany({
             where: { tenantId: tenant.id, tableId: table.id, status: 'OPEN' },
         })
-        if (!order) return NextResponse.json({ error: 'ไม่พบออเดอร์ที่เปิดอยู่' }, { status: 404 })
+        if (openOrders.length === 0) {
+            return NextResponse.json({ error: 'ไม่พบออเดอร์ที่เปิดอยู่ กรุณารอพนักงานยืนยันออเดอร์ก่อน' }, { status: 404 })
+        }
 
         const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        const existing = order.note || ''
-        const already = existing.includes('🧾 เรียกเช็คบิล')
+        const already = openOrders.every(o => o.note?.includes('🧾 เรียกเช็คบิล'))
+
         if (!already) {
-            await prisma.order.update({
-                where: { id: order.id },
-                data: { note: `${existing ? existing + ' | ' : ''}🧾 เรียกเช็คบิล ${time}`.trim() },
+            // Mark ALL open orders, not just one
+            await prisma.order.updateMany({
+                where: {
+                    id: { in: openOrders.map(o => o.id) },
+                },
+                data: { note: `🧾 เรียกเช็คบิล ${time}` },
             })
         }
 
-        return NextResponse.json({ ok: true, already })
+        return NextResponse.json({ ok: true, already, count: openOrders.length })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
