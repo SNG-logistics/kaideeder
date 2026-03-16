@@ -42,20 +42,22 @@ export async function POST(req: Request) {
         })
         if (!table) return NextResponse.json({ error: 'Table not found' }, { status: 404 })
 
-        // Check no existing PENDING_CONFIRM or OPEN order on this table
-        const existing = await prisma.order.findFirst({
-            where: {
-                tenantId: tenant.id,
-                tableId: table.id,
-                status: { in: ['PENDING_CONFIRM', 'OPEN'] },
-            },
+        // Block only if there's already a PENDING_CONFIRM waiting (to avoid double-tap spam)
+        const existingPending = await prisma.order.findFirst({
+            where: { tenantId: tenant.id, tableId: table.id, status: 'PENDING_CONFIRM' },
         })
-        if (existing) {
+        if (existingPending) {
             return NextResponse.json({
-                error: 'โต๊ะนี้มีออเดอร์อยู่แล้ว กรุณาติดต่อพนักงาน',
-                orderId: existing.id,
+                error: 'ออเดอร์ก่อนหน้ายังรอการยืนยันอยู่ กรุณารอสักครู่…',
+                orderId: existingPending.id,
             }, { status: 409 })
         }
+
+        // Check if table already has an OPEN order (customer ordering add-on items)
+        const openOrder = await prisma.order.findFirst({
+            where: { tenantId: tenant.id, tableId: table.id, status: 'OPEN' },
+        })
+        const isAddon = !!openOrder
 
         // Generate unique order number
         let orderNumber = generateOrderNumber()
@@ -91,7 +93,7 @@ export async function POST(req: Request) {
             include: { table: true, items: true },
         })
 
-        return NextResponse.json({ ok: true, orderNumber: order.orderNumber, orderId: order.id })
+        return NextResponse.json({ ok: true, orderNumber: order.orderNumber, orderId: order.id, isAddon, tableNumber: table.number })
     } catch (e: any) {
         if (e instanceof z.ZodError) {
             return NextResponse.json({ error: e.errors.map(x => x.message).join(', ') }, { status: 400 })
