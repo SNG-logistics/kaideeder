@@ -1,0 +1,4 @@
+src/app/api/public/menu/[tenantCode]/route.ts(29,17): error TS2353: Object literal may only specify known properties, and 'price' does not exist in type 'ProductWhereInput'.
+src/app/api/public/menu/[tenantCode]/route.ts(33,39): error TS2561: Object literal may only specify known properties, but 'nameEn' does not exist in type 'ProductSelect<DefaultArgs>'. Did you mean to write 'name'?
+src/app/m/[tenantCode]/[tableNum]/page.tsx(10,7): error TS2451: Cannot redeclare block-scoped variable 'C'.
+src/app/m/[tenantCode]/[tableNum]/page.tsx(296,7): error TS2451: Cannot redeclare block-scoped variable 'C'.

@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
     { href: '/ai-chat',      icon: '🤖', label: 'AI Assistant',           labelLo: 'AI Assistant',            permission: 'AI_CHAT' },
     { href: '/settings/categories', icon: '📂', label: 'จัดการหมวดหมู่',      labelLo: 'ຈັດການໝວດໝູ່',           divider: 'จัดการร้าน',      dividerLo: 'ຈັດການຮ້ານ', permission: 'SETTINGS_MANAGE' },
     { href: '/settings/users', icon: '👥', label: 'จัดการผู้ใช้',         labelLo: 'ຈັດການຜູ້ໃຊ້',           permission: 'SETTINGS_MANAGE' },
+    { href: '/settings/qr',    icon: '📱', label: 'QR Menu โต๊ะ',         labelLo: 'QR Menu ໂຕ໊ະ',            permission: 'SETTINGS_MANAGE' },
     { href: '/settings/manual', icon: '📖', label: 'คู่มือการใช้งาน',    labelLo: 'ຄູ່ມືການໃຊ້ງານ',         permission: 'SETTINGS_MANAGE' },
 ]
 

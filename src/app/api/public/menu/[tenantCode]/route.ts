@@ -25,8 +25,8 @@ export async function GET(
             where: {
                 tenantId: tenant.id,
                 isActive: true,
-                // only include products that have a price (menu items)
                 price: { gt: 0 },
+                productType: { in: ['SALE_ITEM', 'ENTERTAIN', 'SET_MENU'] },
             },
             orderBy: { name: 'asc' },
             select: {
