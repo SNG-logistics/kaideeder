@@ -21,20 +21,22 @@ export async function GET(
             orderBy: { name: 'asc' },
         })
 
-        const products = await prisma.product.findMany({
+        const rawProducts = await prisma.product.findMany({
             where: {
                 tenantId: tenant.id,
                 isActive: true,
-                price: { gt: 0 },
+                salePrice: { gt: 0 },
                 productType: { in: ['SALE_ITEM', 'ENTERTAIN'] },
             },
             orderBy: { name: 'asc' },
             select: {
                 id: true, name: true, sku: true,
-                price: true, unit: true, categoryId: true,
+                salePrice: true, unit: true, categoryId: true,
                 imageUrl: true,
             },
         })
+        // Map salePrice → price so the mobile menu page needs no changes
+        const products = rawProducts.map(p => ({ ...p, price: p.salePrice }))
 
         return NextResponse.json({ tenant, categories, products })
     } catch (e: any) {
