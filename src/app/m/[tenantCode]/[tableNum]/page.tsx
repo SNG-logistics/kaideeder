@@ -60,6 +60,7 @@ const GLOBAL_CSS = `
 
 export default function MenuPage() {
     const params = useParams<{ tenantCode: string; tableNum: string }>()
+    const tenantCode = params.tenantCode
     const tableNum = Number(params.tableNum)
 
     const [tenant, setTenant] = useState<Tenant | null>(null)
