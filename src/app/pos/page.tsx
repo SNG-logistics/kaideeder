@@ -3,6 +3,7 @@ import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
 import { useCurrency } from '@/context/TenantContext'
+import NewOrderAlert from '@/components/NewOrderAlert'
 
 // ─── Types ───────────────────────────────────────────────────
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
@@ -666,6 +667,8 @@ export default function POSPage() {
     return (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', overflow: 'hidden', background: '#F0F2F5' }}>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {/* ── New order alert — POS page only ── */}
+            <NewOrderAlert />
 
             {/* ════ PROTEIN MODAL ════ */}
             {proteinPendingProduct && (

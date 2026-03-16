@@ -27,7 +27,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 }}>
                     {children}
                 </main>
-                <NewOrderAlert />
+                {/* NewOrderAlert is mounted only in pos/page.tsx — not here */}
             </div>
         </div>
     )
