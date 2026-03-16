@@ -75,6 +75,7 @@ export const POST = withAuth(async (req: NextRequest, context) => {
         if (itemsToMove.length > 0) {
             await tx.orderItem.createMany({
                 data: itemsToMove.map(item => ({
+                    tenantId,                        // ← required field
                     orderId: primaryOrder.id,
                     productId: item.productId,
                     quantity: item.quantity,
