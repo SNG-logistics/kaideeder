@@ -3,533 +3,241 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { adminFetch } from '@/lib/admin-fetch'
 
-// ── Types ──────────────────────────────────────────────────────────
-interface ModelConfig {
-    label: string
-    emoji: string
-    desc: string
-    color: string
-    columns: string[]
-    primaryDisplay: string
-    secondaryDisplay?: string
+// ── Types ───────────────────────────────────────────────────────────
+type StoreData = {
+    id: string; code: string; name: string; displayName: string | null
+    status: 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED'
+    currency: string; walletLAK: number
+    users: number; products: number; tables: number
+    ordersToday: number; ordersOpen: number; ordersPending: number; ordersTotal: number
+    createdAt: string; subEndsAt: string | null
 }
 
-const MODELS: Record<string, ModelConfig> = {
-    tenant: {
-        label: 'Tenants',
-        emoji: '🏪',
-        desc: 'Restaurant accounts & subscriptions',
-        color: '#3b82f6',
-        columns: ['id', 'code', 'name', 'displayName', 'status', 'currency', 'createdAt'],
-        primaryDisplay: 'name',
-        secondaryDisplay: 'code',
-    },
-    user: {
-        label: 'Store Users',
-        emoji: '👤',
-        desc: 'Staff and admin accounts per tenant',
-        color: '#10b981',
-        columns: ['id', 'username', 'role', 'tenantId', 'createdAt'],
-        primaryDisplay: 'username',
-        secondaryDisplay: 'role',
-    },
-    category: {
-        label: 'Categories',
-        emoji: '🏷️',
-        desc: 'Product categories per tenant',
-        color: '#ec4899',
-        columns: ['id', 'code', 'name', 'nameEn', 'color', 'isActive', 'tenantId'],
-        primaryDisplay: 'name',
-        secondaryDisplay: 'code',
-    },
-    diningtable: {
-        label: 'Dining Tables',
-        emoji: '🪑',
-        desc: 'Tables and zones for dine-in',
-        color: '#14b8a6',
-        columns: ['id', 'number', 'name', 'zone', 'seats', 'status', 'tenantId'],
-        primaryDisplay: 'name',
-        secondaryDisplay: 'zone',
-    },
-    product: {
-        label: 'Products / Menu',
-        emoji: '🍜',
-        desc: 'Stock items and menu entries',
-        color: '#f59e0b',
-        columns: ['id', 'name', 'sku', 'categoryId', 'tenantId', 'createdAt'],
-        primaryDisplay: 'name',
-        secondaryDisplay: 'sku',
-    },
-    order: {
-        label: 'Orders',
-        emoji: '🧾',
-        desc: 'Customer orders and transactions',
-        color: '#8b5cf6',
-        columns: ['id', 'status', 'total', 'tenantId', 'createdAt'],
-        primaryDisplay: 'id',
-        secondaryDisplay: 'status',
-    },
+const STATUS_STYLE = {
+    ACTIVE:    { color: '#10b981', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)', label: 'Active' },
+    PAST_DUE:  { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)', label: 'Past Due' },
+    SUSPENDED: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)', label: 'Suspended' },
 }
 
-const C = {
-    bg: '#080c14', card: '#0d1220', border: 'rgba(255,255,255,0.07)',
-    accent: '#2563eb', accentLight: 'rgba(37,99,235,0.12)',
-    text: '#e2e8f0', textMuted: '#64748b', textDim: '#334155',
-}
+const DB_MODELS = [
+    { key: 'tenant',      label: 'Tenants',        emoji: '🏪', color: '#3b82f6', desc: 'Accounts & subscriptions' },
+    { key: 'user',        label: 'Store Users',     emoji: '👤', color: '#10b981', desc: 'Staff accounts per store' },
+    { key: 'category',   label: 'Categories',      emoji: '🏷️', color: '#ec4899', desc: 'Product categories' },
+    { key: 'diningtable', label: 'Dining Tables',   emoji: '🪑', color: '#14b8a6', desc: 'Tables & zones' },
+    { key: 'product',    label: 'Products / Menu', emoji: '🍜', color: '#f59e0b', desc: 'Menu items & stock' },
+    { key: 'order',      label: 'Orders',           emoji: '🧾', color: '#8b5cf6', desc: 'Customer orders' },
+]
 
-// ── Simple value formatter ──────────────────────────────────────────
-function formatVal(val: any): string {
-    if (val === null || val === undefined) return '—'
-    if (typeof val === 'boolean') return val ? 'Yes' : 'No'
-    if (val instanceof Date || (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/))) {
-        return new Date(val).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })
-    }
-    const str = String(val)
-    return str.length > 40 ? str.slice(0, 40) + '…' : str
-}
+const fmt = (n: number) => n.toLocaleString()
+const fmtDate = (s: string | null) => s ? new Date(s).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
 
-// ── Status Badge ────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string }) {
-    const map: Record<string, { bg: string; color: string }> = {
-        ACTIVE: { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
-        INACTIVE: { bg: 'rgba(239,68,68,0.12)', color: '#f87171' },
-        SUSPENDED: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-        CLOSED: { bg: 'rgba(100,116,139,0.12)', color: '#94a3b8' },
-        PENDING: { bg: 'rgba(59,130,246,0.12)', color: '#93c5fd' },
-        OWNER: { bg: 'rgba(139,92,246,0.12)', color: '#a78bfa' },
-        MANAGER: { bg: 'rgba(59,130,246,0.12)', color: '#93c5fd' },
-        CASHIER: { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
-        KITCHEN: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-    }
-    const s = map[status] || { bg: 'rgba(255,255,255,0.08)', color: '#94a3b8' }
-    return (
-        <span style={{
-            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em',
-            padding: '2px 8px', borderRadius: 99,
-            background: s.bg, color: s.color,
-            textTransform: 'uppercase' as const,
-        }}>{status}</span>
-    )
-}
-
-// ── Record Card ──────────────────────────────────────────────────────
-function RecordCard({ record, modelKey, config, onDelete, allRecords }: {
-    record: any; modelKey: string; config: ModelConfig; onDelete: (id: string) => void; allRecords?: any[]
-}) {
-    const [deleting, setDeleting] = useState(false)
-    const [showMove, setShowMove] = useState(false)
-    const id = record.id
-    const primary = record[config.primaryDisplay]
-    const secondary = config.secondaryDisplay ? record[config.secondaryDisplay] : null
-    const statusField = record.status || record.role
-
-    const fields = config.columns.filter(c => !['id', config.primaryDisplay, config.secondaryDisplay, 'status', 'role'].includes(c))
-
-    async function handleDelete() {
-        if (!confirm(`Delete this ${config.label.slice(0, -1)}? This cannot be undone.`)) return
-        setDeleting(true)
-        try {
-            const res = await fetch(`/api/admin/database/${modelKey}/${id}`, { method: 'DELETE' })
-            if (res.ok) onDelete(id)
-            else alert('Delete failed: ' + (await res.json()).error)
-        } catch {
-            alert('Network error')
-        }
-        setDeleting(false)
-    }
-
-    return (
-        <div style={{
-            background: C.card, border: `1px solid ${C.border}`,
-            borderRadius: 12, padding: '14px 16px',
-            display: 'flex', alignItems: 'center', gap: '14px',
-            transition: 'border-color 0.15s',
-        }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(37,99,235,0.3)')}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}
-        >
-            {/* Avatar / Emoji circle */}
-            <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: `${config.color}20`, border: `1px solid ${config.color}40`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '1rem',
-            }}>
-                {config.emoji}
-            </div>
-
-            {/* Primary + secondary */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
-                    <span style={{ fontWeight: 600, color: C.text, fontSize: '0.88rem' }}>
-                        {formatVal(primary) || id.slice(0, 12)}
-                    </span>
-                    {secondary && <StatusBadge status={String(secondary)} />}
-                </div>
-                <div style={{ fontSize: '0.7rem', color: C.textMuted, marginTop: '3px', display: 'flex', gap: '12px', flexWrap: 'wrap' as const }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '0.65rem', color: '#374151' }}>#{id.slice(0, 8)}…</span>
-                    {fields.slice(0, 3).map(f => (
-                        record[f] ? <span key={f}><span style={{ color: '#374151' }}>{f}:</span> {formatVal(record[f])}</span> : null
-                    ))}
-                </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                {/* Move products button — only for category model */}
-                {modelKey === 'category' && (
-                    <button onClick={() => setShowMove(true)} style={{
-                        display: 'flex', alignItems: 'center', gap: '4px',
-                        padding: '5px 10px', borderRadius: 7,
-                        background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
-                        color: '#34d399', fontSize: '0.72rem', fontWeight: 500,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                        📦 Move
-                    </button>
-                )}
-                {showMove && modelKey === 'category' && (
-                    <MoveProductsModal
-                        category={record}
-                        allCategories={allRecords || []}
-                        onClose={() => setShowMove(false)}
-                    />
-                )}
-                <Link href={`/admin/database/${modelKey}/${id}`} style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    padding: '5px 10px', borderRadius: 7, textDecoration: 'none',
-                    background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.25)',
-                    color: '#93c5fd', fontSize: '0.72rem', fontWeight: 500,
-                }}>
-                    <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                    Edit
-                </Link>
-                <button onClick={handleDelete} disabled={deleting} style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    padding: '5px 10px', borderRadius: 7,
-                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                    color: '#f87171', fontSize: '0.72rem', fontWeight: 500,
-                    cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.5 : 1,
-                    fontFamily: 'inherit',
-                }}>
-                    <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="3,6 5,6 21,6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                    {deleting ? '…' : 'Del'}
-                </button>
-            </div>
-        </div>
-    )
-}
-
-// ── Move Products Modal (category only) ────────────────────────────
-function MoveProductsModal({ category, allCategories, onClose }: {
-    category: any
-    allCategories: any[]
-    onClose: () => void
-}) {
-    const [products, setProducts] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
-    const [selected, setSelected] = useState<string[]>([])
-    const [targetId, setTargetId] = useState('')
-    const [moving, setMoving] = useState(false)
-    const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
-
-    useEffect(() => {
-        fetch(`/api/admin/move-products?categoryId=${category.id}`)
-            .then(r => r.json())
-            .then(d => {
-                const list = d.products || []
-                setProducts(list)
-                setSelected(list.map((p: any) => p.id))
-            })
-            .finally(() => setLoading(false))
-    }, [category.id])
-
-    function toggleAll() {
-        setSelected(prev => prev.length === products.length ? [] : products.map(p => p.id))
-    }
-    function toggle(id: string) {
-        setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-    }
-
-    async function handleMove(e: React.FormEvent) {
-        e.preventDefault()
-        if (!selected.length || !targetId) return
-        setMoving(true)
-        try {
-            const res = await fetch('/api/admin/move-products', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ productIds: selected, targetCategoryId: targetId }),
-            })
-            const json = await res.json()
-            if (res.ok) {
-                setMsg({ text: `Moved ${json.movedCount} product(s) successfully`, ok: true })
-                // Refresh product list
-                const r2 = await fetch(`/api/admin/move-products?categoryId=${category.id}`)
-                const d2 = await r2.json()
-                setProducts(d2.products || [])
-                setSelected([])
-                setTargetId('')
-            } else {
-                setMsg({ text: json.error || 'Move failed', ok: false })
-            }
-        } catch {
-            setMsg({ text: 'Network error', ok: false })
-        }
-        setMoving(false)
-    }
-
-    // Categories of the same tenant, excluding current
-    const others = allCategories.filter(c => c.tenantId === category.tenantId && c.id !== category.id)
-
-    const overlay: React.CSSProperties = {
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
-    }
-    const box: React.CSSProperties = {
-        background: '#0d1220', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 520,
-        maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: '1rem',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
-    }
-    const btn = (accent: boolean, disabled?: boolean): React.CSSProperties => ({
-        flex: 1, minHeight: 38, borderRadius: 8, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-        fontFamily: 'inherit', fontWeight: 600, fontSize: '0.82rem',
-        background: accent ? '#2563eb' : 'rgba(255,255,255,0.07)',
-        color: accent ? '#fff' : '#94a3b8', opacity: disabled ? 0.5 : 1,
-    })
-
-    return (
-        <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-            <div style={box}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#e2e8f0' }}>📦 Move Products — {category.name}</span>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
-                </div>
-
-                {msg && (
-                    <div style={{ padding: '8px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600,
-                        background: msg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-                        color: msg.ok ? '#34d399' : '#f87171', border: `1px solid ${msg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
-                        {msg.ok ? '✅' : '❌'} {msg.text}
-                    </div>
-                )}
-
-                {loading ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>Loading products…</div>
-                ) : (
-                    <>
-                        {/* Select All */}
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>
-                            <input type="checkbox" checked={selected.length === products.length && products.length > 0} onChange={toggleAll} style={{ width: 15, height: 15 }} />
-                            Select All ({selected.length}/{products.length})
-                        </label>
-
-                        {/* Product list */}
-                        <div style={{ overflowY: 'auto', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '0.4rem', maxHeight: 280, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {products.length === 0 && <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>No products in this category</div>}
-                            {products.map(p => (
-                                <label key={p.id} style={{
-                                    display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px',
-                                    background: selected.includes(p.id) ? 'rgba(37,99,235,0.1)' : 'transparent',
-                                    borderRadius: 7, cursor: 'pointer', border: '1px solid',
-                                    borderColor: selected.includes(p.id) ? 'rgba(37,99,235,0.3)' : 'transparent',
-                                    transition: 'all 0.1s',
-                                }}>
-                                    <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} style={{ width: 14, height: 14 }} />
-                                    <div>
-                                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0' }}>{p.name}{p.nameTh ? ` / ${p.nameTh}` : ''}</div>
-                                        <div style={{ fontSize: '0.68rem', color: '#64748b' }}>SKU: {p.sku} · {p.unit}</div>
-                                    </div>
-                                </label>
-                            ))}
-                        </div>
-
-                        {/* Move form */}
-                        <form onSubmit={handleMove} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Target Category</label>
-                                <select required value={targetId} onChange={e => setTargetId(e.target.value)}
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: '#e2e8f0', fontSize: '0.82rem', fontFamily: 'inherit' }}>
-                                    <option value="">-- Select target category --</option>
-                                    {others.map(c => <option key={c.id} value={c.id}>{c.icon || ''} {c.name} ({c.code})</option>)}
-                                </select>
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button type="button" onClick={onClose} style={btn(false)}>Cancel</button>
-                                <button type="submit" disabled={moving || selected.length === 0 || !targetId} style={btn(true, moving || selected.length === 0 || !targetId)}>
-                                    {moving ? 'Moving…' : `Move ${selected.length} Product(s)`}
-                                </button>
-                            </div>
-                        </form>
-                    </>
-                )}
-            </div>
-        </div>
-    )
-}
-
-// ── Skeleton loader ──────────────────────────────────────────────────
-function Skeleton() {
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
-            {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} style={{
-                    height: 64, borderRadius: 12,
-                    background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%)',
-                    backgroundSize: '200% 100%',
-                    animation: 'shimmer 1.5s infinite',
-                }} />
-            ))}
-            <style>{`@keyframes shimmer { 0%{background-position:200%} 100%{background-position:-200%} }`}</style>
-        </div>
-    )
-}
-
-// ── Main Client Component ───────────────────────────────────────────
 export default function DatabaseModelClient({ modelKey }: { modelKey: string | null }) {
-    const config = modelKey ? MODELS[modelKey] : null
-    const [records, setRecords] = useState<any[]>([])
-    const [loading, setLoading] = useState(false)
+    const [stores, setStores] = useState<StoreData[]>([])
+    const [loading, setLoading] = useState(true)
+    const [suspending, setSuspending] = useState<string | null>(null)
     const [search, setSearch] = useState('')
-    const [error, setError] = useState('')
+    const [view, setView] = useState<'hub' | 'tables'>('hub')
 
-    useEffect(() => {
-        if (!modelKey) return
+    async function load() {
         setLoading(true)
-        setError('')
-        fetch(`/api/admin/db-list/${modelKey}`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) setError(data.error)
-                else setRecords(data.records || [])
-            })
-            .catch(() => setError('Failed to load data'))
-            .finally(() => setLoading(false))
-    }, [modelKey])
+        try {
+            const res = await adminFetch('/api/admin/store-stats')
+            const d = await res.json()
+            setStores(d.data ?? [])
+        } catch {}
+        setLoading(false)
+    }
+    useEffect(() => { load() }, [])
 
-    const filtered = records.filter(r => {
-        if (!search) return true
-        const s = search.toLowerCase()
-        return Object.values(r).some(v => String(v).toLowerCase().includes(s))
-    })
-
-    function onDelete(id: string) {
-        setRecords(prev => prev.filter(r => r.id !== id))
+    async function toggleSuspend(store: StoreData) {
+        const next = store.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED'
+        if (!confirm(`${next === 'SUSPENDED' ? '⏸ Suspend' : '▶ Activate'} "${store.name}"?`)) return
+        setSuspending(store.id)
+        await adminFetch(`/api/admin/tenants/${store.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: next }),
+        })
+        setSuspending(null)
+        load()
     }
 
-    // Root: model cards
-    if (!modelKey) {
-        return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: '14px' }}>
-                {Object.entries(MODELS).map(([key, m]) => (
-                    <Link key={key} href={`/admin/database/${key}`} style={{ textDecoration: 'none' }}>
-                        <div style={{
-                            background: C.card, border: `1px solid ${C.border}`,
-                            borderRadius: 14, padding: '18px', cursor: 'pointer',
-                            transition: 'all 0.15s',
-                        }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.borderColor = m.color + '50'
-                                e.currentTarget.style.background = m.color + '08'
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.borderColor = C.border
-                                e.currentTarget.style.background = C.card
-                            }}
-                        >
-                            <div style={{ fontSize: '1.8rem', marginBottom: '10px' }}>{m.emoji}</div>
-                            <div style={{ fontWeight: 700, color: C.text, fontSize: '0.9rem', marginBottom: '4px' }}>{m.label}</div>
-                            <div style={{ fontSize: '0.72rem', color: C.textMuted }}>{m.desc}</div>
+    const filtered = stores.filter(s =>
+        s.name.toLowerCase().includes(search.toLowerCase()) ||
+        (s.displayName || '').toLowerCase().includes(search.toLowerCase()) ||
+        s.code.toLowerCase().includes(search.toLowerCase())
+    )
+
+    // Global stats
+    const totalOrders = stores.reduce((s, t) => s + t.ordersToday, 0)
+    const totalOpen = stores.reduce((s, t) => s + t.ordersOpen, 0)
+    const totalPending = stores.reduce((s, t) => s + t.ordersPending, 0)
+    const totalProducts = stores.reduce((s, t) => s + t.products, 0)
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontFamily: "'Inter',system-ui,sans-serif" }}>
+
+            {/* ── Platform Stats Bar ──────────────────────────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+                {[
+                    { label: 'Stores', value: stores.length, icon: '🏪', color: '#3b82f6' },
+                    { label: 'Orders Today', value: totalOrders, icon: '📋', color: '#10b981' },
+                    { label: 'Open Orders', value: totalOpen + totalPending, icon: '🔥', color: totalOpen + totalPending > 0 ? '#f59e0b' : '#475569' },
+                    { label: 'Total Products', value: totalProducts, icon: '📦', color: '#8b5cf6' },
+                ].map(stat => (
+                    <div key={stat.label} style={{ background: `${stat.color}0e`, border: `1px solid ${stat.color}22`, borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: '1.5rem' }}>{stat.icon}</span>
+                        <div>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: stat.color, lineHeight: 1 }}>{loading ? '—' : fmt(stat.value)}</div>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{stat.label}</div>
                         </div>
-                    </Link>
+                    </div>
                 ))}
             </div>
-        )
-    }
 
-    if (!config) {
-        return <div style={{ color: '#f87171', padding: '24px' }}>Unknown model: {modelKey}</div>
-    }
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '14px' }}>
-            {/* Toolbar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                    flex: 1, display: 'flex', alignItems: 'center', gap: '8px',
-                    background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`,
-                    borderRadius: 10, padding: '8px 12px',
-                }}>
-                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2">
-                        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                    </svg>
-                    <input
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder={`Search ${config.label}…`}
-                        style={{
-                            flex: 1, background: 'none', border: 'none', outline: 'none',
-                            color: C.text, fontSize: '0.82rem', fontFamily: 'inherit',
-                        }}
-                    />
+            {/* ── View Switcher + Search ───────────────────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 3, gap: 2 }}>
+                    {[{ key: 'hub', label: '🏪 Store Hub' }, { key: 'tables', label: '🗄️ DB Tables' }].map(v => (
+                        <button key={v.key} onClick={() => setView(v.key as any)} style={{
+                            border: 'none', cursor: 'pointer', borderRadius: 8, padding: '6px 16px',
+                            fontSize: '0.8rem', fontFamily: 'inherit', fontWeight: view === v.key ? 700 : 400,
+                            background: view === v.key ? 'rgba(99,102,241,0.2)' : 'transparent',
+                            color: view === v.key ? '#818cf8' : '#475569',
+                        }}>{v.label}</button>
+                    ))}
                 </div>
-                <Link href={`/admin/database/${modelKey}/new`} style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    padding: '8px 16px', borderRadius: 10, textDecoration: 'none',
-                    background: C.accent, color: '#fff', fontSize: '0.82rem', fontWeight: 600,
-                    flexShrink: 0,
-                }}>
-                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    Add New
+                {view === 'hub' && (
+                    <>
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาร้าน…"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 9, padding: '7px 14px', fontSize: '0.82rem', color: '#e2e8f0', outline: 'none', fontFamily: 'inherit', width: 200 }}
+                        />
+                        <button onClick={load} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9, padding: '7px 14px', color: '#64748b', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            ↻ Refresh
+                        </button>
+                    </>
+                )}
+                <Link href="/admin/tenants/new" style={{ marginLeft: 'auto', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontSize: '0.82rem', fontWeight: 700, padding: '8px 18px', borderRadius: 10, textDecoration: 'none', boxShadow: '0 4px 12px rgba(99,102,241,0.35)', whiteSpace: 'nowrap' }}>
+                    + New Store
                 </Link>
             </div>
 
-            {/* Count */}
-            {!loading && !error && (
-                <div style={{ fontSize: '0.72rem', color: C.textMuted }}>
-                    {filtered.length} of {records.length} {config.label}
-                </div>
+            {/* ── Store Hub View ───────────────────────────────────────── */}
+            {view === 'hub' && (
+                loading ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: '#475569' }}>กำลังโหลดข้อมูลร้านค้า…</div>
+                ) : filtered.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: '#334155' }}>ไม่พบร้านค้า</div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {filtered.map(store => {
+                            const s = STATUS_STYLE[store.status]
+                            const hasActivity = store.ordersPending > 0 || store.ordersOpen > 0
+                            return (
+                                <div key={store.id} style={{
+                                    background: 'rgba(255,255,255,0.025)',
+                                    border: `1px solid ${hasActivity ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.07)'}`,
+                                    borderRadius: 18, overflow: 'hidden',
+                                    boxShadow: hasActivity ? '0 0 0 1px rgba(245,158,11,0.1)' : 'none',
+                                }}>
+                                    {/* Card Header */}
+                                    <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}>🏪</div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                <span style={{ color: '#f1f5f9', fontWeight: 800, fontSize: '1rem' }}>{store.displayName || store.name}</span>
+                                                <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: '#64748b', background: 'rgba(255,255,255,0.05)', padding: '2px 7px', borderRadius: 5 }}>{store.code}</span>
+                                                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: s.color, background: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: '2px 8px' }}>{s.label}</span>
+                                                {store.ordersPending > 0 && (
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 99, padding: '2px 8px', animation: 'pulse 1.5s ease infinite' }}>
+                                                        🔔 {store.ordersPending} รอยืนยัน
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: 3 }}>
+                                                สร้างวันที่ {fmtDate(store.createdAt)} · หมดอายุ {fmtDate(store.subEndsAt)} · 💰 {fmt(store.walletLAK)} LAK
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Stat Counters */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        {[
+                                            { label: 'Orders วันนี้', value: store.ordersToday, color: '#10b981', icon: '📋' },
+                                            { label: 'OPEN Orders', value: store.ordersOpen, color: store.ordersOpen > 0 ? '#3b82f6' : '#334155', icon: '🍽️' },
+                                            { label: 'รอยืนยัน', value: store.ordersPending, color: store.ordersPending > 0 ? '#f59e0b' : '#334155', icon: '⏳' },
+                                            { label: 'สินค้า', value: store.products, color: '#8b5cf6', icon: '📦' },
+                                            { label: 'พนักงาน', value: store.users, color: '#ec4899', icon: '👤' },
+                                        ].map(stat => (
+                                            <div key={stat.label} style={{ padding: '12px 16px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.04)' }}>
+                                                <div style={{ fontSize: '1.3rem', fontWeight: 900, color: stat.color, lineHeight: 1 }}>{fmt(stat.value)}</div>
+                                                <div style={{ fontSize: '0.62rem', color: '#334155', marginTop: 3, whiteSpace: 'nowrap' }}>{stat.icon} {stat.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Quick Actions */}
+                                    <div style={{ padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                        {[
+                                            { label: '📋 คำสั่งซื้อ', href: `/admin/database/order`, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.2)' },
+                                            { label: '🍜 เมนู/สินค้า', href: `/admin/database/product`, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
+                                            { label: '👤 ผู้ใช้งาน', href: `/admin/database/user`, color: '#10b981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.2)' },
+                                            { label: '🪑 โต๊ะ', href: `/admin/database/diningtable`, color: '#14b8a6', bg: 'rgba(20,184,166,0.1)', border: 'rgba(20,184,166,0.2)' },
+                                        ].map(btn => (
+                                            <Link key={btn.label} href={`${btn.href}?tenantId=${store.id}`} style={{ fontSize: '0.75rem', fontWeight: 600, padding: '6px 13px', borderRadius: 9, textDecoration: 'none', color: btn.color, background: btn.bg, border: `1px solid ${btn.border}`, whiteSpace: 'nowrap' }}>
+                                                {btn.label}
+                                            </Link>
+                                        ))}
+                                        <Link href={`/admin/tenants/${store.id}`} style={{ fontSize: '0.75rem', fontWeight: 600, padding: '6px 13px', borderRadius: 9, textDecoration: 'none', color: '#818cf8', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', whiteSpace: 'nowrap' }}>
+                                            ⚙️ ตั้งค่าร้าน
+                                        </Link>
+
+                                        {/* Suspend / Activate */}
+                                        <button onClick={() => toggleSuspend(store)} disabled={suspending === store.id} style={{
+                                            marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, padding: '6px 13px', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                                            opacity: suspending === store.id ? 0.5 : 1,
+                                            color: store.status === 'SUSPENDED' ? '#10b981' : '#ef4444',
+                                            background: store.status === 'SUSPENDED' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                                            border: `1px solid ${store.status === 'SUSPENDED' ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                                        }}>
+                                            {suspending === store.id ? '…' : store.status === 'SUSPENDED' ? '▶ Activate' : '⏸ Suspend'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )
             )}
 
-            {/* States */}
-            {loading && <Skeleton />}
-            {error && (
-                <div style={{
-                    padding: '20px', borderRadius: 12, textAlign: 'center',
-                    background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)',
-                    color: '#f87171', fontSize: '0.82rem',
-                }}>{error}</div>
-            )}
-
-            {/* Records */}
-            {!loading && !error && (
-                <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
-                    {filtered.length === 0 && (
-                        <div style={{ padding: '40px', textAlign: 'center', color: C.textMuted, fontSize: '0.85rem' }}>
-                            {search ? 'No results found' : `No ${config.label} yet`}
-                        </div>
-                    )}
-                    {filtered.map(record => (
-                        <RecordCard
-                            key={record.id}
-                            record={record}
-                            modelKey={modelKey}
-                            config={config}
-                            onDelete={onDelete}
-                            allRecords={records}
-                        />
+            {/* ── DB Tables View ───────────────────────────────────────── */}
+            {view === 'tables' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+                    {DB_MODELS.map(m => (
+                        <Link href={`/admin/database/${m.key}`} key={m.key} style={{
+                            display: 'flex', alignItems: 'center', gap: 14,
+                            background: `${m.color}09`, border: `1px solid ${m.color}22`,
+                            borderRadius: 14, padding: '18px 20px', textDecoration: 'none',
+                            transition: 'all 0.15s',
+                        }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${m.color}55`; (e.currentTarget as HTMLElement).style.background = `${m.color}14`; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = `${m.color}22`; (e.currentTarget as HTMLElement).style.background = `${m.color}09`; }}
+                        >
+                            <div style={{ width: 40, height: 40, borderRadius: 11, background: `${m.color}18`, border: `1px solid ${m.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>
+                                {m.emoji}
+                            </div>
+                            <div>
+                                <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '0.88rem' }}>{m.label}</div>
+                                <div style={{ color: '#475569', fontSize: '0.7rem', marginTop: 2 }}>{m.desc}</div>
+                            </div>
+                        </Link>
                     ))}
                 </div>
             )}
+
+            <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}`}</style>
         </div>
     )
 }
