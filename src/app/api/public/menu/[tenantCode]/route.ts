@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 // GET /api/public/menu/[tenantCode]
-// Returns active products grouped by category for a tenant
+// Returns sale products (SALE_ITEM/ENTERTAIN, salePrice>0) grouped by non-stock categories.
+// Categories with no matching products are excluded from the response.
 export async function GET(
     _req: Request,
     { params }: { params: Promise<{ tenantCode: string }> }
@@ -16,11 +17,7 @@ export async function GET(
         })
         if (!tenant) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
 
-        const categories = await prisma.category.findMany({
-            where: { tenantId: tenant.id, isActive: true },
-            orderBy: { name: 'asc' },
-        })
-
+        // Only SALE products with a price
         const rawProducts = await prisma.product.findMany({
             where: {
                 tenantId: tenant.id,
@@ -35,8 +32,21 @@ export async function GET(
                 imageUrl: true,
             },
         })
-        // Map salePrice → price so the mobile menu page needs no changes
+        // Map salePrice → price (mobile page uses .price)
         const products = rawProducts.map(p => ({ ...p, price: p.salePrice }))
+
+        // Build set of categoryIds that have at least 1 eligible product
+        const activeCatIds = new Set(products.map(p => p.categoryId))
+
+        // Only categories that actually have at least 1 eligible sale product
+        const categories = await prisma.category.findMany({
+            where: {
+                tenantId: tenant.id,
+                isActive: true,
+                id: { in: [...activeCatIds] },
+            },
+            orderBy: { name: 'asc' },
+        })
 
         return NextResponse.json({ tenant, categories, products })
     } catch (e: any) {

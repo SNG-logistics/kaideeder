@@ -245,6 +245,17 @@ export default function CategoriesSettingsPage() {
                 </button>
             </div>
 
+            {/* QR Menu tip banner — only shown on MENU tab */}
+            {activeTab === 'MENU' && (
+                <div style={{ marginBottom: '1rem', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ fontSize: '1.2rem', marginTop: 1 }}>📱</span>
+                    <div style={{ fontSize: '0.82rem', color: '#166534', lineHeight: 1.7 }}>
+                        <b>QR Self-Order:</b> หมวดหมู่เมนูจะโชว์ใน QR Menu <b>ก็ต่อเมื่อมีสินค้าขายหน้าร้าน (SALE_ITEM)</b> อยู่ในหมวดนั้นจริงๆ<br />
+                        หากหมวดใดโชว์ว่างเปล่าใน QR → กดปุ่ม <b>📦</b> เพื่อตรวจสอบและย้ายสินค้าผิดประเภทออก
+                    </div>
+                </div>
+            )}
+
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 8, marginBottom: '1.5rem', background: '#fff', padding: 6, borderRadius: 14, border: '1px solid var(--border)', width: 'fit-content' }}>
                 <button
@@ -303,9 +314,14 @@ export default function CategoriesSettingsPage() {
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontWeight: 700, color: '#1A1D26', fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: 4, display: 'flex', gap: 6 }}>
-                                    <span>สินค้ารวม: {cat._count.products}</span>
-                                    {cat.code.startsWith('CUSTOM_') ? <span style={{ color: '#059669' }}>สร้างเอง</span> : <span style={{ color: '#3B82F6' }}>ระบบพื้นฐาน</span>}
+                                <div style={{ fontSize: '0.72rem', color: '#6B7280', marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+                                    <span>สินค้า: {cat._count.products}</span>
+                                    {cat.code.startsWith('CUSTOM_') ? <span style={{ color: '#059669' }}>สร้างเอง</span> : <span style={{ color: '#3B82F6' }}>ระบบ</span>}
+                                    {activeTab === 'MENU' ? (
+                                        <span style={{ background: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', borderRadius: 5, padding: '1px 6px', fontWeight: 700, fontSize: '0.65rem' }}>📱 QR Menu</span>
+                                    ) : (
+                                        <span style={{ background: '#F3F4F6', color: '#9CA3AF', border: '1px solid #E5E7EB', borderRadius: 5, padding: '1px 6px', fontWeight: 600, fontSize: '0.65rem' }}>🚫 ซ่อนใน QR</span>
+                                    )}
                                 </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
