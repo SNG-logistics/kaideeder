@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 type OrderItem = { id: string; quantity: number; unitPrice: number; note: string | null; product: { name: string } }
 type PendingOrder = {
@@ -40,11 +40,8 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
             <div style={{ position: 'relative', background: '#0d1220', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 18, padding: '24px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.6)', animation: 'slideUp 0.25s ease' }}>
-                {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}>
-                        🔔
-                    </div>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}>🔔</div>
                     <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '0.95rem' }}>ออเดอร์ใหม่จากลูกค้า</div>
                         <div style={{ color: '#64748b', fontSize: '0.72rem', marginTop: 2 }}>
@@ -56,11 +53,8 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
                     </div>
                 </div>
 
-                {/* Items */}
                 <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, marginBottom: 14, overflow: 'hidden' }}>
-                    <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        รายการ
-                    </div>
+                    <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>รายการ</div>
                     {order.items.map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                             <span style={{ color: '#e2e8f0', fontSize: '0.82rem' }}>
@@ -79,7 +73,6 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
                     </div>
                 </div>
 
-                {/* Buttons */}
                 <div style={{ display: 'flex', gap: 10 }}>
                     <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.09)', background: 'transparent', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' }}>
                         รอก่อน
@@ -94,11 +87,33 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
     )
 }
 
-// ── Main component — drop into any layout or sidebar ───────────────
+// ── Main component ─────────────────────────────────────────────────
 export default function NewOrderAlert() {
     const [pending, setPending] = useState<PendingOrder[]>([])
     const [current, setCurrent] = useState<PendingOrder | null>(null)
     const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
+    // Browser blocks audio until user interacts first
+    const audioUnlocked = useRef(false)
+    const [showSoundHint, setShowSoundHint] = useState(true)
+
+    // Unlock audio context on the first click or touch anywhere
+    useEffect(() => {
+        function unlock() {
+            audioUnlocked.current = true
+            setShowSoundHint(false)
+        }
+        document.addEventListener('click', unlock, { once: true })
+        document.addEventListener('touchstart', unlock, { once: true })
+        return () => {
+            document.removeEventListener('click', unlock)
+            document.removeEventListener('touchstart', unlock)
+        }
+    }, [])
+
+    const playSound = useCallback(() => {
+        if (!audioUnlocked.current) return  // silently skip — no interaction yet
+        try { new Audio('/notification.mp3').play() } catch {}
+    }, [])
 
     const fetchPending = useCallback(async () => {
         try {
@@ -107,18 +122,16 @@ export default function NewOrderAlert() {
             const data = await res.json()
             const orders: PendingOrder[] = data.data ?? data ?? []
             setPending(orders)
-            // Auto-pop modal for first unseen order
             if (orders.length > 0 && !current) {
                 const unseen = orders.find(o => !seenIds.has(o.id))
                 if (unseen) {
                     setCurrent(unseen)
                     setSeenIds(prev => new Set([...prev, unseen.id]))
-                    // Play notification sound
-                    try { new Audio('/notification.mp3').play() } catch {}
+                    playSound()
                 }
             }
         } catch {}
-    }, [current, seenIds])
+    }, [current, seenIds, playSound])
 
     useEffect(() => {
         fetchPending()
@@ -127,22 +140,31 @@ export default function NewOrderAlert() {
     }, [fetchPending])
 
     function handleConfirm() {
-        // Remove confirmed order from pending list
-        if (current) {
-            setPending(prev => prev.filter(o => o.id !== current.id))
-        }
+        if (current) setPending(prev => prev.filter(o => o.id !== current.id))
         setCurrent(null)
     }
-
-    function handleClose() {
-        setCurrent(null)
-    }
-
-    if (pending.length === 0 && !current) return null
 
     return (
         <>
-            {/* Badge — shows on any persistent nav/header */}
+            {/* Sound unlock hint — only visible when pending orders exist and user hasn't clicked yet */}
+            {showSoundHint && pending.length > 0 && (
+                <div
+                    onClick={() => { audioUnlocked.current = true; setShowSoundHint(false) }}
+                    style={{
+                        position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
+                        zIndex: 10000, background: '#1e293b', border: '1px solid rgba(245,158,11,0.4)',
+                        borderRadius: 99, padding: '6px 16px', fontSize: '0.75rem',
+                        color: '#f59e0b', fontWeight: 600, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    🔔 แตะที่นี่เพื่อเปิดเสียงแจ้งเตือน
+                </div>
+            )}
+
+            {/* Floating badge — when pending orders exist but modal is closed */}
             {pending.length > 0 && !current && (
                 <button
                     onClick={() => { if (pending.length > 0) setCurrent(pending[0]) }}
@@ -160,12 +182,11 @@ export default function NewOrderAlert() {
                 </button>
             )}
 
-            {/* Modal */}
             {current && (
                 <PendingOrderModal
                     order={current}
                     onConfirm={handleConfirm}
-                    onClose={handleClose}
+                    onClose={() => setCurrent(null)}
                 />
             )}
 

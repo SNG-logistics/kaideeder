@@ -2,13 +2,13 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 
-type Ctx = { params: Promise<{ orderId: string }> }
+type Ctx = { params: Promise<{ id: string }> }
 
 // POST /api/pos/orders/[orderId]/confirm — cashier confirms a PENDING_CONFIRM order
 // Sets status to OPEN so kitchen picks it up
 export const POST = withAuth(async (req: NextRequest, ctx) => {
     const { tenantId, user }: any = ctx
-    const { orderId } = await (ctx as any).params   // Next.js 15: params is a Promise
+    const { id: orderId } = await (ctx as any).params   // folder is [id]
 
     if (!orderId) return err('Missing orderId')
 
