@@ -114,10 +114,11 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ── Record Card ──────────────────────────────────────────────────────
-function RecordCard({ record, modelKey, config, onDelete }: {
-    record: any; modelKey: string; config: ModelConfig; onDelete: (id: string) => void
+function RecordCard({ record, modelKey, config, onDelete, allRecords }: {
+    record: any; modelKey: string; config: ModelConfig; onDelete: (id: string) => void; allRecords?: any[]
 }) {
     const [deleting, setDeleting] = useState(false)
+    const [showMove, setShowMove] = useState(false)
     const id = record.id
     const primary = record[config.primaryDisplay]
     const secondary = config.secondaryDisplay ? record[config.secondaryDisplay] : null
@@ -176,6 +177,25 @@ function RecordCard({ record, modelKey, config, onDelete }: {
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                {/* Move products button — only for category model */}
+                {modelKey === 'category' && (
+                    <button onClick={() => setShowMove(true)} style={{
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        padding: '5px 10px', borderRadius: 7,
+                        background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
+                        color: '#34d399', fontSize: '0.72rem', fontWeight: 500,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                        📦 Move
+                    </button>
+                )}
+                {showMove && modelKey === 'category' && (
+                    <MoveProductsModal
+                        category={record}
+                        allCategories={allRecords || []}
+                        onClose={() => setShowMove(false)}
+                    />
+                )}
                 <Link href={`/admin/database/${modelKey}/${id}`} style={{
                     display: 'flex', alignItems: 'center', gap: '4px',
                     padding: '5px 10px', borderRadius: 7, textDecoration: 'none',
@@ -201,6 +221,155 @@ function RecordCard({ record, modelKey, config, onDelete }: {
                     </svg>
                     {deleting ? '…' : 'Del'}
                 </button>
+            </div>
+        </div>
+    )
+}
+
+// ── Move Products Modal (category only) ────────────────────────────
+function MoveProductsModal({ category, allCategories, onClose }: {
+    category: any
+    allCategories: any[]
+    onClose: () => void
+}) {
+    const [products, setProducts] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [selected, setSelected] = useState<string[]>([])
+    const [targetId, setTargetId] = useState('')
+    const [moving, setMoving] = useState(false)
+    const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+    useEffect(() => {
+        fetch(`/api/admin/move-products?categoryId=${category.id}`)
+            .then(r => r.json())
+            .then(d => {
+                const list = d.products || []
+                setProducts(list)
+                setSelected(list.map((p: any) => p.id))
+            })
+            .finally(() => setLoading(false))
+    }, [category.id])
+
+    function toggleAll() {
+        setSelected(prev => prev.length === products.length ? [] : products.map(p => p.id))
+    }
+    function toggle(id: string) {
+        setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    }
+
+    async function handleMove(e: React.FormEvent) {
+        e.preventDefault()
+        if (!selected.length || !targetId) return
+        setMoving(true)
+        try {
+            const res = await fetch('/api/admin/move-products', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productIds: selected, targetCategoryId: targetId }),
+            })
+            const json = await res.json()
+            if (res.ok) {
+                setMsg({ text: `Moved ${json.movedCount} product(s) successfully`, ok: true })
+                // Refresh product list
+                const r2 = await fetch(`/api/admin/move-products?categoryId=${category.id}`)
+                const d2 = await r2.json()
+                setProducts(d2.products || [])
+                setSelected([])
+                setTargetId('')
+            } else {
+                setMsg({ text: json.error || 'Move failed', ok: false })
+            }
+        } catch {
+            setMsg({ text: 'Network error', ok: false })
+        }
+        setMoving(false)
+    }
+
+    // Categories of the same tenant, excluding current
+    const others = allCategories.filter(c => c.tenantId === category.tenantId && c.id !== category.id)
+
+    const overlay: React.CSSProperties = {
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+    }
+    const box: React.CSSProperties = {
+        background: '#0d1220', border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 520,
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: '1rem',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    }
+    const btn = (accent: boolean, disabled?: boolean): React.CSSProperties => ({
+        flex: 1, minHeight: 38, borderRadius: 8, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+        fontFamily: 'inherit', fontWeight: 600, fontSize: '0.82rem',
+        background: accent ? '#2563eb' : 'rgba(255,255,255,0.07)',
+        color: accent ? '#fff' : '#94a3b8', opacity: disabled ? 0.5 : 1,
+    })
+
+    return (
+        <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+            <div style={box}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#e2e8f0' }}>📦 Move Products — {category.name}</span>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                </div>
+
+                {msg && (
+                    <div style={{ padding: '8px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600,
+                        background: msg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                        color: msg.ok ? '#34d399' : '#f87171', border: `1px solid ${msg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+                        {msg.ok ? '✅' : '❌'} {msg.text}
+                    </div>
+                )}
+
+                {loading ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>Loading products…</div>
+                ) : (
+                    <>
+                        {/* Select All */}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>
+                            <input type="checkbox" checked={selected.length === products.length && products.length > 0} onChange={toggleAll} style={{ width: 15, height: 15 }} />
+                            Select All ({selected.length}/{products.length})
+                        </label>
+
+                        {/* Product list */}
+                        <div style={{ overflowY: 'auto', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '0.4rem', maxHeight: 280, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {products.length === 0 && <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>No products in this category</div>}
+                            {products.map(p => (
+                                <label key={p.id} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px',
+                                    background: selected.includes(p.id) ? 'rgba(37,99,235,0.1)' : 'transparent',
+                                    borderRadius: 7, cursor: 'pointer', border: '1px solid',
+                                    borderColor: selected.includes(p.id) ? 'rgba(37,99,235,0.3)' : 'transparent',
+                                    transition: 'all 0.1s',
+                                }}>
+                                    <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} style={{ width: 14, height: 14 }} />
+                                    <div>
+                                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0' }}>{p.name}{p.nameTh ? ` / ${p.nameTh}` : ''}</div>
+                                        <div style={{ fontSize: '0.68rem', color: '#64748b' }}>SKU: {p.sku} · {p.unit}</div>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+
+                        {/* Move form */}
+                        <form onSubmit={handleMove} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Target Category</label>
+                                <select required value={targetId} onChange={e => setTargetId(e.target.value)}
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: '#e2e8f0', fontSize: '0.82rem', fontFamily: 'inherit' }}>
+                                    <option value="">-- Select target category --</option>
+                                    {others.map(c => <option key={c.id} value={c.id}>{c.icon || ''} {c.name} ({c.code})</option>)}
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <button type="button" onClick={onClose} style={btn(false)}>Cancel</button>
+                                <button type="submit" disabled={moving || selected.length === 0 || !targetId} style={btn(true, moving || selected.length === 0 || !targetId)}>
+                                    {moving ? 'Moving…' : `Move ${selected.length} Product(s)`}
+                                </button>
+                            </div>
+                        </form>
+                    </>
+                )}
             </div>
         </div>
     )
@@ -356,6 +525,7 @@ export default function DatabaseModelClient({ modelKey }: { modelKey: string | n
                             modelKey={modelKey}
                             config={config}
                             onDelete={onDelete}
+                            allRecords={records}
                         />
                     ))}
                 </div>

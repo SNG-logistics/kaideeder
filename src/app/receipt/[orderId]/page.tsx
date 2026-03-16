@@ -101,6 +101,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                 }
                 @media print {
                     @page { size: 80mm auto; margin: 0; }
+                    html, body { height: fit-content !important; overflow: hidden !important; }
                     body { background: #fff !important; padding: 0 !important; }
                     .no-print { display:none !important; }
                     .receipt-card { box-shadow:none !important; border-radius:0 !important; margin:0 !important; border:none !important; }

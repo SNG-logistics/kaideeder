@@ -39,7 +39,8 @@ function printKitchenTicket(opts: {
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   @page{size:80mm auto;margin:3mm 2mm}
-  body{font-family:'Courier New',monospace;font-size:14px;color:#000;width:80mm;line-height:1.35}
+  html,body{height:fit-content!important;overflow:hidden!important}
+  body{font-family:'Courier New',monospace;font-size:14px;color:#000;width:76mm;line-height:1.35}
   .top{font-size:18px;font-weight:900;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:baseline}
   .sub{font-size:10px;color:#444;margin-bottom:6px;border-bottom:1px dashed #000;padding-bottom:4px}
   .row{display:flex;gap:6px;padding:3px 0;border-bottom:1px dotted #ccc}
@@ -56,7 +57,7 @@ ${items.map(i => `<div class="row">
   <span class="q">${i.quantity}</span>
   <span class="n">${i.product?.name || ''}${i.note ? `<br><span class="nt">📝 ${i.note}</span>` : ''}</span>
 </div>`).join('')}
-<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1000);}<\/script>
+<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
 </body></html>`)
     w.document.close()
 }
@@ -1457,7 +1458,7 @@ export default function POSPage() {
                                     <div style={{ padding: '12px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 10, background: '#fff', flexShrink: 0 }}>
                                         <button
                                             onClick={() => {
-                                                const win = window.open('', '_blank', 'width=400,height=600')
+                                                const win = window.open('', '_blank', 'width=302,height=600')
                                                 if (!win) return
                                                 const items = selectedHistoryOrder.items?.map((i: any) =>
                                                     `<tr><td>${i.product?.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${(i.quantity * i.unitPrice).toLocaleString()}</td></tr>`
