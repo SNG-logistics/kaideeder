@@ -8,8 +8,7 @@ type Ctx = { params: Promise<{ orderId: string }> }
 // Sets status to OPEN so kitchen picks it up
 export const POST = withAuth(async (req: NextRequest, ctx) => {
     const { tenantId, user }: any = ctx
-    const params = (ctx as any).params
-    const orderId = params?.orderId
+    const { orderId } = await (ctx as any).params   // Next.js 15: params is a Promise
 
     if (!orderId) return err('Missing orderId')
 
