@@ -201,6 +201,13 @@ async function deductInventory(
     tenantId: string,
 ) {
     try {
+        // Guard: skip if locationId is empty (no matching location configured)
+        if (!locationId) {
+            const product = await prisma.product.findUnique({ where: { id: productId }, select: { name: true } })
+            errors.push(`⚠️ ${product?.name || productId}: ไม่มี location — ข้ามการตัดสต็อค`)
+            return
+        }
+
         let inventory = await prisma.inventory.findFirst({
             where: { productId, locationId, ...(tenantId ? { tenantId } : {}) },
         })
@@ -216,6 +223,7 @@ async function deductInventory(
                 },
             })
         }
+
 
         // Allow negative stock (just warn)
         if (inventory.quantity < quantity) {

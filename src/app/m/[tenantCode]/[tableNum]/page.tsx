@@ -19,7 +19,7 @@ type BillData = {
     billRequested?: boolean; rounds?: BillRound[]; grandTotal?: number
 }
 
-// ── Light / Green Color System ─────────────────────────────────────────────
+// ── Color System ───────────────────────────────────────────────────────────
 const C = {
     bg: '#f5f7f5',
     card: '#ffffff',
@@ -38,24 +38,26 @@ const C = {
     shadowGreen: '0 8px 28px rgba(42,157,80,0.35)',
 }
 
-const FONT = "'Noto Sans Thai','Sarabun','Inter',system-ui,sans-serif"
+const FONT = "'Outfit','Noto Sans Thai',system-ui,sans-serif"
 
 function fmtPrice(v: number | null, currency: string) {
     if (v === null || v === undefined) return '—'
     return `${Math.round(v).toLocaleString()} ${currency}`
 }
 
-// ── Global Styles Injected Once ────────────────────────────────────────────
+// ── Global Styles ──────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap');
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { margin: 0; padding: 0; background: ${C.bg}; }
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  html,body { margin: 0; padding: 0; background: #e8eceb; height: 100%; }
   ::-webkit-scrollbar { display: none; }
-  @keyframes spin { to { transform: rotate(360deg) } }
-  @keyframes fadeUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
-  @keyframes bounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18)} }
+  @keyframes spin    { to { transform: rotate(360deg) } }
+  @keyframes fadeUp  { from { opacity:0; transform:translateY(22px) } to { opacity:1; transform:translateY(0) } }
+  @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+  @keyframes popIn   { 0%{transform:scale(0.72);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
+  @keyframes bounce  { 0%,100%{transform:scale(1)} 45%{transform:scale(1.22)} 70%{transform:scale(0.94)} }
   @keyframes slideUp { from { transform:translateY(100%) } to { transform:translateY(0) } }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+  @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.5} }
 `
 
 export default function MenuPage() {
@@ -86,15 +88,10 @@ export default function MenuPage() {
     const [billDone, setBillDone] = useState(false)
 
     useEffect(() => {
-        const tenantCode = params.tenantCode
-        // 1. Fetch menu data (light — no banner base64 in payload)
-        const menuPromise = fetch(`/api/public/menu/${tenantCode}`)
-            .then(r => r.json())
-        // 2. Check if banner exists (HEAD = only headers, no body download)
-        const bannerPromise = fetch(`/api/public/banner/${tenantCode}`, { method: 'HEAD' })
-            .then(r => r.status === 200)
-            .catch(() => false)
-
+        const tc = params.tenantCode
+        const menuPromise = fetch(`/api/public/menu/${tc}`).then(r => r.json())
+        const bannerPromise = fetch(`/api/public/banner/${tc}`, { method: 'HEAD' })
+            .then(r => r.status === 200).catch(() => false)
         Promise.all([menuPromise, bannerPromise])
             .then(([d, hasBanner]) => {
                 if (d.error) { setError(d.error); return }
@@ -194,7 +191,7 @@ export default function MenuPage() {
 
     // ── Loading ────────────────────────────────────────────────────────
     if (loading) return (
-        <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14, fontFamily: FONT }}>
+        <div style={{ minHeight: '100dvh', background: '#e8eceb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14, fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ width: 44, height: 44, border: `4px solid ${C.accentLight}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
             <p style={{ color: C.muted, fontSize: '0.88rem', margin: 0 }}>กำลังโหลดเมนู…</p>
@@ -202,7 +199,7 @@ export default function MenuPage() {
     )
 
     if (error && !submitted) return (
-        <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24, fontFamily: FONT }}>
+        <div style={{ minHeight: '100dvh', background: '#e8eceb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24, fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
             <span style={{ fontSize: '3rem' }}>😕</span>
             <p style={{ color: C.danger, fontWeight: 600, textAlign: 'center', margin: 0 }}>{error}</p>
@@ -212,122 +209,111 @@ export default function MenuPage() {
 
     // ── Bill View ──────────────────────────────────────────────────────
     if (viewBill) return (
-        <div style={{ minHeight: '100dvh', background: C.bg, fontFamily: FONT, maxWidth: 480, margin: '0 auto' }}>
+        <div style={{ minHeight: '100dvh', background: '#e8eceb', fontFamily: FONT, display: 'flex', justifyContent: 'center' }}>
             <style>{GLOBAL_CSS}</style>
-
-            {/* Header */}
-            <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`, padding: '14px 20px', position: 'sticky', top: 0, zIndex: 30, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button onClick={() => setViewBill(false)} style={{ background: C.accentLight, border: 'none', borderRadius: 10, padding: '8px 14px', color: C.accent, cursor: 'pointer', fontFamily: FONT, fontSize: '0.83rem', fontWeight: 600 }}>← กลับ</button>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.62rem', color: C.muted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>โต๊ะ {tableNum}</div>
-                        <div style={{ color: C.text, fontWeight: 800, fontSize: '1.05rem' }}>🧾 บิลรวมทั้งหมด</div>
-                    </div>
-                    {totalRounds > 0 && (
-                        <div style={{ background: C.accentLight, border: `1px solid ${C.accentMid}`, borderRadius: 10, padding: '6px 12px', textAlign: 'center' }}>
-                            <div style={{ color: C.accent, fontWeight: 800, fontSize: '1.1rem', lineHeight: 1 }}>{totalRounds}</div>
-                            <div style={{ color: C.accent, fontSize: '0.58rem', fontWeight: 600 }}>รอบ</div>
+            <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', background: '#f7f8f7' }}>
+                <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`, padding: '14px 20px', position: 'sticky', top: 0, zIndex: 30, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button onClick={() => setViewBill(false)} style={{ background: C.accentLight, border: 'none', borderRadius: 10, padding: '8px 14px', color: C.accent, cursor: 'pointer', fontFamily: FONT, fontSize: '0.83rem', fontWeight: 600 }}>← กลับ</button>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.62rem', color: C.muted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>โต๊ะ {tableNum}</div>
+                            <div style={{ color: C.text, fontWeight: 800, fontSize: '1.05rem' }}>🧾 บิลรวมทั้งหมด</div>
                         </div>
+                        {totalRounds > 0 && (
+                            <div style={{ background: C.accentLight, border: `1px solid ${C.accentMid}`, borderRadius: 10, padding: '6px 12px', textAlign: 'center' }}>
+                                <div style={{ color: C.accent, fontWeight: 800, fontSize: '1.1rem', lineHeight: 1 }}>{totalRounds}</div>
+                                <div style={{ color: C.accent, fontSize: '0.58rem', fontWeight: 600 }}>รอบ</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div style={{ padding: '16px 16px 160px' }}>
+                    {billLoading ? (
+                        <div style={{ textAlign: 'center', padding: 60 }}>
+                            <div style={{ width: 36, height: 36, border: `3px solid ${C.accentLight}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+                            <p style={{ color: C.muted, margin: 0, fontSize: '0.85rem' }}>กำลังโหลด…</p>
+                        </div>
+                    ) : !bill?.hasOrder ? (
+                        <div style={{ textAlign: 'center', padding: 60, color: C.muted }}>
+                            <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📭</div>
+                            <div>ยังไม่มีออเดอร์ที่โต๊ะนี้</div>
+                        </div>
+                    ) : (
+                        <>
+                            {bill.rounds?.map(round => (
+                                <div key={round.orderId} style={{ background: C.card, border: `1px solid ${round.status === 'PENDING_CONFIRM' ? 'rgba(245,158,11,0.3)' : 'rgba(42,157,80,0.2)'}`, borderRadius: 16, overflow: 'hidden', marginBottom: 12, boxShadow: C.shadow }}>
+                                    <div style={{ padding: '10px 16px', background: round.status === 'PENDING_CONFIRM' ? 'rgba(245,158,11,0.06)' : 'rgba(42,157,80,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}` }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span style={{ fontSize: '1rem' }}>{round.status === 'OPEN' ? '✅' : '🕐'}</span>
+                                            <div>
+                                                <div style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>รอบที่ {round.round}</div>
+                                                <div style={{ color: C.muted, fontSize: '0.65rem', fontFamily: 'monospace' }}>{round.orderNumber}</div>
+                                            </div>
+                                        </div>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '4px 10px', borderRadius: 99, color: round.status === 'OPEN' ? '#fff' : C.gold, background: round.status === 'OPEN' ? C.accent : C.goldLight }}>
+                                            {round.status === 'OPEN' ? 'ยืนยันแล้ว' : 'รอยืนยัน'}
+                                        </span>
+                                    </div>
+                                    {round.items.map((item, i) => (
+                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 16px', borderBottom: `1px solid ${C.border}`, alignItems: 'flex-start' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <span style={{ color: C.text, fontSize: '0.85rem', fontWeight: 500 }}>{item.name}</span>
+                                                {item.note && <div style={{ color: C.muted, fontSize: '0.7rem', marginTop: 2 }}>{item.note}</div>}
+                                            </div>
+                                            <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+                                                <div style={{ color: C.muted, fontSize: '0.75rem' }}>×{item.quantity}</div>
+                                                <div style={{ color: C.accent, fontSize: '0.82rem', fontWeight: 700 }}>{Math.round(item.quantity * item.unitPrice).toLocaleString()}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div style={{ padding: '9px 16px', display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.02)' }}>
+                                        <span style={{ color: C.muted, fontSize: '0.78rem' }}>รวมรอบนี้</span>
+                                        <span style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>{Math.round(round.subtotal).toLocaleString()} {currency}</span>
+                                    </div>
+                                </div>
+                            ))}
+                            <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.25)`, borderRadius: 16, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                <div>
+                                    <div style={{ color: C.muted, fontSize: '0.75rem' }}>รวมทั้งหมด ({totalRounds} รอบ)</div>
+                                    {hasPending && <div style={{ color: C.gold, fontSize: '0.72rem', marginTop: 2, fontWeight: 600 }}>⚠️ รอยืนยัน {bill.rounds?.filter(r => r.status === 'PENDING_CONFIRM').length} รอบ</div>}
+                                </div>
+                                <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.5rem' }}>{Math.round(bill.grandTotal ?? 0).toLocaleString()} {currency}</span>
+                            </div>
+                            {hasOpenRound && (
+                                billDone || bill.billRequested ? (
+                                    <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.3)`, borderRadius: 16, padding: '18px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '2rem', marginBottom: 6 }}>✅</div>
+                                        <div style={{ color: C.accent, fontWeight: 700, fontSize: '0.95rem' }}>ส่งคำขอเช็คบิลแล้ว</div>
+                                        <div style={{ color: C.muted, fontSize: '0.8rem', marginTop: 4 }}>พนักงานจะมาหาคุณที่โต๊ะเร็วๆ นี้</div>
+                                    </div>
+                                ) : (
+                                    <button onClick={requestBill} disabled={billRequesting} style={{ width: '100%', background: billRequesting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 16, padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: billRequesting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: billRequesting ? 'none' : C.shadowGreen, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                        {billRequesting ? '⏳ กำลังส่ง…' : '🧾 เรียกเช็คบิล'}
+                                    </button>
+                                )
+                            )}
+                            {!hasOpenRound && hasPending && (
+                                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 14, padding: '12px 16px', textAlign: 'center', fontSize: '0.83rem', color: '#92400e' }}>
+                                    🕐 กรุณารอพนักงานยืนยันออเดอร์ก่อน
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
-            </div>
-
-            <div style={{ padding: '16px 16px 160px' }}>
-                {billLoading ? (
-                    <div style={{ textAlign: 'center', padding: 60 }}>
-                        <div style={{ width: 36, height: 36, border: `3px solid ${C.accentLight}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-                        <p style={{ color: C.muted, margin: 0, fontSize: '0.85rem' }}>กำลังโหลด…</p>
+                {hasAnyOrder && (
+                    <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, padding: '0 16px 24px', zIndex: 40 }}>
+                        <button onClick={() => setViewBill(false)} style={{ width: '100%', background: '#fff', border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '14px', fontWeight: 700, fontSize: '0.92rem', color: C.text, cursor: 'pointer', fontFamily: FONT, boxShadow: C.shadow }}>
+                            ➕ สั่งอาหารเพิ่ม
+                        </button>
                     </div>
-                ) : !bill?.hasOrder ? (
-                    <div style={{ textAlign: 'center', padding: 60, color: C.muted }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📭</div>
-                        <div>ยังไม่มีออเดอร์ที่โต๊ะนี้</div>
-                    </div>
-                ) : (
-                    <>
-                        {bill.rounds?.map(round => (
-                            <div key={round.orderId} style={{ background: C.card, border: `1px solid ${round.status === 'PENDING_CONFIRM' ? 'rgba(245,158,11,0.3)' : 'rgba(42,157,80,0.2)'}`, borderRadius: 16, overflow: 'hidden', marginBottom: 12, boxShadow: C.shadow }}>
-                                <div style={{ padding: '10px 16px', background: round.status === 'PENDING_CONFIRM' ? 'rgba(245,158,11,0.06)' : 'rgba(42,157,80,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}` }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontSize: '1rem' }}>{round.status === 'OPEN' ? '✅' : '🕐'}</span>
-                                        <div>
-                                            <div style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>รอบที่ {round.round}</div>
-                                            <div style={{ color: C.muted, fontSize: '0.65rem', fontFamily: 'monospace' }}>{round.orderNumber}</div>
-                                        </div>
-                                    </div>
-                                    <span style={{
-                                        fontSize: '0.65rem', fontWeight: 700, padding: '4px 10px', borderRadius: 99,
-                                        color: round.status === 'OPEN' ? '#fff' : C.gold,
-                                        background: round.status === 'OPEN' ? C.accent : C.goldLight,
-                                    }}>
-                                        {round.status === 'OPEN' ? 'ยืนยันแล้ว' : 'รอยืนยัน'}
-                                    </span>
-                                </div>
-                                {round.items.map((item, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 16px', borderBottom: `1px solid ${C.border}`, alignItems: 'flex-start' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <span style={{ color: C.text, fontSize: '0.85rem', fontWeight: 500 }}>{item.name}</span>
-                                            {item.note && <div style={{ color: C.muted, fontSize: '0.7rem', marginTop: 2 }}>{item.note}</div>}
-                                        </div>
-                                        <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                                            <div style={{ color: C.muted, fontSize: '0.75rem' }}>×{item.quantity}</div>
-                                            <div style={{ color: C.accent, fontSize: '0.82rem', fontWeight: 700 }}>{Math.round(item.quantity * item.unitPrice).toLocaleString()}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                                <div style={{ padding: '9px 16px', display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.02)' }}>
-                                    <span style={{ color: C.muted, fontSize: '0.78rem' }}>รวมรอบนี้</span>
-                                    <span style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>{Math.round(round.subtotal).toLocaleString()} {currency}</span>
-                                </div>
-                            </div>
-                        ))}
-
-                        {/* Grand Total */}
-                        <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.25)`, borderRadius: 16, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <div>
-                                <div style={{ color: C.muted, fontSize: '0.75rem' }}>รวมทั้งหมด ({totalRounds} รอบ)</div>
-                                {hasPending && <div style={{ color: C.gold, fontSize: '0.72rem', marginTop: 2, fontWeight: 600 }}>⚠️ รอยืนยัน {bill.rounds?.filter(r => r.status === 'PENDING_CONFIRM').length} รอบ</div>}
-                            </div>
-                            <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.5rem' }}>
-                                {Math.round(bill.grandTotal ?? 0).toLocaleString()} {currency}
-                            </span>
-                        </div>
-
-                        {hasOpenRound && (
-                            billDone || bill.billRequested ? (
-                                <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.3)`, borderRadius: 16, padding: '18px', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '2rem', marginBottom: 6 }}>✅</div>
-                                    <div style={{ color: C.accent, fontWeight: 700, fontSize: '0.95rem' }}>ส่งคำขอเช็คบิลแล้ว</div>
-                                    <div style={{ color: C.muted, fontSize: '0.8rem', marginTop: 4 }}>พนักงานจะมาหาคุณที่โต๊ะเร็วๆ นี้</div>
-                                </div>
-                            ) : (
-                                <button onClick={requestBill} disabled={billRequesting} style={{ width: '100%', background: billRequesting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 16, padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: billRequesting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: billRequesting ? 'none' : C.shadowGreen, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                                    {billRequesting ? '⏳ กำลังส่ง…' : '🧾 เรียกเช็คบิล'}
-                                </button>
-                            )
-                        )}
-                        {!hasOpenRound && hasPending && (
-                            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 14, padding: '12px 16px', textAlign: 'center', fontSize: '0.83rem', color: '#92400e' }}>
-                                🕐 กรุณารอพนักงานยืนยันออเดอร์ก่อน
-                            </div>
-                        )}
-                    </>
                 )}
             </div>
-
-            {hasAnyOrder && (
-                <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '0 16px 24px', zIndex: 40 }}>
-                    <button onClick={() => setViewBill(false)} style={{ width: '100%', background: '#fff', border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '14px', fontWeight: 700, fontSize: '0.92rem', color: C.text, cursor: 'pointer', fontFamily: FONT, boxShadow: C.shadow }}>
-                        ➕ สั่งอาหารเพิ่ม
-                    </button>
-                </div>
-            )}
         </div>
     )
 
-    // ── Success Screen ──────────────────────────────────────────────────
+    // ── Success Screen ─────────────────────────────────────────────────
     if (submitted) return (
-        <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 18, padding: 32, textAlign: 'center', fontFamily: FONT }}>
+        <div style={{ minHeight: '100dvh', background: '#e8eceb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 18, padding: 32, textAlign: 'center', fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ width: 88, height: 88, background: C.accentLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.6rem', animation: 'bounce 0.6s ease', boxShadow: C.shadowGreen }}>
                 {isAddon ? '➕' : '✅'}
@@ -342,12 +328,10 @@ export default function MenuPage() {
                     <>ออเดอร์ของคุณจะถูกยืนยันโดยพนักงาน<br />กรุณารอสักครู่</>
                 )}
             </p>
-
             <div style={{ background: C.card, border: `1.5px solid ${C.accentLight}`, borderRadius: 16, padding: '14px 32px', boxShadow: C.shadow }}>
                 <div style={{ color: C.muted, fontSize: '0.7rem', marginBottom: 4, fontWeight: 600, letterSpacing: '0.06em' }}>เลขออเดอร์</div>
                 <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.3rem', fontFamily: 'monospace' }}>{orderNumber}</div>
             </div>
-
             {totalRounds > 0 && (
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: C.shadow, width: '100%', maxWidth: 320 }}>
                     <span style={{ fontSize: '1.3rem' }}>📋</span>
@@ -357,9 +341,7 @@ export default function MenuPage() {
                     </div>
                 </div>
             )}
-
             <p style={{ color: C.muted, fontSize: '0.75rem', margin: 0 }}>โต๊ะ {tableNum}</p>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
                 <button onClick={() => { setSubmitted(false); setViewBill(true) }} style={{ width: '100%', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, fontSize: '0.92rem', boxShadow: C.shadowGreen }}>
                     🧾 ดูบิลรวม {totalRounds} รอบ
@@ -371,268 +353,256 @@ export default function MenuPage() {
         </div>
     )
 
-    // ── Main Menu ──────────────────────────────────────────────────────
+    // ── Main Menu (App Style) ──────────────────────────────────────────
     return (
-        <div style={{ minHeight: '100dvh', background: C.bg, fontFamily: FONT, maxWidth: 480, margin: '0 auto', position: 'relative' }}>
+        <div style={{ minHeight: '100dvh', background: '#e8eceb', fontFamily: FONT, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
             <style>{GLOBAL_CSS}</style>
+            <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', background: '#f7f8f7', position: 'relative', overflowX: 'hidden' }}>
 
-            {/* ── Sticky Header ── */}
-            <div style={{ background: '#fff', position: 'sticky', top: 0, zIndex: 30, boxShadow: '0 2px 10px rgba(0,0,0,0.07)' }}>
+                {/* ── STICKY HEADER ─────────────────────────────────── */}
+                <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
 
-                {/* Hero Banner */}
-                <div style={{ position: 'relative', borderBottom: `1px solid rgba(42,157,80,0.12)`, overflow: 'hidden' }}>
-                    {/* Banner Image — loaded via dedicated cached URL, not inline base64 */}
-                    {tenant?.hasBanner ? (
-                        <div style={{ position: 'relative', width: '100%' }}>
-                            <img
-                                src={`/api/public/banner/${tenantCode}`}
-                                alt="banner"
-                                style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }}
-                            />
-                            {/* Gradient overlay for readability */}
-                            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%)' }} />
-                        </div>
-                    ) : null}
-
-                    <div style={{
-                        background: tenant?.hasBanner ? 'transparent' : `linear-gradient(145deg, #f0faf3 0%, #e6f4eb 60%, #d4edda 100%)`,
-                        padding: tenant?.hasBanner ? '12px 20px 16px' : '20px 20px 16px',
-                        textAlign: 'center',
-                        position: tenant?.hasBanner ? 'absolute' : 'relative',
-                        bottom: 0, left: 0, right: 0,
-                    }}>
-                    {/* Top bar: table + bill */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: tenant?.hasBanner ? 8 : 12 }}>
-                        <div style={{ background: tenant?.hasBanner ? 'rgba(255,255,255,0.92)' : '#fff', borderRadius: 10, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                            <span style={{ fontSize: '0.9rem' }}>🪑</span>
-                            <span style={{ color: C.text, fontWeight: 700, fontSize: '0.82rem' }}>โต๊ะ {tableNum}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            {hasAnyOrder && (
-                                <button onClick={() => setViewBill(true)} style={{ background: billDone ? C.accentLight : C.accentLight, border: `1.5px solid ${billDone ? C.accent : C.accent}`, borderRadius: 10, padding: '6px 12px', cursor: 'pointer', color: C.accent, fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-                                    🧾 {totalRounds} รอบ{billDone && ' ✓'}
-                                </button>
-                            )}
-                            <button onClick={() => setCartOpen(true)} style={{ position: 'relative', background: totalItems > 0 ? C.accent : tenant?.hasBanner ? 'rgba(255,255,255,0.92)' : '#fff', border: `1.5px solid ${totalItems > 0 ? C.accent : C.border}`, borderRadius: 10, padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, boxShadow: totalItems > 0 ? `0 4px 14px ${C.accentMid}` : 'none' }}>
-                                <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={totalItems > 0 ? '#fff' : C.muted} strokeWidth="2.2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
-                                {totalItems > 0 && <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.82rem' }}>{totalItems}</span>}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Store title — hidden when banner is set */}
-                    {!tenant?.hasBanner && (
-                        <>
-                            <h1 style={{ color: C.accent, fontWeight: 900, fontSize: '1.55rem', margin: '0 0 4px', lineHeight: 1.25, letterSpacing: '-0.01em' }}>
-                                {tenant?.displayName || tenant?.name || 'เมนูร้าน'}
-                            </h1>
-                            <p style={{ color: C.muted, margin: 0, fontSize: '0.83rem' }}>เลือกเมนูที่ชอบแล้วสั่งได้เลย!</p>
-                        </>
-                    )}
-                    {tenant?.hasBanner && (
-                        <h1 style={{ color: '#fff', fontWeight: 900, fontSize: '1.2rem', margin: '4px 0 0', lineHeight: 1.25, textShadow: '0 1px 6px rgba(0,0,0,0.4)', letterSpacing: '-0.01em' }}>
-                            {tenant?.displayName || tenant?.name || 'เมนูร้าน'}
-                        </h1>
-                    )}
-                    </div>
-
-                    {/* Order status banner */}
-                    {hasAnyOrder && (
-                        <div style={{ marginTop: 10, background: hasPending ? 'rgba(245,158,11,0.1)' : C.accentLight, border: `1px solid ${hasPending ? 'rgba(245,158,11,0.3)' : 'rgba(42,157,80,0.25)'}`, borderRadius: 10, padding: '7px 14px', fontSize: '0.77rem', color: hasPending ? '#92400e' : C.accent, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-                            {hasPending ? '🕐 มีออเดอร์รอยืนยัน' : '✅ ออเดอร์ยืนยันแล้ว'}
-                            <span style={{ color: C.muted, fontWeight: 400 }}>— สั่งเพิ่มได้เลย</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Search Bar */}
-                <div style={{ padding: '12px 16px 6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.bg, borderRadius: 12, padding: '9px 14px', border: `1.5px solid ${C.border}` }}>
-                        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.2"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
-                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเมนู…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.88rem', fontFamily: FONT }} />
-                        {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', padding: 0, lineHeight: 1 }}>✕</button>}
-                    </div>
-                </div>
-
-                {/* Category Tabs */}
-                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '8px 16px 12px', scrollbarWidth: 'none' }}>
-                    <button onClick={() => setActiveCategory('all')} style={tabStyle(activeCategory === 'all')}>
-                        🍽️ ทั้งหมด
-                    </button>
-                    {categories.map(c => (
-                        <button key={c.id} onClick={() => setActiveCategory(c.id)} style={tabStyle(activeCategory === c.id)}>
-                            {c.icon && <span style={{ marginRight: 3 }}>{c.icon}</span>}{c.name}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* ── Product Grid ── */}
-            <div style={{ padding: '14px 14px 180px', animation: 'fadeUp 0.3s ease' }}>
-                {filtered.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: 60, color: C.muted }}>
-                        <div style={{ fontSize: '2.8rem', marginBottom: 10 }}>🍽️</div>
-                        <div style={{ fontWeight: 600 }}>ไม่พบเมนูที่ค้นหา</div>
-                    </div>
-                )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    {filtered.map(p => {
-                        const qty = cartQty(p.id)
-                        const catIcon = categories.find(c => c.id === p.categoryId)?.icon || '🍽️'
-                        return (
-                            <div key={p.id} style={{
-                                background: C.card,
-                                border: `1.5px solid ${qty > 0 ? C.accent : C.border}`,
-                                borderRadius: 16,
-                                overflow: 'hidden',
-                                boxShadow: qty > 0 ? `0 4px 18px rgba(42,157,80,0.18)` : C.shadow,
-                                transition: 'box-shadow 0.2s, border-color 0.2s',
-                            }}>
-                                {/* Food Image */}
-                                <div style={{ height: 130, background: `linear-gradient(135deg,#f0faf3,#e8f5ec)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.8rem', overflow: 'hidden', position: 'relative' }}>
-                                    {p.imageUrl ? (
-                                        <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
-                                    ) : (
-                                        <span style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>{catIcon}</span>
-                                    )}
-                                    {/* Qty badge */}
-                                    {qty > 0 && (
-                                        <div style={{ position: 'absolute', top: 8, right: 8, background: C.accent, color: '#fff', borderRadius: 20, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.78rem', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-                                            {qty}
+                    {/* Banner / Hero */}
+                    <div style={{ position: 'relative', overflow: 'hidden' }}>
+                        {tenant?.hasBanner ? (
+                            <div style={{ position: 'relative' }}>
+                                <img src={`/api/public/banner/${tenantCode}`} alt="banner"
+                                    style={{ width: '100%', height: 170, objectFit: 'cover', display: 'block' }} />
+                                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55) 100%)' }} />
+                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', borderRadius: 99, padding: '5px 12px 5px 8px', display: 'flex', alignItems: 'center', gap: 5, border: '1px solid rgba(255,255,255,0.25)' }}>
+                                        <span style={{ fontSize: '0.8rem' }}>🪑</span>
+                                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>โต๊ะ {tableNum}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        {hasAnyOrder && (
+                                            <button onClick={() => setViewBill(true)} style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 99, padding: '6px 12px', cursor: 'pointer', color: '#fff', fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
+                                                🧾 {totalRounds} รอบ{billDone && ' ✓'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 16px 14px' }}>
+                                    <div style={{ color: '#fff', fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2, textShadow: '0 1px 8px rgba(0,0,0,0.4)' }}>
+                                        {tenant?.displayName || tenant?.name || 'เมนูร้าน'}
+                                    </div>
+                                    {hasAnyOrder && (
+                                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.85)', marginTop: 2, fontWeight: 500 }}>
+                                            {hasPending ? '🕐 มีออเดอร์รอยืนยัน' : '✅ ออเดอร์ยืนยันแล้ว — สั่งเพิ่มได้เลย'}
                                         </div>
                                     )}
                                 </div>
-
-                                {/* Info */}
-                                <div style={{ padding: '10px 12px 12px' }}>
-                                    <div style={{ color: C.text, fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.35, marginBottom: 4, minHeight: 38, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                        {p.name}
+                            </div>
+                        ) : (
+                            <div style={{ background: '#fff', padding: '14px 16px 10px', borderBottom: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.2rem', lineHeight: 1.1 }}>{tenant?.displayName || tenant?.name || 'เมนูร้าน'}</div>
+                                        <div style={{ color: C.muted, fontSize: '0.72rem', marginTop: 1 }}>🪑 โต๊ะ {tableNum}</div>
                                     </div>
-                                    <div style={{ color: C.accent, fontWeight: 800, fontSize: '0.92rem', marginBottom: 8 }}>
-                                        {fmtPrice(p.price, currency)}
-                                    </div>
-
-                                    {/* Cart control */}
-                                    {qty === 0 ? (
-                                        <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '8px 0', borderRadius: 10, border: 'none', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, boxShadow: '0 3px 10px rgba(42,157,80,0.25)' }}>
-                                            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
-                                            + เพิ่ม
+                                    {hasAnyOrder && (
+                                        <button onClick={() => setViewBill(true)} style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 12, padding: '7px 14px', cursor: 'pointer', color: C.accent, fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
+                                            🧾 {totalRounds} รอบ{billDone && ' ✓'}
                                         </button>
-                                    ) : (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 10, padding: '2px 4px' }}>
-                                            <button onClick={() => removeFromCart(p.id)} style={stepBtn}>−</button>
-                                            <span style={{ color: C.accent, fontWeight: 800, fontSize: '0.95rem', minWidth: 24, textAlign: 'center' }}>{qty}</span>
-                                            <button onClick={() => addToCart(p)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
-                                        </div>
                                     )}
                                 </div>
                             </div>
-                        )
-                    })}
-                </div>
-            </div>
-
-            {/* ── Floating Bottom Bar ── */}
-            <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '0 16px 20px', zIndex: 40, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* เรียกเช็คบิล */}
-                {hasOpenRound && totalItems === 0 && (
-                    billDone || bill?.billRequested ? (
-                        <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.3)`, borderRadius: 16, padding: '13px', textAlign: 'center', color: C.accent, fontWeight: 600, fontSize: '0.85rem', boxShadow: C.shadow }}>
-                            ✅ ส่งคำขอเช็คบิลแล้ว — พนักงานกำลังมา
-                        </div>
-                    ) : (
-                        <button onClick={requestBill} disabled={billRequesting} style={{ width: '100%', background: billRequesting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 16, padding: '14px 20px', fontWeight: 800, fontSize: '0.97rem', cursor: billRequesting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: billRequesting ? 'none' : C.shadowGreen, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                            {billRequesting ? '⏳ กำลังส่ง…' : `🧾 เรียกเช็คบิล (${totalRounds} รอบ · ${Math.round(bill?.grandTotal ?? 0).toLocaleString()} ${currency})`}
-                        </button>
-                    )
-                )}
-
-                {/* Cart bar */}
-                {totalItems > 0 && !cartOpen && (
-                    <button onClick={() => setCartOpen(true)} style={{ width: '100%', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 16, padding: '14px 20px', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: FONT, boxShadow: C.shadowGreen }}>
-                        <span style={{ background: 'rgba(0,0,0,0.18)', borderRadius: 8, padding: '3px 10px', fontSize: '0.8rem' }}>{totalItems} รายการ</span>
-                        <span>{isAddon || hasAnyOrder ? 'ยืนยันสั่งเพิ่ม →' : 'ดูตะกร้า →'}</span>
-                        <span>{Math.round(totalPrice).toLocaleString()} {currency}</span>
-                    </button>
-                )}
-            </div>
-
-            {/* ── Cart Drawer ── */}
-            {cartOpen && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)' }} onClick={() => setCartOpen(false)} />
-                    <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '0 20px 36px', maxHeight: '82dvh', overflowY: 'auto', animation: 'slideUp 0.28s ease', boxShadow: '0 -8px 40px rgba(0,0,0,0.12)' }}>
-                        {/* Handle */}
-                        <div style={{ width: 40, height: 4, background: '#e5e7eb', borderRadius: 2, margin: '12px auto 14px' }} />
-
-                        <h2 style={{ color: C.text, fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px' }}>
-                            {hasAnyOrder ? `➕ สั่งเพิ่ม รอบ ${totalRounds + 1}` : '🛒 รายการสั่งอาหาร'} — โต๊ะ {tableNum}
-                        </h2>
-                        {hasAnyOrder && (
-                            <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>สั่งไปแล้ว {totalRounds} รอบ · ยอดเก่า {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
                         )}
+                    </div>
 
-                        {cart.map(item => (
-                            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ color: C.text, fontWeight: 600, fontSize: '0.88rem' }}>{item.name}</div>
-                                    <div style={{ color: C.accent, fontSize: '0.78rem', marginTop: 2 }}>{fmtPrice(item.price, currency)} × {item.quantity}</div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.accentLight, borderRadius: 10, padding: '2px 4px' }}>
-                                    <button onClick={() => removeFromCart(item.id)} style={stepBtn}>−</button>
-                                    <span style={{ color: C.accent, fontWeight: 800, width: 22, textAlign: 'center', fontSize: '0.92rem' }}>{item.quantity}</span>
-                                    <button onClick={() => addToCart(item)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
-                                </div>
+                    {/* Search + Category */}
+                    <div style={{ background: '#fff', boxShadow: '0 3px 12px rgba(0,0,0,0.06)' }}>
+                        <div style={{ padding: '12px 14px 8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 14, padding: '10px 14px' }}>
+                                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
+                                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเมนู…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.9rem', fontFamily: FONT }} />
+                                {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', padding: 0, lineHeight: 1 }}>✕</button>}
                             </div>
-                        ))}
+                        </div>
+                        {/* Category tabs — circular icon style */}
+                        <div style={{ display: 'flex', overflowX: 'auto', padding: '4px 14px 14px', scrollbarWidth: 'none' }}>
+                            <button onClick={() => setActiveCategory('all')} style={catTabStyle(activeCategory === 'all')}>
+                                <div style={catCircleStyle(activeCategory === 'all')}>🍽️</div>
+                                <span style={catLabelStyle(activeCategory === 'all')}>ทั้งหมด</span>
+                            </button>
+                            {categories.map(c => (
+                                <button key={c.id} onClick={() => setActiveCategory(c.id)} style={catTabStyle(activeCategory === c.id)}>
+                                    <div style={catCircleStyle(activeCategory === c.id)}>{c.icon || '🍴'}</div>
+                                    <span style={catLabelStyle(activeCategory === c.id)}>{c.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
 
-                        {cart.length === 0 && <p style={{ color: C.muted, textAlign: 'center', padding: 28, margin: 0 }}>ยังไม่มีรายการ</p>}
-
-                        {cart.length > 0 && (
-                            <>
-                                <div style={{ marginTop: 16, padding: '14px 0', borderTop: `1.5px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: C.subtext, fontWeight: 600 }}>รวมรอบนี้</span>
-                                    <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.1rem' }}>{Math.round(totalPrice).toLocaleString()} {currency}</span>
+                {/* ── PRODUCT GRID ───────────────────────────────────── */}
+                <div style={{ padding: '14px 12px 160px' }}>
+                    {filtered.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '60px 20px', color: C.muted }}>
+                            <div style={{ fontSize: '3rem', marginBottom: 12 }}>🍽️</div>
+                            <div style={{ fontWeight: 700, fontSize: '1rem' }}>ไม่พบเมนู</div>
+                            <div style={{ fontSize: '0.82rem', marginTop: 4 }}>{search ? `"${search}" ไม่มีในเมนู` : 'ยังไม่มีสินค้าในหมวดนี้'}</div>
+                        </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        {filtered.map((p, idx) => {
+                            const qty = cartQty(p.id)
+                            const catIcon = categories.find(c => c.id === p.categoryId)?.icon || '🍽️'
+                            return (
+                                <div key={p.id} style={{
+                                    background: '#fff',
+                                    borderRadius: 18,
+                                    overflow: 'hidden',
+                                    boxShadow: qty > 0 ? `0 6px 22px rgba(42,157,80,0.2)` : '0 2px 10px rgba(0,0,0,0.07)',
+                                    border: `2px solid ${qty > 0 ? C.accent : 'transparent'}`,
+                                    transition: 'all 0.2s ease',
+                                    animation: `fadeUp 0.28s ease ${Math.min(idx, 8) * 0.04}s both`,
+                                }}>
+                                    {/* Food image */}
+                                    <div style={{ position: 'relative', height: 120, background: 'linear-gradient(135deg,#f0faf3,#e0f2e9)', overflow: 'hidden' }}>
+                                        {p.imageUrl ? (
+                                            <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" />
+                                        ) : (
+                                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
+                                                <span style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.12))' }}>{catIcon}</span>
+                                            </div>
+                                        )}
+                                        {qty > 0 && (
+                                            <div style={{ position: 'absolute', top: 8, right: 8, background: C.accent, color: '#fff', borderRadius: 99, minWidth: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.82rem', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', animation: 'popIn 0.25s ease' }}>
+                                                {qty}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Info */}
+                                    <div style={{ padding: '10px 11px 12px' }}>
+                                        <div style={{ color: '#111', fontWeight: 700, fontSize: '0.86rem', lineHeight: 1.35, marginBottom: 5, minHeight: 36, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                            {p.name}
+                                        </div>
+                                        <div style={{ color: C.accent, fontWeight: 800, fontSize: '0.92rem', marginBottom: 9 }}>
+                                            {fmtPrice(p.price, currency)}
+                                        </div>
+                                        {qty === 0 ? (
+                                            <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '8px 0', borderRadius: 12, border: 'none', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', fontWeight: 700, fontSize: '0.84rem', cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, boxShadow: '0 3px 12px rgba(42,157,80,0.3)', minHeight: 36 }}>
+                                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                                เพิ่ม
+                                            </button>
+                                        ) : (
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 12, padding: '3px', minHeight: 36 }}>
+                                                <button onClick={() => removeFromCart(p.id)} style={stepBtn}>−</button>
+                                                <span style={{ color: C.accent, fontWeight: 900, fontSize: '1rem', minWidth: 22, textAlign: 'center' }}>{qty}</span>
+                                                <button onClick={() => addToCart(p)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <button onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 16, padding: '15px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: submitting ? 'none' : C.shadowGreen }}>
-                                    {submitting ? '⏳ กำลังส่ง…' : hasAnyOrder ? `➕ ยืนยันสั่งเพิ่ม (รอบ ${totalRounds + 1})` : '🍽️ ยืนยันสั่งอาหาร'}
+                            )
+                        })}
+                    </div>
+                </div>
+
+                {/* ── BOTTOM BAR ────────────────────────────────────── */}
+                <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, zIndex: 40, pointerEvents: 'none' }}>
+                    <div style={{ padding: '0 12px 20px', display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'auto' }}>
+                        {hasOpenRound && totalItems === 0 && (
+                            billDone || bill?.billRequested ? (
+                                <div style={{ background: '#fff', borderRadius: 18, padding: '14px 18px', textAlign: 'center', color: C.accent, fontWeight: 600, fontSize: '0.88rem', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: `1.5px solid rgba(42,157,80,0.2)` }}>
+                                    ✅ ส่งคำขอเช็คบิลแล้ว
+                                </div>
+                            ) : (
+                                <button onClick={requestBill} disabled={billRequesting} style={{ width: '100%', background: billRequesting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '16px 20px', fontWeight: 800, fontSize: '0.97rem', cursor: billRequesting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: billRequesting ? 'none' : C.shadowGreen, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                    {billRequesting ? '⏳ กำลังส่ง…' : `🧾 เรียกเช็คบิล (${totalRounds} รอบ · ${Math.round(bill?.grandTotal ?? 0).toLocaleString()} ${currency})`}
                                 </button>
-                                <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: '12px', fontWeight: 500, fontSize: '0.88rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>
-                                    ← ดูเมนูต่อ
-                                </button>
-                            </>
+                            )
+                        )}
+                        {totalItems > 0 && !cartOpen && (
+                            <button onClick={() => setCartOpen(true)}
+                                style={{ width: '100%', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '0 6px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', fontFamily: FONT, boxShadow: '0 8px 28px rgba(42,157,80,0.4)', minHeight: 60, animation: 'popIn 0.22s ease', gap: 8 }}>
+                                <div style={{ background: 'rgba(255,255,255,0.22)', borderRadius: 12, padding: '8px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 42, flexShrink: 0 }}>
+                                    <span style={{ fontSize: '1.1rem', fontWeight: 900 }}>{totalItems}</span>
+                                    <span style={{ fontSize: '0.58rem', opacity: 0.85, fontWeight: 500, lineHeight: 1 }}>รายการ</span>
+                                </div>
+                                <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 700 }}>
+                                    {isAddon || hasAnyOrder ? 'ยืนยันสั่งเพิ่ม →' : 'ดูตะกร้า →'}
+                                </span>
+                                <span style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 12, padding: '8px 12px', fontSize: '0.88rem', fontWeight: 800, flexShrink: 0 }}>
+                                    {Math.round(totalPrice).toLocaleString()} {currency}
+                                </span>
+                            </button>
                         )}
                     </div>
                 </div>
-            )}
+
+                {/* ── CART BOTTOM SHEET ─────────────────────────────── */}
+                {cartOpen && (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)' }} onClick={() => setCartOpen(false)} />
+                        <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '0 20px 40px', maxHeight: '84dvh', overflowY: 'auto', animation: 'slideUp 0.26s ease', boxShadow: '0 -12px 48px rgba(0,0,0,0.18)' }}>
+                            <div style={{ width: 36, height: 4, background: '#dde1e0', borderRadius: 2, margin: '14px auto 16px' }} />
+                            <h2 style={{ color: C.text, fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px' }}>
+                                {hasAnyOrder ? `➕ สั่งเพิ่ม รอบ ${totalRounds + 1}` : '🛒 รายการสั่งอาหาร'} — โต๊ะ {tableNum}
+                            </h2>
+                            {hasAnyOrder && (
+                                <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>สั่งไปแล้ว {totalRounds} รอบ · ยอดเก่า {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
+                            )}
+                            {cart.map(item => (
+                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: `1px solid ${C.border}` }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ color: C.text, fontWeight: 600, fontSize: '0.9rem' }}>{item.name}</div>
+                                        <div style={{ color: C.accent, fontSize: '0.78rem', marginTop: 2 }}>{fmtPrice(item.price, currency)} × {item.quantity}</div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.accentLight, borderRadius: 12, padding: '2px 4px' }}>
+                                        <button onClick={() => removeFromCart(item.id)} style={stepBtn}>−</button>
+                                        <span style={{ color: C.accent, fontWeight: 900, width: 22, textAlign: 'center', fontSize: '0.95rem' }}>{item.quantity}</span>
+                                        <button onClick={() => addToCart(item)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
+                                    </div>
+                                </div>
+                            ))}
+                            {cart.length === 0 && <p style={{ color: C.muted, textAlign: 'center', padding: 32, margin: 0 }}>ยังไม่มีรายการ</p>}
+                            {cart.length > 0 && (
+                                <>
+                                    <div style={{ marginTop: 16, padding: '14px 0', borderTop: `1.5px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: C.subtext, fontWeight: 600 }}>รวมรอบนี้</span>
+                                        <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.1rem' }}>{Math.round(totalPrice).toLocaleString()} {currency}</span>
+                                    </div>
+                                    <button onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: submitting ? 'none' : C.shadowGreen }}>
+                                        {submitting ? '⏳ กำลังส่ง…' : hasAnyOrder ? `➕ ยืนยันสั่งเพิ่ม (รอบ ${totalRounds + 1})` : '🍽️ ยืนยันสั่งอาหาร'}
+                                    </button>
+                                    <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '12px', fontWeight: 500, fontSize: '0.88rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>← ดูเมนูต่อ</button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
 
-const tabStyle = (active: boolean): React.CSSProperties => ({
-    flexShrink: 0,
-    padding: '7px 15px',
-    borderRadius: 20,
-    border: active ? 'none' : `1.5px solid rgba(0,0,0,0.1)`,
-    cursor: 'pointer',
-    background: active ? C.accent : '#fff',
-    color: active ? '#fff' : C.subtext,
-    fontWeight: active ? 700 : 500,
-    fontSize: '0.8rem',
-    fontFamily: FONT,
-    whiteSpace: 'nowrap',
-    boxShadow: active ? `0 3px 12px rgba(42,157,80,0.28)` : '0 1px 4px rgba(0,0,0,0.06)',
+// Category tab — circular icon + label
+const catTabStyle = (active: boolean): React.CSSProperties => ({
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+    padding: '4px 10px', cursor: 'pointer', background: 'none', border: 'none',
+    fontFamily: FONT, minWidth: 58, flexShrink: 0, transition: 'transform 0.15s',
+})
+const catCircleStyle = (active: boolean): React.CSSProperties => ({
+    width: 48, height: 48, borderRadius: '50%',
+    background: active ? C.accent : '#f3f4f6',
+    border: active ? `2px solid ${C.accentDark}` : '2px solid transparent',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '1.4rem',
+    boxShadow: active ? `0 4px 14px rgba(42,157,80,0.35)` : 'none',
     transition: 'all 0.18s ease',
+})
+const catLabelStyle = (active: boolean): React.CSSProperties => ({
+    fontSize: '0.68rem', fontWeight: active ? 700 : 500,
+    color: active ? C.accent : C.muted, whiteSpace: 'nowrap', fontFamily: FONT,
 })
 
 const stepBtn: React.CSSProperties = {
-    width: 30, height: 30, borderRadius: 8,
+    width: 32, height: 32, borderRadius: 10,
     border: `1px solid rgba(42,157,80,0.2)`,
-    background: '#fff',
-    color: C.accent,
-    fontWeight: 800, fontSize: '1rem',
-    cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: '#fff', color: C.accent,
+    fontWeight: 800, fontSize: '1.1rem',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontFamily: FONT,
 }

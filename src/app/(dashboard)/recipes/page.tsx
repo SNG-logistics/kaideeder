@@ -7,6 +7,7 @@ interface Recipe { id: string; menuName: string; posMenuCode?: string; bom: { id
 interface Product { id: string; sku: string; name: string; unit: string }
 interface Location { id: string; code: string; name: string }
 interface BOMItem { productId: string; locationId: string; quantity: number; unit: string; _search?: string }
+interface MissingIng { name: string; quantity: number; unit: string; location: string }
 
 // ---- Ingredient Search Combobox Component ----
 function ProductCombobox({ products, value, onChange }: {
@@ -84,6 +85,90 @@ function ProductCombobox({ products, value, onChange }: {
     )
 }
 
+// ---- Quick-Add Inline Product ----
+function QuickAddProduct({ ingredient, onAdded, categories }: {
+    ingredient: MissingIng
+    onAdded: (newProductId: string, name: string) => void
+    categories: { id: string; name: string; code: string }[]
+}) {
+    const [open, setOpen] = useState(false)
+    const [name, setName] = useState(ingredient.name)
+    const [unit, setUnit] = useState(ingredient.unit || 'g')
+    const [categoryId, setCategoryId] = useState('')
+    const [saving, setSaving] = useState(false)
+
+    // pick a sensible default category
+    useEffect(() => {
+        if (categories.length > 0 && !categoryId) {
+            const raw = categories.find(c => c.code.startsWith('RAW') || c.code === 'DRY_GOODS')
+            setCategoryId(raw?.id || categories[0].id)
+        }
+    }, [categories, categoryId])
+
+    async function handleAdd() {
+        if (!name.trim() || !categoryId) return
+        setSaving(true)
+        try {
+            const res = await fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), unit, categoryId, productType: 'RAW_MATERIAL', costPrice: 0, salePrice: 0 }),
+            })
+            const json = await res.json()
+            if (!json.success) { toast.error(json.error || 'เพิ่มสินค้าไม่สำเร็จ'); return }
+            toast.success(`✅ เพิ่ม "${json.data.name}" แล้ว — กด AI แนะนำใหม่ได้เลย`)
+            onAdded(json.data.id, json.data.name)
+            setOpen(false)
+        } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setSaving(false) }
+    }
+
+    return (
+        <div style={{ background: 'rgba(245,158,11,0.06)', borderRadius: 10, padding: '0.5rem 0.75rem', border: '1px solid rgba(245,158,11,0.22)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '1rem' }}>⚠️</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 700, fontSize: '0.82rem', color: '#92400e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ingredient.name}</p>
+                    <p style={{ fontSize: '0.7rem', color: '#a16207' }}>{ingredient.quantity} {ingredient.unit} · {ingredient.location}</p>
+                </div>
+                <button
+                    onClick={() => setOpen(o => !o)}
+                    style={{
+                        background: open ? '#d97706' : 'rgba(245,158,11,0.15)',
+                        border: '1px solid rgba(245,158,11,0.4)', borderRadius: 7,
+                        padding: '3px 10px', cursor: 'pointer', fontSize: '0.75rem',
+                        fontWeight: 700, color: open ? '#fff' : '#92400e', flexShrink: 0,
+                    }}
+                >
+                    {open ? '✕ ปิด' : '➕ เพิ่ม'}
+                </button>
+            </div>
+            {open && (
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '2fr 1fr 2fr auto', gap: 6, alignItems: 'end' }}>
+                    <div>
+                        <div style={{ fontSize: '0.68rem', color: '#92400e', fontWeight: 600, marginBottom: 3 }}>ชื่อสินค้า</div>
+                        <input className="input" style={{ fontSize: '0.8rem' }} value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อวัตถุดิบ" />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.68rem', color: '#92400e', fontWeight: 600, marginBottom: 3 }}>หน่วย</div>
+                        <input className="input" style={{ fontSize: '0.8rem' }} value={unit} onChange={e => setUnit(e.target.value)} placeholder="kg" />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.68rem', color: '#92400e', fontWeight: 600, marginBottom: 3 }}>หมวดหมู่</div>
+                        <select className="input" style={{ fontSize: '0.8rem' }} value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
+                    <button onClick={handleAdd} disabled={saving || !name.trim() || !categoryId}
+                        style={{ background: saving ? '#d1d5db' : '#d97706', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: saving ? 'not-allowed' : 'pointer', color: '#fff', fontWeight: 700, fontSize: '0.8rem', fontFamily: 'inherit' }}>
+                        {saving ? '⏳' : 'บันทึก'}
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ---- Main Page ----
 export default function RecipesPage() {
     useRoleGuard(['owner', 'manager', 'warehouse'])
@@ -103,12 +188,15 @@ export default function RecipesPage() {
     const [aiClarification, setAiClarification] = useState('')
     const [missingIngredients, setMissingIngredients] = useState<{ name: string; quantity: number; unit: string; location: string }[]>([])
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [categories, setCategories] = useState<{ id: string; name: string; code: string }[]>([])
 
+    const refreshProducts = () => fetch('/api/products?limit=500').then(r => r.json()).then(j => j.success && setProducts(j.data.products))
 
     useEffect(() => {
         fetchRecipes()
-        fetch('/api/products?limit=500').then(r => r.json()).then(j => j.success && setProducts(j.data.products))
+        refreshProducts()
         fetch('/api/locations').then(r => r.json()).then(j => j.success && setLocations(j.data))
+        fetch('/api/categories').then(r => r.json()).then(j => j.success && setCategories(j.data || []))
     }, [])
 
     async function fetchRecipes() {
@@ -414,15 +502,15 @@ export default function RecipesPage() {
                         </div>
                     )}
 
-                    {/* ── Missing Ingredients Card (inline) ── */}
+                    {/* ── Missing Ingredients Card — Quick-Add inline ── */}
                     {missingIngredients.length > 0 && (
                         <div style={{
-                            background: 'rgba(245,158,11,0.06)', border: '1.5px solid rgba(245,158,11,0.35)',
+                            background: 'rgba(245,158,11,0.04)', border: '1.5px solid rgba(245,158,11,0.35)',
                             borderRadius: 12, padding: '1rem', marginBottom: 12,
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                                 <p style={{ fontWeight: 700, fontSize: '0.85rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    🚧 วัตถุดิบที่ AI ต้องการแต่ยังไม่มีในระบบ
+                                    🚧 วัตถุดิบที่ยังไม่มีในระบบ
                                     <span style={{ background: '#d97706', color: '#fff', fontSize: '0.68rem', fontWeight: 800, padding: '1px 7px', borderRadius: 20 }}>
                                         {missingIngredients.length} รายการ
                                     </span>
@@ -430,22 +518,22 @@ export default function RecipesPage() {
                                 <button onClick={() => setMissingIngredients([])}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem' }}>✕</button>
                             </div>
-                            <p style={{ fontSize: '0.75rem', color: '#92400e', marginBottom: 10, lineHeight: 1.5 }}>
-                                ⬇️ ไปเพิ่มสินค้าเหล่านี้ที่หน้า <strong>📦 สินค้า</strong> ก่อน แล้วกด AI แนะนำใหม่ เพื่อให้ BOM ครบสมบูรณ์
+                            <p style={{ fontSize: '0.73rem', color: '#92400e', marginBottom: 10, lineHeight: 1.5 }}>
+                                กด <strong>➕ เพิ่ม</strong> เพื่อเพิ่มวัตถุดิบเข้าระบบทันที แล้วกด ✨ AI แนะนำใหม่
                             </p>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {missingIngredients.map((m, i) => (
-                                    <div key={i} style={{
-                                        background: 'rgba(245,158,11,0.08)', borderRadius: 8,
-                                        padding: '0.5rem 0.75rem', border: '1px solid rgba(245,158,11,0.25)',
-                                        display: 'flex', alignItems: 'center', gap: 8,
-                                    }}>
-                                        <span style={{ fontSize: '1rem' }}>⚠️</span>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <p style={{ fontWeight: 700, fontSize: '0.82rem', color: '#92400e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</p>
-                                            <p style={{ fontSize: '0.7rem', color: '#a16207' }}>{m.quantity} {m.unit} · {m.location}</p>
-                                        </div>
-                                    </div>
+                                    <QuickAddProduct
+                                        key={i}
+                                        ingredient={m}
+                                        categories={categories}
+                                        onAdded={async (newId, newName) => {
+                                            // refresh products then re-run AI
+                                            await refreshProducts()
+                                            setMissingIngredients(prev => prev.filter((_, idx) => idx !== i))
+                                            toast(`🔄 กด ✨ AI แนะนำ อีกครั้งเพื่ออัพเดท BOM`, { icon: '💡', duration: 4000 })
+                                        }}
+                                    />
                                 ))}
                             </div>
                         </div>
