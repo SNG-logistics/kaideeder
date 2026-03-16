@@ -5,11 +5,11 @@ import { z } from 'zod'
 
 const quickReceiveSchema = z.object({
     locationCode: z.string().min(1),
-    productSku: z.string().optional(),
-    productName: z.string().optional(),
-    unit: z.string().optional(),
+    productSku: z.string().nullable().optional(),
+    productName: z.string().nullable().optional(),
+    unit: z.string().nullable().optional(),
     quantity: z.number().positive(),
-    unitCost: z.number().optional()
+    unitCost: z.number().nullable().optional()
 });
 
 export const POST = withAuth(async (req: NextRequest, context: AuthContext) => {

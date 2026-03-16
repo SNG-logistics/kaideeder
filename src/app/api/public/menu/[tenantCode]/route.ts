@@ -26,11 +26,11 @@ export async function GET(
                 tenantId: tenant.id,
                 isActive: true,
                 price: { gt: 0 },
-                productType: { in: ['SALE_ITEM', 'ENTERTAIN', 'SET_MENU'] },
+                productType: { in: ['SALE_ITEM', 'ENTERTAIN'] },
             },
             orderBy: { name: 'asc' },
             select: {
-                id: true, name: true, nameEn: true, sku: true,
+                id: true, name: true, sku: true,
                 price: true, unit: true, categoryId: true,
                 imageUrl: true,
             },
