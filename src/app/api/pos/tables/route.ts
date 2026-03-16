@@ -11,14 +11,14 @@ export const GET = withAuth(async (_req, context) => {
         orderBy: { number: 'asc' },
         include: {
             orders: {
-                where: { status: 'OPEN' },
+                where: { status: { in: ['OPEN', 'PENDING_CONFIRM'] } },
                 include: {
                     items: {
                         where: { isCancelled: false },
                         include: { product: true },
                     },
                 },
-                take: 1,
+                orderBy: { openedAt: 'asc' },
             },
         },
     })

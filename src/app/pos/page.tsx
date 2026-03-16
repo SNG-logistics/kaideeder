@@ -245,34 +245,70 @@ export default function POSPage() {
     const selectTable = async (table: DiningTable) => {
         setSelectedTable(table)
 
-        if (table.orders && table.orders.length > 0) {
-            const existingOrder = table.orders[0]
-            try {
-                const res = await fetch(`/api/pos/orders/${existingOrder.id}`)
-                if (handleApiError(res, 'โหลดออเดอร์')) return
-                const json = await res.json()
-                if (json.success) {
-                    setCurrentOrder(json.data)
-                    setOrderItems(json.data.items.filter((i: OrderItemData) => !i.isCancelled))
-                    setDiscount(json.data.discount)
-                    setDiscountType(json.data.discountType)
-                    // เวลาเริ่มออเดอร์เดิม
-                    setOrderStartTime(json.data.createdAt ? new Date(json.data.createdAt) : new Date())
-                } else {
-                    setToast({ message: json.error || 'ไม่สามารถโหลดออเดอร์ได้', type: 'error' })
-                }
-            } catch (e) {
-                console.error('Load order error:', e)
-                setToast({ message: 'เกิดข้อผิดพลาดในการโหลดออเดอร์', type: 'error' })
-            }
-        } else {
+        const activeOrders = table.orders ?? []
+
+        if (activeOrders.length === 0) {
+            // No existing order → fresh slate
             setCurrentOrder(null)
             setOrderItems([])
             setDiscount(0)
             setDiscountType('AMOUNT')
-            setOrderStartTime(new Date())  // เริ่มจับเวลาใหม่
+            setOrderStartTime(new Date())
+            if (isMobile) setMobileTab('order')
+            return
         }
-        if (isMobile) setMobileTab('order')  // auto-switch on mobile
+
+        try {
+            let targetOrderId: string
+
+            if (activeOrders.length > 1) {
+                // ── Multi-round: consolidate all into one order ──────────
+                const roundCount = activeOrders.length
+                setToast({ message: `⏳ กำลังรวม ${roundCount} รอบออเดอร์…`, type: 'warning' })
+
+                const res = await fetch('/api/pos/orders/consolidate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tableId: table.id }),
+                })
+                if (handleApiError(res, 'รวมออเดอร์')) return
+                const json = await res.json()
+                if (!json.success) {
+                    setToast({ message: json.error || 'ไม่สามารถรวมออเดอร์ได้', type: 'error' })
+                    return
+                }
+                // json.data is already the full merged order with items
+                setCurrentOrder(json.data)
+                setOrderItems((json.data.items ?? []).filter((i: OrderItemData) => !i.isCancelled))
+                setDiscount(json.data.discount ?? 0)
+                setDiscountType(json.data.discountType ?? 'AMOUNT')
+                setOrderStartTime(json.data.openedAt ? new Date(json.data.openedAt) : new Date())
+                setToast({ message: `✅ รวม ${roundCount} รอบออเดอร์เรียบร้อย`, type: 'success' })
+                if (isMobile) setMobileTab('order')
+                fetchTables()
+                return
+            }
+
+            // ── Single order: load normally ──────────────────────────
+            targetOrderId = activeOrders[0].id
+            const res = await fetch(`/api/pos/orders/${targetOrderId}`)
+            if (handleApiError(res, 'โหลดออเดอร์')) return
+            const json = await res.json()
+            if (json.success) {
+                setCurrentOrder(json.data)
+                setOrderItems(json.data.items.filter((i: OrderItemData) => !i.isCancelled))
+                setDiscount(json.data.discount)
+                setDiscountType(json.data.discountType)
+                setOrderStartTime(json.data.openedAt ? new Date(json.data.openedAt) : new Date())
+            } else {
+                setToast({ message: json.error || 'ไม่สามารถโหลดออเดอร์ได้', type: 'error' })
+            }
+        } catch (e) {
+            console.error('Load order error:', e)
+            setToast({ message: 'เกิดข้อผิดพลาดในการโหลดออเดอร์', type: 'error' })
+        }
+
+        if (isMobile) setMobileTab('order')
     }
 
     // ─── Protein / Topping selection ────────────────────────────
@@ -759,20 +795,37 @@ export default function POSPage() {
                     {displayTables.map(table => {
                         const hasOrder = !!(table.orders && table.orders.length > 0)
                         const elapsed = elapsedLabel(table)
-                        const order = hasOrder ? table.orders![0] as Order : null
+                        const allOrders = (table.orders ?? []) as Order[]
+                        const roundCount = allOrders.length
+                        // Sum ALL rounds into one grand total
+                        const grandTotal = allOrders.reduce((s, o) => {
+                            const orderTotal = o.totalAmount > 0
+                                ? o.totalAmount
+                                : o.items.reduce((is, i) => is + i.quantity * i.unitPrice, 0)
+                            return s + orderTotal
+                        }, 0)
+                        const hasPending = allOrders.some(o => o.status === 'PENDING_CONFIRM')
                         const isSelected = selectedTable?.id === table.id
                         return (
-                            <button key={table.id} onClick={() => selectTable(table)} style={{ background: isSelected ? '#1A1D26' : hasOrder ? '#1E2533' : '#FFFFFF', border: `2px solid ${isSelected ? '#E8364E' : hasOrder ? '#374151' : '#E5E7EB'}`, borderRadius: 16, padding: '0.9rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', color: (hasOrder || isSelected) ? '#FFFFFF' : '#1A1D26', transition: 'all 0.18s ease', boxShadow: hasOrder ? '0 4px 16px rgba(0,0,0,0.18)' : '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 5, minHeight: 110 }}>
+                            <button key={table.id} onClick={() => selectTable(table)} style={{ background: isSelected ? '#1A1D26' : hasOrder ? '#1E2533' : '#FFFFFF', border: `2px solid ${isSelected ? '#E8364E' : hasPending ? '#F59E0B' : hasOrder ? '#374151' : '#E5E7EB'}`, borderRadius: 16, padding: '0.9rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', color: (hasOrder || isSelected) ? '#FFFFFF' : '#1A1D26', transition: 'all 0.18s ease', boxShadow: hasOrder ? '0 4px 16px rgba(0,0,0,0.18)' : '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 5, minHeight: 110 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{table.name}</div>
-                                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: hasOrder ? '#FB7185' : '#4ADE80' }} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        {roundCount > 1 && (
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, background: '#F59E0B', color: '#fff', borderRadius: 99, padding: '1px 6px' }}>
+                                                {roundCount} รอบ
+                                            </span>
+                                        )}
+                                        <div style={{ width: 9, height: 9, borderRadius: '50%', background: hasPending ? '#F59E0B' : hasOrder ? '#FB7185' : '#4ADE80' }} />
+                                    </div>
                                 </div>
                                 <div style={{ fontSize: '0.62rem', color: (hasOrder || isSelected) ? '#9CA3AF' : '#6B7280' }}>📍 {table.zone} • {table.seats} ที่นั่ง</div>
                                 <div style={{ marginTop: 'auto' }}>
                                     {hasOrder ? (
                                         <>
                                             {nowString && elapsed && <div style={{ fontSize: '0.7rem', color: '#FCD34D', fontWeight: 700 }}>⏱️ {elapsed}</div>}
-                                            {(order?.totalAmount ?? 0) > 0 && <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#4ADE80' }}>{formatLAK(order!.totalAmount)}</div>}
+                                            {grandTotal > 0 && <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#4ADE80' }}>{formatLAK(grandTotal)}</div>}
+                                            {hasPending && <div style={{ fontSize: '0.6rem', color: '#FCD34D', marginTop: 1 }}>🕐 รอยืนยัน</div>}
                                         </>
                                     ) : (
                                         <div style={{ fontSize: '0.68rem', color: '#4ADE80', fontWeight: 600, background: 'rgba(74,222,128,0.1)', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>🟢 ว่าง</div>
