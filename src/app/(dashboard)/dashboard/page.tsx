@@ -30,6 +30,7 @@ interface DashboardData {
     sales: {
         total: number; items: number; qty: number
         posTotal: number; posOrders: number; importTotal: number
+        byPayment: { cash: number; transfer: number; card: number; other: number }
     }
     recentOrders: RecentOrder[]
     stock: {
@@ -151,13 +152,27 @@ export default function DashboardPage() {
                             <p style={{ color: '#9CA3AF', fontSize: '0.75rem' }}>ยอดขายรวม</p>
                             <p style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 700, color: '#1A1D26', margin: '4px 0' }}>{fmt(data.sales.total)}</p>
                             <p style={{ color: '#9CA3AF', fontSize: '0.72rem' }}>
-                                POS {data.sales.posOrders} บิล • {data.sales.items} รายการ • {data.sales.qty} ชิ้น
+                                {data.sales.posOrders} บิล • {data.sales.items} รายการ
                             </p>
-                            {data.sales.posTotal > 0 && !isMobile && (
-                                <p style={{ color: '#059669', fontSize: '0.72rem', marginTop: 4, fontWeight: 500 }}>
-                                    POS: {fmt(data.sales.posTotal)}
-                                    {data.sales.importTotal > 0 && ` + Import: ${fmt(data.sales.importTotal)}`}
-                                </p>
+                            {/* Mini payment breakdown on the card */}
+                            {data.sales.posOrders > 0 && (
+                                <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {data.sales.byPayment.cash > 0 && (
+                                        <span style={{ fontSize: '0.65rem', background: '#DCFCE7', color: '#166534', borderRadius: 99, padding: '2px 8px', fontWeight: 600 }}>
+                                            💵 {fmt(data.sales.byPayment.cash)}
+                                        </span>
+                                    )}
+                                    {data.sales.byPayment.transfer > 0 && (
+                                        <span style={{ fontSize: '0.65rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: 99, padding: '2px 8px', fontWeight: 600 }}>
+                                            📲 {fmt(data.sales.byPayment.transfer)}
+                                        </span>
+                                    )}
+                                    {data.sales.byPayment.card > 0 && (
+                                        <span style={{ fontSize: '0.65rem', background: '#F3E8FF', color: '#7E22CE', borderRadius: 99, padding: '2px 8px', fontWeight: 600 }}>
+                                            💳 {fmt(data.sales.byPayment.card)}
+                                        </span>
+                                    )}
+                                </div>
                             )}
                             {!isMobile && <p style={{ color: 'var(--accent)', fontSize: '0.72rem', marginTop: 6, fontWeight: 500 }}>{showRecentOrders ? 'ซ่อนบิล ↑' : 'ดูบิลล่าสุด ↓'}</p>}
                         </div>
@@ -230,6 +245,46 @@ export default function DashboardPage() {
                             )}
                         </div>
                     </div>
+
+                    {/* ── ยอดสรุปปิดร้าน (Payment Breakdown) ── */}
+                    {data.sales.posOrders > 0 && (
+                        <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(135deg,#0f172a,#1e293b)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                                <span style={{ fontSize: '1.1rem' }}>🏦</span>
+                                <h3 style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.9rem', margin: 0 }}>สรุปปิดร้าน — แยกตามช่องทางรับเงิน</h3>
+                                <span style={{ fontSize: '0.72rem', color: '#64748b', marginLeft: 'auto' }}>{data.sales.posOrders} บิล</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                                {/* เงินสด */}
+                                <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 12, padding: '1rem' }}>
+                                    <div style={{ fontSize: '1.3rem', marginBottom: 4 }}>💵</div>
+                                    <div style={{ color: '#86efac', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>เงินสด</div>
+                                    <div style={{ color: '#4ade80', fontWeight: 800, fontSize: isMobile ? '1rem' : '1.25rem', marginTop: 4 }}>{fmt(data.sales.byPayment.cash)}</div>
+                                    <div style={{ color: '#64748b', fontSize: '0.65rem', marginTop: 3 }}>
+                                        {data.sales.posOrders > 0 ? `${Math.round(data.sales.byPayment.cash / (data.sales.total || 1) * 100)}%` : '0%'}
+                                    </div>
+                                </div>
+                                {/* โอน/QR */}
+                                <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 12, padding: '1rem' }}>
+                                    <div style={{ fontSize: '1.3rem', marginBottom: 4 }}>📲</div>
+                                    <div style={{ color: '#93c5fd', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>โอน / QR</div>
+                                    <div style={{ color: '#60a5fa', fontWeight: 800, fontSize: isMobile ? '1rem' : '1.25rem', marginTop: 4 }}>{fmt(data.sales.byPayment.transfer)}</div>
+                                    <div style={{ color: '#64748b', fontSize: '0.65rem', marginTop: 3 }}>
+                                        {data.sales.posOrders > 0 ? `${Math.round(data.sales.byPayment.transfer / (data.sales.total || 1) * 100)}%` : '0%'}
+                                    </div>
+                                </div>
+                                {/* รวมทั้งหมด */}
+                                <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '1rem' }}>
+                                    <div style={{ fontSize: '1.3rem', marginBottom: 4 }}>💰</div>
+                                    <div style={{ color: '#fcd34d', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>รวมทั้งหมด</div>
+                                    <div style={{ color: '#f59e0b', fontWeight: 800, fontSize: isMobile ? '1rem' : '1.25rem', marginTop: 4 }}>{fmt(data.sales.total)}</div>
+                                    {data.sales.byPayment.card > 0 && (
+                                        <div style={{ color: '#d8b4fe', fontSize: '0.65rem', marginTop: 3 }}>💳 {fmt(data.sales.byPayment.card)}</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Recent POS Orders */}
                     {showRecentOrders && data.recentOrders.length > 0 && (
