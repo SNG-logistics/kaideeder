@@ -30,10 +30,18 @@ export async function GET(
                 id: true, name: true, sku: true,
                 salePrice: true, unit: true, categoryId: true,
                 imageUrl: true,
+                imageBase64: true,   // ← images stored as Base64 in DB
             },
         })
         // Map salePrice → price (mobile page uses .price)
-        const products = rawProducts.map(p => ({ ...p, price: p.salePrice }))
+        // Map imageBase64 → imageUrl as data URI (same pattern as /api/products)
+        const products = rawProducts.map(({ imageBase64, imageUrl, ...p }) => ({
+            ...p,
+            price: p.salePrice,
+            imageUrl: imageBase64
+                ? `data:image/webp;base64,${imageBase64}`
+                : (imageUrl ?? null),
+        }))
 
         // Build set of categoryIds that have at least 1 eligible product
         const activeCatIds = new Set(products.map(p => p.categoryId))
