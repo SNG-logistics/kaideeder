@@ -37,6 +37,7 @@ function getOrderBy(model: string): object {
 }
 
 // GET /api/admin/db-list/[model] — list records
+// Supports ?tenantId=xxx and ?productType=SALE_ITEM,ENTERTAIN
 export async function GET(req: Request, { params }: { params: Promise<{ model: string }> }) {
     const { model } = await params
     if (!await checkAuth()) {
@@ -48,10 +49,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ model: s
         return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })
     }
 
+    const url = new URL(req.url)
+    const tenantId = url.searchParams.get('tenantId') || undefined
+    const productTypeRaw = url.searchParams.get('productType') || undefined
+
+    // Build where clause for multi-tenant filtering
+    const where: Record<string, any> = {}
+    if (tenantId) where.tenantId = tenantId
+    if (productTypeRaw && model === 'product') {
+        const types = productTypeRaw.split(',').map(s => s.trim()).filter(Boolean)
+        if (types.length > 0) where.productType = { in: types }
+    }
+
     try {
         const records = await delegate.findMany({
-            take: 200,
+            take: 500,
             orderBy: getOrderBy(model),
+            ...(Object.keys(where).length > 0 ? { where } : {}),
         })
         return NextResponse.json({ records })
     } catch (e: any) {

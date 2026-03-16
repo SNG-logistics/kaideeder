@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 // ── Column schema per model ────────────────────────────────────────
@@ -50,24 +50,25 @@ const SCHEMA: Record<string, ColDef[]> = {
         { key: 'isActive', label: 'Active',   type: 'boolean',width: 70 },
     ],
     product: [
-        { key: 'id',         label: 'ID',       type: 'id',     width: 110, readOnly: true },
-        { key: 'tenantId',   label: 'Tenant',   type: 'relation', width: 110, readOnly: true },
-        { key: 'name',       label: 'Name',     type: 'text',   width: 200 },
-        { key: 'nameEn',     label: 'Name EN',  type: 'text',   width: 160 },
-        { key: 'sku',        label: 'SKU',      type: 'text',   width: 110 },
-        { key: 'unit',       label: 'Unit',     type: 'text',   width: 70 },
-        { key: 'costPrice',  label: 'Cost',     type: 'number', width: 90 },
-        { key: 'price',      label: 'Price',    type: 'number', width: 90 },
-        { key: 'isActive',   label: 'Active',   type: 'boolean',width: 70 },
-        { key: 'createdAt',  label: 'Created',  type: 'date',   width: 120, readOnly: true },
+        { key: 'id',          label: 'ID',         type: 'id',     width: 110, readOnly: true },
+        { key: 'tenantId',    label: 'Tenant',     type: 'relation', width: 110, readOnly: true },
+        { key: 'productType', label: 'ประเภท',     type: 'select', width: 130, options: ['SALE_ITEM','ENTERTAIN','RAW_MATERIAL','INGREDIENT','PACKAGING','SUPPLIES','SEMI_FINISHED'] },
+        { key: 'name',        label: 'ชื่อ',       type: 'text',   width: 200 },
+        { key: 'sku',         label: 'SKU',        type: 'text',   width: 110 },
+        { key: 'unit',        label: 'หน่วย',     type: 'text',   width: 70 },
+        { key: 'salePrice',   label: 'ราคาขาย',   type: 'number', width: 90 },
+        { key: 'costPrice',   label: 'ต้นทุน',    type: 'number', width: 90 },
+        { key: 'isActive',    label: 'Active',     type: 'boolean',width: 70 },
+        { key: 'createdAt',   label: 'Created',    type: 'date',   width: 120, readOnly: true },
     ],
     order: [
-        { key: 'id',        label: 'ID',       type: 'id',     width: 110, readOnly: true },
-        { key: 'tenantId',  label: 'Tenant',   type: 'relation', width: 110, readOnly: true },
-        { key: 'status',    label: 'Status',   type: 'select', width: 110, options: ['OPEN','CLOSED','CANCELLED','PENDING'] },
-        { key: 'total',     label: 'Total',    type: 'number', width: 100, readOnly: true },
-        { key: 'note',      label: 'Note',     type: 'text',   width: 200 },
-        { key: 'createdAt', label: 'Created',  type: 'date',   width: 120, readOnly: true },
+        { key: 'id',          label: 'ID',         type: 'id',     width: 110, readOnly: true },
+        { key: 'tenantId',    label: 'Tenant',     type: 'relation', width: 110, readOnly: true },
+        { key: 'orderNumber', label: 'เลขออเดอร์', type: 'text',   width: 120, readOnly: true },
+        { key: 'status',      label: 'Status',     type: 'select', width: 130, options: ['PENDING_CONFIRM','OPEN','CLOSED','CANCELLED'] },
+        { key: 'totalAmount', label: 'ยอดรวม',    type: 'number', width: 100, readOnly: true },
+        { key: 'note',        label: 'Note',       type: 'text',   width: 200 },
+        { key: 'openedAt',    label: 'เปิดเมื่อ', type: 'date',   width: 130, readOnly: true },
     ],
 }
 
@@ -76,7 +77,10 @@ const STATUS_COLOR: Record<string, string> = {
     ACTIVE: '#34d399', INACTIVE: '#f87171', SUSPENDED: '#fbbf24',
     AVAILABLE: '#34d399', OCCUPIED: '#f87171', RESERVED: '#fbbf24',
     OPEN: '#60a5fa', CLOSED: '#64748b', CANCELLED: '#f87171', PENDING: '#fbbf24',
+    PENDING_CONFIRM: '#f59e0b',
     OWNER: '#a78bfa', MANAGER: '#60a5fa', CASHIER: '#34d399', KITCHEN: '#fbbf24', VIEWER: '#64748b',
+    SALE_ITEM: '#10b981', ENTERTAIN: '#a78bfa',
+    RAW_MATERIAL: '#f59e0b', INGREDIENT: '#fb923c', PACKAGING: '#64748b', SUPPLIES: '#64748b', SEMI_FINISHED: '#38bdf8',
 }
 
 function fmtDate(v: any) {
@@ -180,8 +184,21 @@ function Cell({ col, value, onChange, active, onActivate, rowChanged }: {
 // ── Main grid ──────────────────────────────────────────────────────
 const PAGE_SIZE = 50
 
+// Product type filter options
+const PRODUCT_TYPE_OPTS = [
+    { value: '', label: 'ทั้งหมด', color: '#64748b' },
+    { value: 'SALE_ITEM,ENTERTAIN', label: '🍽️ เมนูขาย', color: '#10b981' },
+    { value: 'SALE_ITEM', label: '🍜 SALE_ITEM', color: '#10b981' },
+    { value: 'ENTERTAIN', label: '🥂 ENTERTAIN', color: '#a78bfa' },
+    { value: 'RAW_MATERIAL,INGREDIENT,PACKAGING,SUPPLIES,SEMI_FINISHED', label: '📦 วัตถุดิบ/สต็อก', color: '#f59e0b' },
+    { value: 'RAW_MATERIAL', label: '🌾 RAW_MATERIAL', color: '#f59e0b' },
+    { value: 'INGREDIENT', label: '🧂 INGREDIENT', color: '#fb923c' },
+]
+
 export default function PrismaGridClient({ modelKey }: { modelKey: string }) {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const tenantId = searchParams?.get('tenantId') || ''
     const cols = SCHEMA[modelKey] ?? []
     const [records, setRecords] = useState<any[]>([])
     const [edits, setEdits] = useState<Record<string, Record<string, any>>>({})  // { id: { field: newVal } }
@@ -194,13 +211,18 @@ export default function PrismaGridClient({ modelKey }: { modelKey: string }) {
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
     const [sortCol, setSortCol] = useState<string | null>(null)
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+    const [productTypeFilter, setProductTypeFilter] = useState('')
 
     useEffect(() => {
         setLoading(true)
-        fetch(`/api/admin/db-list/${modelKey}`)
+        const qs = new URLSearchParams()
+        if (tenantId) qs.set('tenantId', tenantId)
+        if (productTypeFilter && modelKey === 'product') qs.set('productType', productTypeFilter)
+        const url = `/api/admin/db-list/${modelKey}${qs.toString() ? '?' + qs.toString() : ''}`
+        fetch(url)
             .then(r => r.json()).then(d => { setRecords(d.records || []); setLoading(false) })
             .catch(() => setLoading(false))
-    }, [modelKey])
+    }, [modelKey, tenantId, productTypeFilter])
 
     const showToast = (msg: string, ok: boolean) => {
         setToast({ msg, ok }); setTimeout(() => setToast(null), 3000)
@@ -275,9 +297,21 @@ export default function PrismaGridClient({ modelKey }: { modelKey: string }) {
 
             {/* Toolbar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', flexWrap: 'wrap' }}>
+                {/* Product type dropdown — only for product model */}
+                {modelKey === 'product' && (
+                    <select value={productTypeFilter} onChange={e => { setProductTypeFilter(e.target.value); setPage(0) }}
+                        style={{ background: '#0d1220', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 12px', color: '#e2e8f0', fontSize: '0.8rem', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                        {PRODUCT_TYPE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                )}
+                {tenantId && (
+                    <span style={{ fontSize: '0.68rem', color: '#4b5563', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 6, padding: '4px 10px', fontFamily: 'monospace' }}>
+                        🏪 {tenantId.slice(0,12)}…
+                    </span>
+                )}
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '6px 10px' }}>
                     <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                    <input value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} placeholder="Search all fields…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#e2e8f0', fontSize: '0.8rem', fontFamily: 'inherit' }} />
+                    <input value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} placeholder="Search…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#e2e8f0', fontSize: '0.8rem', fontFamily: 'inherit' }} />
                 </div>
                 <span style={{ fontSize: '0.72rem', color: '#374151', whiteSpace: 'nowrap' }}>{total} rows</span>
                 <Link href={`/admin/database/${modelKey}/new`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 8, background: '#2563eb', color: '#fff', textDecoration: 'none', fontSize: '0.78rem', fontWeight: 600, flexShrink: 0 }}>
