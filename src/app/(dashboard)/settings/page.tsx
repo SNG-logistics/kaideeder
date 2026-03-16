@@ -167,8 +167,166 @@ function StoreBrandingCard() {
     )
 }
 
+// ─── Menu Banner Card ─────────────────────────────────────────
+function MenuBannerCard() {
+    const canManage = usePermission('SETTINGS_MANAGE')
+    const [bannerPreview, setBannerPreview] = useState<string | null>(null)
+    const [uploading, setUploading] = useState(false)
+    const [loaded, setLoaded] = useState(false)
+    const fileRef = useRef<HTMLInputElement>(null)
 
-// ─── Store Settings Card ──────────────────────────────────────
+    useEffect(() => {
+        fetch('/api/tenant/settings')
+            .then(r => r.json())
+            .then(d => {
+                if (d.settings?.menuBannerBase64) {
+                    setBannerPreview(`data:image/jpeg;base64,${d.settings.menuBannerBase64}`)
+                }
+                setLoaded(true)
+            })
+    }, [])
+
+    async function handleBannerFile(file: File) {
+        if (!file) return
+        if (file.size > 10 * 1024 * 1024) { toast.error('ไฟล์ใหญ่เกิน 10MB'); return }
+        // Show local preview instantly
+        const reader = new FileReader()
+        reader.onload = (e) => { if (e.target?.result) setBannerPreview(e.target.result as string) }
+        reader.readAsDataURL(file)
+        setUploading(true)
+        try {
+            // ─── Canvas compress: resize to max 1200px, JPEG 0.82 quality ──────────
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const img = new Image()
+                img.onload = () => {
+                    const MAX_W = 1200
+                    const scale = img.width > MAX_W ? MAX_W / img.width : 1
+                    const w = Math.round(img.width * scale)
+                    const h = Math.round(img.height * scale)
+                    const canvas = document.createElement('canvas')
+                    canvas.width = w; canvas.height = h
+                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+                    // Extract raw base64 (strip data URI prefix)
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+                    resolve(dataUrl.split(',')[1])
+                }
+                img.onerror = reject
+                img.src = URL.createObjectURL(file)
+            })
+            // ─── Save to DB via PATCH ───────────────────────────────────────────────
+            const res = await fetch('/api/tenant/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ menuBannerBase64: base64 }),
+            })
+            const d = await res.json()
+            if (d.success) {
+                toast.success('✅ บันทึก Banner แล้ว')
+            } else toast.error(d.error || 'อัปโหลดไม่สำเร็จ')
+        } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setUploading(false) }
+    }
+
+    async function deleteBanner() {
+        const res = await fetch('/api/tenant/settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ menuBannerBase64: null }),
+        })
+        const d = await res.json()
+        if (d.success) { setBannerPreview(null); toast.success('ลบ Banner แล้ว') }
+        else toast.error(d.error || 'เกิดข้อผิดพลาด')
+    }
+
+    if (!canManage) return null
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(42,157,80,0.25)', background: 'rgba(42,157,80,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🖼️</span> รูป Banner หน้าสั่งอาหาร (QR Menu)
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
+                รูปนี้จะแสดงที่ด้านบนของหน้าสแกน QR สั่งอาหาร — JPG/PNG/WEBP max 5MB
+            </p>
+
+            {/* Banner Upload Zone — Wide 16:9 */}
+            <div
+                onClick={() => !uploading && fileRef.current?.click()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleBannerFile(f) }}
+                onDragOver={e => e.preventDefault()}
+                style={{
+                    width: '100%', aspectRatio: '16/5',
+                    borderRadius: 14,
+                    border: bannerPreview ? '2px solid rgba(42,157,80,0.4)' : '2.5px dashed var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: uploading ? 'wait' : 'pointer',
+                    overflow: 'hidden', position: 'relative',
+                    background: bannerPreview ? '#000' : 'var(--bg)',
+                    transition: 'border-color 0.2s',
+                    minHeight: 100,
+                }}
+            >
+                {uploading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
+                        <div style={{ width: 32, height: 32, border: '3px solid rgba(42,157,80,0.2)', borderTopColor: '#2a9d50', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>กำลังบันทึก...</span>
+                    </div>
+                ) : bannerPreview ? (
+                    <>
+                        <img src={bannerPreview} alt="banner" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, display: 'block' }} />
+                        {/* Hover overlay */}
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'all 0.2s', fontSize: '1rem', color: '#fff', fontWeight: 700, gap: 6 }}
+                            onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(0,0,0,0.45)' }}
+                            onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.background = 'rgba(0,0,0,0)' }}>
+                            🔄 เปลี่ยนรูป
+                        </div>
+                    </>
+                ) : (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
+                        <div style={{ fontSize: '2rem', marginBottom: 6 }}>🖼️</div>
+                        <p style={{ fontWeight: 600, fontSize: '0.88rem', margin: '0 0 4px' }}>แตะเพื่ออัปโหลดรูป Banner</p>
+                        <p style={{ fontSize: '0.72rem', margin: 0 }}>คลิก/ลากวาง — แนะนำ: ขนาดกว้าง เช่น 1200×400px</p>
+                    </div>
+                )}
+            </div>
+
+            <input
+                ref={fileRef} type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleBannerFile(f); e.target.value = '' }}
+            />
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    style={{ flex: 1, minWidth: 140, minHeight: 44, borderRadius: 12, border: 'none', background: uploading ? '#d1d5db' : '#2a9d50', color: '#fff', fontWeight: 700, fontSize: '0.88rem', cursor: uploading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {uploading ? '⏳ กำลังบันทึก...' : '📷 เลือกรูป Banner'}
+                </button>
+                {bannerPreview && !uploading && (
+                    <button
+                        onClick={deleteBanner}
+                        style={{ minHeight: 44, borderRadius: 12, border: '1.5px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.06)', color: '#dc2626', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit', padding: '0 16px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        🗑️ ลบรูป
+                    </button>
+                )}
+            </div>
+
+            {bannerPreview && (
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                    ✅ มีรูป Banner อยู่แล้ว — คลิกรูปหรือปุ่มด้านบนเพื่อเปลี่ยน
+                </p>
+            )}
+            {!loaded && !bannerPreview && (
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>⏳ กำลังโหลด...</p>
+            )}
+        </div>
+    )
+}
+
+
 function StoreSettingsCard() {
     const canManage = usePermission('SETTINGS_MANAGE')
     const { reload } = useTenant()
@@ -597,6 +755,9 @@ export default function SettingsPage() {
 
                 {/* ── Brand ── */}
                 <StoreBrandingCard />
+
+                {/* ── Menu Banner ── */}
+                <MenuBannerCard />
 
                 {/* ── User Management ── */}
                 <div className="card" style={{ borderColor: 'rgba(59,130,246,0.25)', background: 'rgba(59,130,246,0.03)' }}>

@@ -11,6 +11,7 @@ export const GET = withAuth<any>(async (_req: NextRequest, ctx: any) => {
         select: {
             id: true, code: true, name: true, displayName: true,
             storeNameLao: true, logoUrl: true, status: true,
+            menuBannerBase64: true,
             currency: true, language: true, phone: true,
             address: true, taxId: true, receiptHeader: true, timezone: true,
         },
@@ -35,6 +36,7 @@ export const PATCH = withAuth<any>(async (req: NextRequest, ctx: any) => {
     const allowed = [
         'displayName', 'storeNameLao', 'currency', 'language',
         'phone', 'address', 'taxId', 'receiptHeader', 'timezone',
+        'menuBannerBase64',
     ] as const
 
     const data: Record<string, unknown> = {}
@@ -56,7 +58,7 @@ export const PATCH = withAuth<any>(async (req: NextRequest, ctx: any) => {
         data,
         select: {
             id: true, code: true, name: true, displayName: true,
-            storeNameLao: true, logoUrl: true,
+            storeNameLao: true, logoUrl: true, menuBannerBase64: true,
             currency: true, language: true, phone: true,
             address: true, taxId: true, receiptHeader: true, timezone: true,
         },

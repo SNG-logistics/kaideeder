@@ -21,7 +21,8 @@ model Tenant {
   name        String
   displayName String?      // ชื่อร้านที่แสดงใน UI (ถ้าไม่ตั้ง จะใช้ name)
   storeNameLao String?     // ชื่อร้านภาษาลาว
-  logoUrl     String?      // URL รูปโลโก้ (relative path เช่น /uploads/logos/store-001.png)
+  logoUrl          String?      // URL รูปโลโก้ (relative path เช่น /uploads/logos/store-001.png)
+  menuBannerBase64 String?      @db.LongText  // Banner รูป header หน้าสแกน QR menu (Base64)
   status      TenantStatus @default(ACTIVE)
   subEndsAt   DateTime?
   graceEndsAt DateTime?
