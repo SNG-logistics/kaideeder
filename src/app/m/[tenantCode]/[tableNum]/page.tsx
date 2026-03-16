@@ -292,8 +292,3 @@ const stepBtn: React.CSSProperties = {
     background: 'rgba(255,255,255,0.07)', color: C.text, fontWeight: 700, fontSize: '1rem',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit',
 }
-
-const C: Record<string, string> = {
-    bg: '#0a0f1a', card: '#111827', border: 'rgba(255,255,255,0.06)',
-    accent: '#f59e0b', text: '#f1f5f9', muted: '#64748b',
-}
