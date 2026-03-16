@@ -58,7 +58,31 @@ ${items.map(i => `<div class="row">
   <span class="q">${i.quantity}</span>
   <span class="n">${i.product?.name || ''}${i.note ? `<br><span class="nt">📝 ${i.note}</span>` : ''}</span>
 </div>`).join('')}
-<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
+<script>
+(function(){
+  // ── Auto-close after print — reliable across Chrome/Edge/Firefox ──
+  function doClose(){ try{ window.close(); }catch(e){} }
+
+  // Primary: addEventListener afterprint (spec-compliant)
+  window.addEventListener('afterprint', doClose);
+
+  // Fallback: matchMedia 'print' change (fires when dialog closes)
+  try {
+    var mq = window.matchMedia('print');
+    var handler = function(e){ if(!e.matches) doClose(); };
+    if(mq.addEventListener){ mq.addEventListener('change', handler); }
+    else if(mq.addListener){ mq.addListener(handler); }
+  } catch(e){}
+
+  // Trigger print AFTER handlers are registered
+  window.onload = function(){
+    window.focus();
+    window.print();
+  };
+  // If document already loaded (fast machines), fire immediately
+  if(document.readyState === 'complete'){ window.focus(); window.print(); }
+})();
+<\/script>
 </body></html>`)
     w.document.close()
 }
