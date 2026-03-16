@@ -28,7 +28,7 @@ export async function GET(
 
         const order = await prisma.order.findFirst({
             where: { tenantId: tenant.id, tableId: table.id, status: { in: ['OPEN', 'PENDING_CONFIRM'] } },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { openedAt: 'desc' },
             include: {
                 items: {
                     where: { isCancelled: false },
