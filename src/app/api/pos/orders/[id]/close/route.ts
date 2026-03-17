@@ -263,17 +263,21 @@ async function deductInventory(
 
 // Get default location based on category
 function getDefaultLocation(categoryCode: string | undefined, locationMap: Record<string, string>): string {
-    if (!categoryCode) return locationMap['WH_MAIN'] || ''
+    // anyLocation = first available location as ultimate fallback
+    const anyLocationId = Object.values(locationMap)[0] || ''
+
+    if (!categoryCode) return locationMap['WH_MAIN'] || anyLocationId
 
     const barCategories = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER']
     const kitchenCategories = ['FOOD_GRILL', 'FOOD_FRY', 'FOOD_SEA', 'FOOD_VEG', 'FOOD_LAAB', 'FOOD_RICE', 'FOOD_NOODLE']
 
     if (barCategories.includes(categoryCode)) {
-        return locationMap['BAR_STOCK'] || locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || ''
+        return locationMap['BAR_STOCK'] || locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || anyLocationId
     }
     if (kitchenCategories.includes(categoryCode)) {
-        return locationMap['KIT_STOCK'] || locationMap['WH_MAIN'] || ''
+        return locationMap['KIT_STOCK'] || locationMap['WH_MAIN'] || anyLocationId
     }
     // Default
-    return locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || ''
+    return locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || anyLocationId
 }
+
