@@ -182,6 +182,7 @@ export default function LoginPage() {
                                 placeholder="username"
                                 required
                                 autoComplete="username"
+                                suppressHydrationWarning
                                 onFocus={e => { e.target.style.borderColor = '#E8162A'; e.target.style.boxShadow = '0 0 0 3px rgba(232,22,42,0.1)' }}
                                 onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
                             />
@@ -199,6 +200,7 @@ export default function LoginPage() {
                                 placeholder="••••••••"
                                 required
                                 autoComplete="current-password"
+                                suppressHydrationWarning
                                 onFocus={e => { e.target.style.borderColor = '#E8162A'; e.target.style.boxShadow = '0 0 0 3px rgba(232,22,42,0.1)' }}
                                 onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
                             />
@@ -207,6 +209,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading}
+                            suppressHydrationWarning
                             style={{
                                 width: '100%', padding: '0.9rem',
                                 marginTop: 4,

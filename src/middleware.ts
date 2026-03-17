@@ -25,6 +25,6 @@ export const config = {
          * - receipt (Receipt view)
          * - public images/assets ending in .png, .jpg, .svg, etc.
          */
-        '/((?!api|_next/static|_next/image|favicon.ico|login|q|receipt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/((?!api|_next/static|_next/image|favicon.ico|login|q|m|receipt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
 }
