@@ -8,6 +8,6 @@ export function getAiConfig() {
     return {
         apiKey: e['COMET_' + 'API_KEY'] ?? '',
         apiUrl: e['COMET_' + 'API_URL'] ?? 'https://api.cometapi.com/v1',
-        model: e['COMET_' + 'MODEL'] ?? 'gpt-4o',
+        model: e['COMET_' + 'MODEL'] ?? 'gemini-3-flash',
     }
 }

@@ -59,46 +59,27 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
         ).join('\n')
       : '  (ยังไม่มีสูตรในระบบ)'
 
-    const clarificationNote = clarification ? `\nข้อมูลเพิ่มเติมจากเจ้าของร้าน: "${clarification}"` : ''
+    const clarificationNote = clarification ? `\n\nOwner's note: "${clarification}"` : ''
 
-    const prompt = `คุณเป็น chef มืออาชีพ ผู้เชี่ยวชาญสูตรอาหารไทย-ลาว ของร้าน "${storeName}"
+    // ── STEP 1: Pure culinary question — no inventory constraints ──
+    const prompt = `You are a professional chef with expertise in Thai, Lao, and Asian cuisine.
 
-===== SKU วัตถุดิบในระบบ (ใช้ MATCH เท่านั้น) =====
-${materialList}
+A restaurant owner is asking: "What ingredients do I need to make ${menuName}?"${clarificationNote}
 
-===== Locations ที่ใช้ตัดสต็อค =====
-${locationList}
-(ใช้ location ที่เหมาะสมกับวัตถุดิบ เช่น ครัว=KIT_STOCK, บาร์=BAR_STOCK, คลังหลัก=${defaultLocation})
+## YOUR JOB
+List ALL ingredients needed for ONE serving of "${menuName}" based on authentic culinary knowledge.
+Do NOT limit yourself to any pre-defined inventory — suggest what the dish truly requires.
 
-===== สูตรที่บันทึกแล้ว (อ้างอิง style) =====
-${existingList}
+## RULES
+1. Think like a chef: proteins, starches, aromatics, sauces, garnishes — include them all
+2. Use realistic quantities per 1 serving (not for a whole pot)
+3. Write ingredient names in Thai (ภาษาไทย)
+4. If the dish name is unclear or ambiguous → ask for clarification: { "question": "คำถามเป็นภาษาไทย" }
+5. Respond ONLY with a valid JSON array, no markdown, no explanation:
 
-===== เมนูที่ต้องการ BOM =====
-"${menuName}"${clarificationNote}
-
-===== กฎการสร้าง BOM =====
-
-[กฎ 1] คิดสูตรจากความรู้ครัวก่อน แล้วค่อย match SKU — ห้ามใส่วัตถุดิบที่เมนูนั้นไม่ได้ใช้จริง
-
-[กฎ 2] Match ด้วย SKU ที่ให้มาเท่านั้น ถ้าไม่มีใน DB → ใช้ "NOT_FOUND:ชื่อวัตถุดิบ" เป็น sku
-
-[กฎ 3] ปริมาณต่อ 1 จาน/เสิร์ฟ ควรสมเหตุสมผล:
-  - ข้าวสวย: 200-250g / มื้อ
-  - เนื้อสัตว์หลัก: 150-300g / จาน
-  - เครื่องปรุง: 5-30g / จาน
-
-[กฎ 4] ถ้าเมนูไม่ชัดเจนหรือต้องการข้อมูลเพิ่ม → ถามกลับแทนการเดา
-
-[กฎ 5] เลือก location ให้เหมาะสม:
-  - วัตถุดิบครัว → KIT_STOCK (ถ้ามี) หรือ ${defaultLocation}
-  - เครื่องดื่ม/บาร์ → BAR_STOCK (ถ้ามี) หรือ ${defaultLocation}
-  - ของแห้ง → WH_MAIN หรือ ${defaultLocation}
-
-ตอบ JSON array เท่านั้น (ไม่มี markdown):
 [
-  { "sku": "SKU_หรือ_NOT_FOUND:ชื่อ", "ingredientName": "ชื่อวัตถุดิบ", "quantity": 250, "unit": "g", "location": "${defaultLocation}" }
-]
-หรือถ้าไม่แน่ใจ: { "question": "คำถาม" }`
+  { "ingredientName": "ชื่อวัตถุดิบภาษาไทย", "quantity": 200, "unit": "g" }
+]`
 
     if (debug) {
       return ok({ type: 'debug', prompt, menuName, storeName, locationList })
@@ -111,8 +92,8 @@ ${existingList}
         model,
         messages: [{ role: 'user', content: prompt }],
         stream: false,
-        temperature: 0.1,
-        max_tokens: 1200,
+        temperature: 0.2,
+        max_tokens: 800,
       }),
     })
 
@@ -129,69 +110,77 @@ ${existingList}
     const qMatch = content.match(/\{\s*"question"\s*:\s*"([^"]+)"\s*\}/)
     if (qMatch) return ok({ type: 'question', question: qMatch[1], menuName })
 
-    let bomSuggestions: { sku: string; ingredientName?: string; quantity: number; unit: string; location: string }[] = []
+    // Parse AI response
+    let chefSuggestions: { ingredientName: string; quantity: number; unit: string }[] = []
     try {
       const jsonMatch = content.match(/\[[\s\S]*\]/)
-      if (jsonMatch) bomSuggestions = JSON.parse(jsonMatch[0])
+      if (jsonMatch) chefSuggestions = JSON.parse(jsonMatch[0])
     } catch {
       return err('AI ตอบผิดรูปแบบ กรุณาลองใหม่')
     }
 
-    if (bomSuggestions.length === 0) return err('AI ไม่พบวัตถุดิบ ลองระบุชื่อเมนูให้ละเอียดขึ้น')
+    if (chefSuggestions.length === 0) return err('AI ไม่พบวัตถุดิบ ลองระบุชื่อเมนูให้ละเอียดขึ้น')
 
+    // ── STEP 2: Try to match each ingredient to store's product list ──
     const allIngredients = await Promise.all(
-      bomSuggestions.map(async (b) => {
-        const isMissing = b.sku.startsWith('NOT_FOUND:')
-        const ingredientName = isMissing
-          ? (b.ingredientName || b.sku.replace('NOT_FOUND:', '').trim())
-          : (b.ingredientName || b.sku)
-
-        if (isMissing) {
-          return {
-            sku: b.sku, ingredientName, productId: null, productName: ingredientName,
-            locationId: null, locationCode: b.location,
-            quantity: b.quantity, unit: b.unit,
-            found: false, missing: true,
-          }
-        }
-
-        // Tenant-scoped product lookup
+      chefSuggestions.map(async (s) => {
+        // Fuzzy match: try exact name, then partial
         const product = await prisma.product.findFirst({
-          where: { tenantId, sku: b.sku },
+          where: { tenantId, name: { equals: s.ingredientName }, isActive: true },
+          select: { id: true, name: true, unit: true },
+        }) || await prisma.product.findFirst({
+          where: { tenantId, name: { contains: s.ingredientName.slice(0, 4) }, isActive: true },
           select: { id: true, name: true, unit: true },
         })
-        // Tenant-scoped location lookup
+
+        // Find appropriate location
         const location = await prisma.location.findFirst({
-          where: { tenantId, code: b.location },
-        })
-        // Fallback to any active location for this tenant
-        const fallbackLocation = location || await prisma.location.findFirst({
           where: { tenantId, isActive: true },
+          select: { id: true, code: true, name: true },
+          orderBy: { code: 'asc' },
         })
 
         return {
-          sku: b.sku, ingredientName: product?.name || ingredientName,
-          productId: product?.id || null, productName: product?.name || b.sku,
-          locationId: fallbackLocation?.id || null, locationCode: fallbackLocation?.code || b.location,
-          quantity: b.quantity, unit: b.unit || product?.unit || 'g',
-          found: !!product && !!fallbackLocation,
-          missing: false,
+          ingredientName: s.ingredientName,
+          quantity: s.quantity,
+          unit: product?.unit || s.unit,
+          productId: product?.id || null,
+          productName: product?.name || s.ingredientName,
+          locationId: location?.id || null,
+          locationCode: location?.code || defaultLocation,
+          found: !!product && !!location,
         }
       })
     )
 
+    // All ingredients back as suggestions — matched ones become BOM rows, unmatched become items to add
+    const suggestions = allIngredients.filter(e => e.found).map(e => ({
+      productId: e.productId,
+      locationId: e.locationId,
+      quantity: e.quantity,
+      unit: e.unit,
+    }))
+
+    const missingIngredients = allIngredients.filter(e => !e.found).map(e => ({
+      name: e.ingredientName,
+      quantity: e.quantity,
+      unit: e.unit,
+      location: defaultLocation,
+    }))
+
     return ok({
-      type: 'bom', menuName,
-      suggestions: allIngredients.filter(e => e.found),
-      notFound: allIngredients.filter(e => !e.found && !e.missing).map(e => e.sku),
-      missingIngredients: allIngredients
-        .filter(e => e.missing)
-        .map(e => ({ name: e.ingredientName, quantity: e.quantity, unit: e.unit, location: e.locationCode })),
+      type: 'bom',
+      menuName,
+      suggestions,
+      missingIngredients,
+      // Full list for reference (ingredientName pre-filled for UI)
       allIngredients: allIngredients.map(e => ({
-        ingredientName: e.ingredientName, sku: e.sku,
-        quantity: e.quantity, unit: e.unit, location: e.locationCode,
-        found: e.found, missing: e.missing,
-        productId: e.productId, locationId: e.locationId,
+        ingredientName: e.ingredientName,
+        productId: e.productId,
+        locationId: e.locationId,
+        quantity: e.quantity,
+        unit: e.unit,
+        found: e.found,
       })),
       rawResponse: content,
     })
