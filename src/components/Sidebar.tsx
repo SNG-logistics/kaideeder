@@ -34,11 +34,13 @@ const navItems: NavItem[] = [
     { href: '/transfer',     icon: '🔄', label: 'เบิก / โอนคลัง',        labelLo: 'ເບີກ / ໂອນຄັງ',          permission: 'TRANSFER_USE' },
     { href: '/adjustment',   icon: '⚖️', label: 'ปรับสต็อค',             labelLo: 'ປັບສະຕ໋ອກ',              permission: 'ADJUSTMENT_USE' },
     { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย',          labelLo: 'ນຳເຂົ້າຍອດຂາຍ',         permission: 'SALES_IMPORT' },
-    { href: '/sku-queue',    icon: '🔍', label: 'SKU Queue',              labelLo: 'SKU Queue',               permission: 'SETTINGS_MANAGE' },
+    { href: '/sku-queue',      icon: '🔍', label: 'SKU Queue',              labelLo: 'SKU Queue',               permission: 'SETTINGS_MANAGE' },
+    { href: '/consume-fail',   icon: '⚠️', label: 'ปัญหาตัดสต็อค',        labelLo: 'ปัญหาตัดสต็อค',          permission: 'SETTINGS_MANAGE' },
     { href: '/reports',      icon: '📈', label: 'Reports',                labelLo: 'Reports',                 permission: 'REPORT_VIEW' },
     { href: '/ai-chat',      icon: '🤖', label: 'AI Assistant',           labelLo: 'AI Assistant',            permission: 'AI_CHAT' },
     { href: '/settings/categories', icon: '📂', label: 'จัดการหมวดหมู่',      labelLo: 'ຈັດການໝວດໝູ່',           divider: 'จัดการร้าน',      dividerLo: 'ຈັດການຮ້ານ', permission: 'SETTINGS_MANAGE' },
     { href: '/settings/locations',  icon: '🏭', label: 'จัดการคลัง',           labelLo: 'ຈັດການຄັງ',              permission: 'SETTINGS_MANAGE' },
+    { href: '/settings/uom',         icon: '🔄', label: 'หน่วยแปลง (UOM)',      labelLo: 'ໜ່ວຍແປງ (UOM)',          permission: 'SETTINGS_MANAGE' },
     { href: '/settings/users',      icon: '👥', label: 'จัดการผู้ใช้',         labelLo: 'ຈັດການຜູ້ໃຊ້',           permission: 'SETTINGS_MANAGE' },
     { href: '/settings/qr',         icon: '📱', label: 'QR Menu โต๊ะ',         labelLo: 'QR Menu ໂຕ໊ະ',            permission: 'SETTINGS_MANAGE' },
     { href: '/settings/manual',     icon: '📖', label: 'คู่มือการใช้งาน',      labelLo: 'ຄູ່ມືການໃຊ້ງານ',         permission: 'SETTINGS_MANAGE' },
@@ -76,6 +78,24 @@ export default function Sidebar() {
     const [mounted, setMounted] = useState(false)
     useEffect(() => { setMounted(true) }, [])
     const canManageTables = mounted && (userRole === 'owner' || userRole === 'manager')
+    const [failCount, setFailCount] = useState(0)
+
+    useEffect(() => {
+        if (!mounted) return
+        if (userRole !== 'owner' && userRole !== 'manager') return
+        fetch('/api/consume-fail?status=OPEN&limit=1')
+            .then(r => r.json())
+            .then(j => j.success && setFailCount(j.data.total))
+            .catch(() => {})
+        // polling ทุก 60 วินาที เพื่ออัปเดต badge
+        const interval = setInterval(() => {
+            fetch('/api/consume-fail?status=OPEN&limit=1')
+                .then(r => r.json())
+                .then(j => j.success && setFailCount(j.data.total))
+                .catch(() => {})
+        }, 60_000)
+        return () => clearInterval(interval)
+    }, [mounted, userRole])
 
     const sidebarWidth = collapsed && !isMobile ? 68 : 240
     const showLabels = isMobile ? true : !collapsed
@@ -228,6 +248,20 @@ export default function Sidebar() {
                                 >
                                     <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
                                     {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{L(item.label, item.labelLo)}</span>}
+                                    {/* Badge: แสดงเฉพาะ consume-fail + มีของรอแก้ */}
+                                    {item.href === '/consume-fail' && failCount > 0 && (
+                                        <span style={{
+                                            marginLeft: 'auto', minWidth: 20, height: 20,
+                                            background: '#DC2626', color: '#fff',
+                                            borderRadius: 10, fontSize: '0.65rem', fontWeight: 800,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '0 5px', lineHeight: 1, flexShrink: 0,
+                                            boxShadow: '0 2px 6px rgba(220,38,38,0.4)',
+                                            animation: 'pulse-badge 2s infinite',
+                                        }}>
+                                            {failCount > 99 ? '99+' : failCount}
+                                        </span>
+                                    )}
                                 </Link>
                             </div>
                         )
@@ -339,6 +373,13 @@ export default function Sidebar() {
                     </button>
                 </div>
             </aside>
+            <style>{`
+                @keyframes pulse-badge {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.8; transform: scale(1.1); }
+                }
+            `}</style>
         </>
     )
 }
+
