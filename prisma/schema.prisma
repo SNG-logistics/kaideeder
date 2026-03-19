@@ -63,6 +63,8 @@ model Tenant {
   tables           DiningTable[]
   productAliases   ProductAlias[]
   skuSuggestions   SkuSuggestion[]
+  uomConversions   UomConversion[]
+  consumeFailLogs  ConsumeFailLog[]
 
   // SaaS relations
   wallet           Wallet?
@@ -180,6 +182,9 @@ model Product {
   stockMovements StockMovement[]
   aliases        ProductAlias[]
   suggestions    SkuSuggestion[] @relation("MatchedProduct")
+  uomConversions UomConversion[]
+  consumeFailLogs ConsumeFailLog[] @relation("FailIngredient")
+  menuFailLogs    ConsumeFailLog[] @relation("FailMenu")
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -451,6 +456,67 @@ model RecipeBOM {
   @@index([productId], map: "recipe_bom_productId_fkey")
   @@index([recipeId], map: "recipe_bom_recipeId_fkey")
   @@map("recipe_bom")
+}
+
+// ─────────────────────────────────────────────
+// UOM CONVERSION (หน่วยแปลง)
+// ─────────────────────────────────────────────
+
+/// แปลงหน่วยซื้อ → หน่วยใช้งาน เช่น 1 ถุง = 1000 กรัม
+model UomConversion {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  fromUnit    String   // หน่วยซื้อ เช่น "ถุง", "โหล", "ขวด"
+  toUnit      String   // หน่วยใช้ใน BOM เช่น "กรัม", "มล.", "ชิ้น"
+  factor      Float    // 1 fromUnit = factor toUnit
+  isDefault   Boolean  @default(false)
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, productId, fromUnit, toUnit])
+  @@index([tenantId])
+  @@index([productId], map: "uom_conversions_productId_fkey")
+  @@map("uom_conversions")
+}
+
+// ─────────────────────────────────────────────
+// CONSUME FAIL LOG (คิว fail ถาวร)
+// ─────────────────────────────────────────────
+
+/// บันทึกทุกครั้งที่ตัดสต็อคจาก BOM ไม่สำเร็จ เพื่อให้ผู้จัดการเคลียร์
+model ConsumeFailLog {
+  id            String          @id @default(cuid())
+  tenantId      String
+  orderId       String          // Order ที่ trigger
+  orderNumber   String?         // เลข Order อ่านง่าย
+  menuId        String?         // productId ของเมนู
+  menuName      String?         // ชื่อเมนู (snapshot)
+  ingredientId  String?         // productId ของวัตถุดิบที่ fail
+  ingredientName String?        // ชื่อวัตถุดิบ (snapshot)
+  locationId    String?         // คลังที่ตรวจสอบ
+  failReason    ConsumeFailType
+  requiredQty   Float           @default(0)
+  requiredUnit  String?         // หน่วยที่ BOM ต้องการ
+  availableQty  Float           @default(0)
+  detail        String?         // ข้อความอธิบายเพิ่มเติม
+  status        FailLogStatus   @default(OPEN)
+  resolvedAt    DateTime?
+  resolvedNote  String?
+  createdAt     DateTime        @default(now())
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  menu          Product? @relation("FailMenu", fields: [menuId], references: [id])
+  ingredient    Product? @relation("FailIngredient", fields: [ingredientId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([orderId])
+  @@map("consume_fail_logs")
 }
 
 // ─────────────────────────────────────────────
@@ -846,6 +912,7 @@ enum ActorType {
 enum ProductType {
   SALE_ITEM
   RAW_MATERIAL
+  PREP           // ของเตรียม/แปรรูป (น้ำซุป, ซอส, หมูหมัก)
   PACKAGING
   ENTERTAIN
 }
@@ -949,4 +1016,20 @@ enum SkuSuggestionStatus {
   APPROVED_MAP  // อนุมัติ map ไป existing SKU
   APPROVED_NEW  // อนุมัติสร้าง SKU ใหม่
   REJECTED
+}
+
+enum ConsumeFailType {
+  NO_BOM           // เมนูไม่มีสูตร BOM เลย
+  BOM_INCOMPLETE   // BOM มีบางรายการขาด qty/unit
+  NO_UOM_CONV      // ไม่มีหน่วยแปลง (เช่น ถุง→กรัม)
+  STOCK_EMPTY      // สต็อคใน location ไม่พอ
+  WRONG_WAREHOUSE  // ของมีแต่อยู่คลังอื่น
+  NO_GR            // สินค้ายังไม่ได้รับเข้าคลัง (inventory record = 0)
+  SYSTEM_ERROR     // ข้อผิดพลาดระบบอื่นๆ
+}
+
+enum FailLogStatus {
+  OPEN       // รอดำเนินการ
+  RESOLVED   // แก้ไขแล้ว
+  IGNORED    // ยกเลิก/ข้ามไป
 }

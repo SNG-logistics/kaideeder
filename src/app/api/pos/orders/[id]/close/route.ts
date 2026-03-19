@@ -3,6 +3,36 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ConsumeFailType =
+    | 'NO_BOM'
+    | 'BOM_INCOMPLETE'
+    | 'NO_UOM_CONV'
+    | 'STOCK_EMPTY'
+    | 'WRONG_WAREHOUSE'
+    | 'NO_GR'
+    | 'SYSTEM_ERROR'
+
+interface FailEntry {
+    menuId?: string
+    menuName?: string
+    ingredientId?: string
+    ingredientName?: string
+    locationId?: string
+    failReason: ConsumeFailType
+    requiredQty: number
+    requiredUnit?: string
+    availableQty: number
+    detail: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Schema
+// ─────────────────────────────────────────────────────────────────────────────
+
 const closeOrderSchema = z.object({
     paymentMethod: z.enum(['CASH', 'TRANSFER', 'CARD', 'QRCODE']),
     receivedAmount: z.number().min(0),
@@ -13,7 +43,9 @@ const closeOrderSchema = z.object({
     vat: z.number().min(0).optional(),
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pos/orders/[id]/close — close bill & deduct stock
+// ─────────────────────────────────────────────────────────────────────────────
 export const POST = withAuth(async (req: NextRequest, ctx) => {
     const { tenantId } = ctx as any
     const params = await ctx.params
@@ -57,54 +89,143 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             ? Math.max(0, data.receivedAmount - totalAmount)
             : 0
 
-        // === STOCK DEDUCTION ===
-        const stockErrors: string[] = []
+        // ─── STOCK DEDUCTION ──────────────────────────────────────────────
+        const stockWarnings: string[] = []
+        const failEntries: FailEntry[] = []
 
-        // Get all locations for fallback logic
+        // โหลด locations ทั้งหมดของ tenant ครั้งเดียว
         const locations = await prisma.location.findMany({ where: { tenantId, isActive: true } })
         const locationMap = Object.fromEntries(locations.map(l => [l.code, l.id]))
 
-        for (const item of order.items) {
-            if (item.product.productType === 'ENTERTAIN') continue // skip entertain items
+        // โหลด UOM conversions ทั้งหมดของ tenant ครั้งเดียว (batch — ป้องกัน N+1)
+        const allConversions = await prisma.uomConversion.findMany({ where: { tenantId } })
 
-            // Find recipe for this product
-            const recipes = await prisma.recipeBOM.findMany({
-                where: { menuId: item.productId },
+        // index: productId → Map<"fromUnit|toUnit", factor>
+        const convMap = new Map<string, Map<string, number>>()
+        for (const c of allConversions) {
+            if (!convMap.has(c.productId)) convMap.set(c.productId, new Map())
+            convMap.get(c.productId)!.set(`${c.fromUnit}|${c.toUnit}`, c.factor)
+            // reverse ด้วย (1/factor)
+            convMap.get(c.productId)!.set(`${c.toUnit}|${c.fromUnit}`, 1 / c.factor)
+        }
+
+        for (const item of order.items) {
+            if (item.product.productType === 'ENTERTAIN') continue
+
+            // ─── หา BOM ──────────────────────────────────────────────────
+            const bomLines = await prisma.recipeBOM.findMany({
+                where: { menuId: item.productId, tenantId },
                 include: { product: true },
             })
 
-            if (recipes.length > 0) {
-                // Has BOM — deduct each ingredient
-                for (const bom of recipes) {
-                    const deductQty = item.quantity * bom.quantity
-                    await deductInventory(
-                        bom.productId,
-                        bom.locationId,
-                        deductQty,
-                        bom.product.costPrice,
-                        id,
-                        ctx.user?.userId || null,
-                        stockErrors,
-                        tenantId,
-                    )
-                }
-            } else {
-                // No recipe — deduct the product directly
+            if (bomLines.length === 0) {
+                // ไม่มีสูตร BOM → log NO_BOM + fallback ตัดตัวเมนูโดยตรง
                 const defaultLocationId = getDefaultLocation(item.product.category?.code, locationMap)
-                await deductInventory(
-                    item.productId,
-                    defaultLocationId,
-                    item.quantity,
-                    item.product.costPrice,
-                    id,
-                    ctx.user?.userId || null,
-                    stockErrors,
+                failEntries.push({
+                    menuId: item.productId,
+                    menuName: item.product.name,
+                    ingredientId: item.productId,
+                    ingredientName: item.product.name,
+                    locationId: defaultLocationId || undefined,
+                    failReason: 'NO_BOM',
+                    requiredQty: item.quantity,
+                    requiredUnit: item.product.unit,
+                    availableQty: 0,
+                    detail: `เมนู "${item.product.name}" ยังไม่มีสูตร BOM — ตัดตัวเมนูโดยตรงแทน`,
+                })
+                stockWarnings.push(`⚠️ "${item.product.name}": ไม่มีสูตร BOM — ตัดตัวเมนูแทน`)
+
+                // fallback: ตัด product โดยตรง
+                await deductInventory({
                     tenantId,
-                )
+                    productId: item.productId,
+                    locationId: defaultLocationId,
+                    quantity: item.quantity,
+                    unitCost: item.product.costPrice,
+                    orderId: id,
+                    userId: (ctx as any).user?.userId || null,
+                    warnings: stockWarnings,
+                    failEntries,
+                    menuId: item.productId,
+                    menuName: item.product.name,
+                    bomUnit: item.product.unit,
+                    convMap,
+                    productBaseUnit: item.product.unit,
+                })
+                continue
+            }
+
+            // ─── มี BOM → ตัดแต่ละ ingredient ───────────────────────────
+            for (const bom of bomLines) {
+                const baseUnit = bom.product.unit
+                let actualQty = item.quantity * bom.quantity
+
+                // แปลงหน่วยถ้า BOM unit ≠ base unit
+                if (bom.unit !== baseUnit) {
+                    const factor = resolveConversion(bom.productId, bom.unit, baseUnit, convMap)
+                    if (factor === null) {
+                        failEntries.push({
+                            menuId: item.productId,
+                            menuName: item.product.name,
+                            ingredientId: bom.productId,
+                            ingredientName: bom.product.name,
+                            locationId: bom.locationId,
+                            failReason: 'NO_UOM_CONV',
+                            requiredQty: bom.quantity,
+                            requiredUnit: bom.unit,
+                            availableQty: 0,
+                            detail: `ไม่มีหน่วยแปลง "${bom.unit}" → "${baseUnit}" สำหรับ "${bom.product.name}" — ไปเพิ่มที่ Settings > UOM`,
+                        })
+                        stockWarnings.push(`❌ "${bom.product.name}": ไม่มีหน่วยแปลง (${bom.unit}→${baseUnit})`)
+                        continue
+                    }
+                    actualQty = item.quantity * bom.quantity * factor
+                }
+
+                await deductInventory({
+                    tenantId,
+                    productId: bom.productId,
+                    locationId: bom.locationId,
+                    quantity: actualQty,
+                    unitCost: bom.product.costPrice,
+                    orderId: id,
+                    userId: (ctx as any).user?.userId || null,
+                    warnings: stockWarnings,
+                    failEntries,
+                    menuId: item.productId,
+                    menuName: item.product.name,
+                    bomUnit: baseUnit,
+                    convMap,
+                    productBaseUnit: baseUnit,
+                    locationMap,
+                })
             }
         }
 
-        // Update order
+        // ─── บันทึก ConsumeFailLog ถาวร ───────────────────────────────────
+        if (failEntries.length > 0) {
+            await prisma.consumeFailLog.createMany({
+                data: failEntries.map(f => ({
+                    tenantId,
+                    orderId: id,
+                    orderNumber: order.orderNumber,
+                    menuId: f.menuId || null,
+                    menuName: f.menuName || null,
+                    ingredientId: f.ingredientId || null,
+                    ingredientName: f.ingredientName || null,
+                    locationId: f.locationId || null,
+                    failReason: f.failReason,
+                    requiredQty: f.requiredQty,
+                    requiredUnit: f.requiredUnit || null,
+                    availableQty: f.availableQty,
+                    detail: f.detail,
+                    status: 'OPEN',
+                })),
+                skipDuplicates: true,
+            })
+        }
+
+        // ─── Update order ─────────────────────────────────────────────────
         const closedOrder = await prisma.order.update({
             where: { id },
             data: {
@@ -145,7 +266,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             })
         }
 
-        // === CREATE SALES EVENT ===
+        // ─── Sales Event ──────────────────────────────────────────────────
         await prisma.salesEvent.create({
             data: {
                 tenantId,
@@ -180,7 +301,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         return ok({
             order: closedOrder,
             changeAmount,
-            stockWarnings: stockErrors.length > 0 ? stockErrors : undefined,
+            stockWarnings: stockWarnings.length > 0 ? stockWarnings : undefined,
+            failCount: failEntries.length,
         })
     } catch (error) {
         if (error instanceof z.ZodError) return err(error.errors.map(e => e.message).join(', '))
@@ -189,83 +311,155 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     }
 }, ['OWNER', 'MANAGER', 'CASHIER'])
 
-// Deduct inventory helper
-async function deductInventory(
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: แปลงหน่วย (return null ถ้าไม่มี conversion)
+// ─────────────────────────────────────────────────────────────────────────────
+function resolveConversion(
     productId: string,
-    locationId: string,
-    quantity: number,
-    unitCost: number,
-    orderId: string,
-    userId: string | null,
-    errors: string[],
-    tenantId: string,
-) {
+    fromUnit: string,
+    toUnit: string,
+    convMap: Map<string, Map<string, number>>,
+): number | null {
+    if (fromUnit === toUnit) return 1
+    const productConv = convMap.get(productId)
+    if (!productConv) return null
+    return productConv.get(`${fromUnit}|${toUnit}`) ?? null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: ตัด inventory พร้อม detect WRONG_WAREHOUSE / NO_GR / STOCK_EMPTY
+// ─────────────────────────────────────────────────────────────────────────────
+interface DeductParams {
+    tenantId: string
+    productId: string
+    locationId: string
+    quantity: number
+    unitCost: number
+    orderId: string
+    userId: string | null
+    warnings: string[]
+    failEntries: FailEntry[]
+    menuId?: string
+    menuName?: string
+    bomUnit: string
+    convMap: Map<string, Map<string, number>>
+    productBaseUnit: string
+    locationMap?: Record<string, string>
+}
+
+async function deductInventory(p: DeductParams): Promise<void> {
     try {
-        // Guard: skip if locationId is empty (no matching location configured)
-        if (!locationId) {
-            const product = await prisma.product.findUnique({ where: { id: productId }, select: { name: true } })
-            errors.push(`⚠️ ${product?.name || productId}: ไม่มี location — ข้ามการตัดสต็อค`)
+        if (!p.locationId) {
+            const product = await prisma.product.findUnique({ where: { id: p.productId }, select: { name: true } })
+            const name = product?.name || p.productId
+            p.warnings.push(`⚠️ "${name}": ไม่มี location — ข้ามการตัดสต็อค`)
+            p.failEntries.push({
+                menuId: p.menuId, menuName: p.menuName,
+                ingredientId: p.productId, ingredientName: name,
+                failReason: 'SYSTEM_ERROR',
+                requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: 0,
+                detail: 'ไม่พบ location สำหรับตัดสต็อค',
+            })
             return
         }
 
         let inventory = await prisma.inventory.findFirst({
-            where: { productId, locationId, ...(tenantId ? { tenantId } : {}) },
+            where: { productId: p.productId, locationId: p.locationId, tenantId: p.tenantId },
         })
 
+        // ─── NO_GR: ยังไม่มี inventory record เลย ────────────────────────
         if (!inventory) {
+            const product = await prisma.product.findUnique({ where: { id: p.productId }, select: { name: true } })
+            const name = product?.name || p.productId
+            p.warnings.push(`❌ "${name}": ยังไม่ได้รับเข้าคลัง (ไม่มี GR)`)
+            p.failEntries.push({
+                menuId: p.menuId, menuName: p.menuName,
+                ingredientId: p.productId, ingredientName: name,
+                locationId: p.locationId, failReason: 'NO_GR',
+                requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: 0,
+                detail: 'ไม่พบ inventory record — วัตถุดิบนี้ยังไม่เคยถูกรับเข้าคลัง (ไม่มี GR)',
+            })
+            // สร้าง record ยอด 0 เพื่อไม่ block การขาย (จะติดลบ)
             inventory = await prisma.inventory.create({
-                data: {
-                    tenantId,
-                    productId,
-                    locationId,
-                    quantity: 0,
-                    avgCost: unitCost,
-                },
+                data: { tenantId: p.tenantId, productId: p.productId, locationId: p.locationId, quantity: 0, avgCost: p.unitCost },
             })
         }
 
+        // ─── STOCK_EMPTY หรือ WRONG_WAREHOUSE ────────────────────────────
+        if (inventory.quantity < p.quantity) {
+            const product = await prisma.product.findUnique({ where: { id: p.productId }, select: { name: true } })
+            const name = product?.name || p.productId
 
-        // Allow negative stock (just warn)
-        if (inventory.quantity < quantity) {
-            const product = await prisma.product.findUnique({ where: { id: productId } })
-            errors.push(`⚠️ ${product?.name || productId}: สต็อคไม่พอ (มี ${inventory.quantity}, ต้องการ ${quantity})`)
+            // ตรวจว่ามีในคลังอื่นไหม
+            const otherStock = await prisma.inventory.findFirst({
+                where: {
+                    tenantId: p.tenantId, productId: p.productId,
+                    quantity: { gt: 0 }, NOT: { locationId: p.locationId },
+                },
+                include: { location: { select: { name: true, code: true } } },
+            })
+
+            if (otherStock) {
+                p.warnings.push(`⚠️ "${name}": ของอยู่คลัง "${otherStock.location.name}" — ต้องโอนก่อน`)
+                p.failEntries.push({
+                    menuId: p.menuId, menuName: p.menuName,
+                    ingredientId: p.productId, ingredientName: name,
+                    locationId: p.locationId, failReason: 'WRONG_WAREHOUSE',
+                    requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: inventory.quantity,
+                    detail: `ของมีในคลัง "${otherStock.location.name}" (${otherStock.quantity} ${p.bomUnit}) แต่คลังนี้ไม่พอ — กรุณาโอนก่อน`,
+                })
+            } else {
+                const shortage = (p.quantity - inventory.quantity).toFixed(2)
+                p.warnings.push(`⚠️ "${name}": สต็อคไม่พอ (มี ${inventory.quantity} ต้องการ ${p.quantity} ${p.bomUnit})`)
+                p.failEntries.push({
+                    menuId: p.menuId, menuName: p.menuName,
+                    ingredientId: p.productId, ingredientName: name,
+                    locationId: p.locationId, failReason: 'STOCK_EMPTY',
+                    requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: inventory.quantity,
+                    detail: `สต็อคไม่พอ: มี ${inventory.quantity} ต้องการ ${p.quantity} ${p.bomUnit} (ขาด ${shortage} ${p.bomUnit})`,
+                })
+            }
         }
 
-        // Deduct
+        // ─── ตัดสต็อค (ยอมให้ติดลบ เพื่อไม่ block การขาย) ──────────────
         await prisma.inventory.update({
             where: { id: inventory.id },
-            data: {
-                quantity: { decrement: quantity },
-            },
+            data: { quantity: { decrement: p.quantity } },
         })
 
-        // Create stock movement
         await prisma.stockMovement.create({
             data: {
-                tenantId,
-                productId,
-                fromLocationId: locationId,
-                quantity,
-                unitCost,
-                totalCost: quantity * unitCost,
+                tenantId: p.tenantId,
+                productId: p.productId,
+                fromLocationId: p.locationId,
+                quantity: p.quantity,
+                unitCost: p.unitCost,
+                totalCost: p.quantity * p.unitCost,
                 type: 'SALE',
-                referenceId: orderId,
+                referenceId: p.orderId,
                 referenceType: 'POS_ORDER',
-                note: `POS ตัดสต็อคอัตโนมัติ`,
-                createdById: userId,
+                note: 'POS ตัดสต็อคอัตโนมัติ',
+                createdById: p.userId,
             },
         })
     } catch (e) {
-        console.error(`Stock deduction error for product ${productId}:`, e)
-        errors.push(`❌ ตัดสต็อคไม่สำเร็จ: ${productId}`)
+        console.error(`Stock deduction error for product ${p.productId}:`, e)
+        p.warnings.push(`❌ ตัดสต็อคไม่สำเร็จ: ${p.productId}`)
+        p.failEntries.push({
+            menuId: p.menuId, menuName: p.menuName,
+            ingredientId: p.productId,
+            failReason: 'SYSTEM_ERROR',
+            requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: 0,
+            detail: `System error: ${e instanceof Error ? e.message : String(e)}`,
+        })
     }
 }
 
-// Get default location based on category
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: Default location ตาม category code
+// ─────────────────────────────────────────────────────────────────────────────
 function getDefaultLocation(categoryCode: string | undefined, locationMap: Record<string, string>): string {
-    // anyLocation = first available location as ultimate fallback
     const anyLocationId = Object.values(locationMap)[0] || ''
-
     if (!categoryCode) return locationMap['WH_MAIN'] || anyLocationId
 
     const barCategories = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER']
@@ -277,7 +471,5 @@ function getDefaultLocation(categoryCode: string | undefined, locationMap: Recor
     if (kitchenCategories.includes(categoryCode)) {
         return locationMap['KIT_STOCK'] || locationMap['WH_MAIN'] || anyLocationId
     }
-    // Default
     return locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || anyLocationId
 }
-
