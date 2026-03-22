@@ -295,8 +295,10 @@ export default function MenuPage() {
 
     const currency = bill?.currency || tenant?.currency || 'LAK'
 
-    // ── Session Expired Screen ─────────────────────────────────────────
-    if (sessionExpired) return (
+    // ── Session Expired Screen OR Table Not Open ───────────────────────
+    // Show immediately if bill loaded and no open order (not just after failed submit)
+    const tableNotOpen = !loading && !billLoading && bill !== null && !hasOpenRound
+    if (sessionExpired || tableNotOpen) return (
         <SessionExpiredScreen
             tableNum={tableNum}
             tenantCode={tenantCode}
