@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, JWTPayload } from './auth'
 import { can, Permission } from './permissions'
 
@@ -60,10 +60,11 @@ export function withAuth<T>(
         ? { roles: guard }
         : (guard ?? {})
 
-      // Role check
+      // Role check — OWNER always passes (super-role)
       if (opts.roles && opts.roles.length > 0) {
         const userRoleUpper = user.role?.toUpperCase()
-        const allowed = opts.roles.some(r => r.toUpperCase() === userRoleUpper)
+        const isOwner = userRoleUpper === 'OWNER'
+        const allowed = isOwner || opts.roles.some(r => r.toUpperCase() === userRoleUpper)
         if (!allowed) {
           return NextResponse.json({ error: 'Forbidden: insufficient role' }, { status: 403 }) as any
         }
