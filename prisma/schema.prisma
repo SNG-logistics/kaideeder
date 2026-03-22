@@ -65,6 +65,9 @@ model Tenant {
   skuSuggestions   SkuSuggestion[]
   uomConversions   UomConversion[]
   consumeFailLogs  ConsumeFailLog[]
+  prepRecipes      PrepRecipe[]
+  prepBatches      PrepBatch[]
+  prepIngredients  PrepRecipeIngredient[]
 
   // SaaS relations
   wallet           Wallet?
@@ -183,9 +186,11 @@ model Product {
   stockMovements StockMovement[]
   aliases        ProductAlias[]
   suggestions    SkuSuggestion[] @relation("MatchedProduct")
-  uomConversions UomConversion[]
-  consumeFailLogs ConsumeFailLog[] @relation("FailIngredient")
-  menuFailLogs    ConsumeFailLog[] @relation("FailMenu")
+  uomConversions        UomConversion[]
+  consumeFailLogs       ConsumeFailLog[]        @relation("FailIngredient")
+  menuFailLogs          ConsumeFailLog[]        @relation("FailMenu")
+  prepOutputRecipes     PrepRecipe[]            @relation("PrepOutput")
+  prepIngredients       PrepRecipeIngredient[]  @relation("PrepIngredient")
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -209,6 +214,8 @@ model Location {
   toMovements   StockMovement[] @relation("ToLocation")
   transferFrom  StockTransfer[] @relation("TransferFrom")
   transferTo    StockTransfer[] @relation("TransferTo")
+  prepOutputs   PrepRecipe[]             @relation("PrepOutputLocation")
+  prepInputs    PrepRecipeIngredient[]   @relation("PrepIngredientLocation")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -518,6 +525,77 @@ model ConsumeFailLog {
   @@index([tenantId, createdAt])
   @@index([orderId])
   @@map("consume_fail_logs")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 4 — PREP RECIPE (สูตรแปรรูป)
+// ─────────────────────────────────────────────
+
+/// สูตรแปรรูป: วัตถุดิบดิบ → สินค้ากึ่งสำเร็จ
+/// เช่น ไก่ดิบ 1kg + เครื่องหมัก 200g → ไก่หมัก 800g
+model PrepRecipe {
+  id               String   @id @default(cuid())
+  tenantId         String
+  name             String                        // ชื่อสูตร
+  outputProductId  String                        // สินค้าที่ได้ออกมา
+  outputQty        Float                         // ปริมาณที่ได้ต่อ batch
+  outputUnit       String                        // หน่วยผลผลิต เช่น "กรัม"
+  outputLocationId String                        // คลังที่เพิ่มสต็อคผลผลิต
+  note             String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id])
+  outputProduct   Product                 @relation("PrepOutput", fields: [outputProductId], references: [id])
+  outputLocation  Location                @relation("PrepOutputLocation", fields: [outputLocationId], references: [id])
+  ingredients     PrepRecipeIngredient[]
+  batches         PrepBatch[]
+
+  @@index([tenantId])
+  @@index([outputProductId])
+  @@map("prep_recipes")
+}
+
+/// ส่วนผสมของสูตรแปรรูป
+model PrepRecipeIngredient {
+  id         String  @id @default(cuid())
+  tenantId   String
+  recipeId   String
+  productId  String                              // วัตถุดิบที่ใช้
+  quantity   Float                               // ปริมาณต่อ batch
+  unit       String                              // หน่วย เช่น "กรัม"
+  locationId String                              // คลังที่หยิบวัตถุดิบ
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  recipe     PrepRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  product    Product   @relation("PrepIngredient", fields: [productId], references: [id])
+  location   Location  @relation("PrepIngredientLocation", fields: [locationId], references: [id])
+
+  @@index([tenantId])
+  @@index([recipeId])
+  @@map("prep_recipe_ingredients")
+}
+
+/// การรัน batch แปรรูป — บันทึกการใช้สูตรจริง
+model PrepBatch {
+  id          String          @id @default(cuid())
+  tenantId    String
+  recipeId    String
+  batchQty    Float           @default(1)       // จำนวน batch ที่รัน
+  outputTotal Float           @default(0)       // ผลผลิตรวม (outputQty × batchQty)
+  status      PrepBatchStatus @default(DONE)
+  note        String?
+  executedById String?
+  createdAt   DateTime        @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  recipe      PrepRecipe  @relation(fields: [recipeId], references: [id])
+
+  @@index([tenantId])
+  @@index([recipeId])
+  @@index([tenantId, createdAt])
+  @@map("prep_batches")
 }
 
 // ─────────────────────────────────────────────
@@ -935,6 +1013,8 @@ enum MovementType {
   WASTE
   OPENING
   RETURN
+  PREP_CONSUME   // ตัดวัตถุดิบสำหรับแปรรูป
+  PREP_PRODUCE   // เพิ่มผลผลิตจากการแปรรูป
 }
 
 // ─────────────────────────────────────────────
@@ -1033,4 +1113,9 @@ enum FailLogStatus {
   OPEN       // รอดำเนินการ
   RESOLVED   // แก้ไขแล้ว
   IGNORED    // ยกเลิก/ข้ามไป
+}
+
+enum PrepBatchStatus {
+  DONE       // รัน batch สำเร็จ ตัดวัตถุดิบแล้ว
+  CANCELLED  // ยกเลิก (ไม่ตัด)
 }
