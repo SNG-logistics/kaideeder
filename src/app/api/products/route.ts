@@ -135,6 +135,12 @@ export const POST = withAuth<any>(async (req: NextRequest, context: any) => {
         const dupSku = await prisma.product.findFirst({ where: { tenantId, sku } })
         if (dupSku) return err(`SKU "${sku}" ซ้ำกับสินค้า "${dupSku.name}"`)
 
+        // Check duplicate name within this tenant (MySQL collation is case-insensitive by default)
+        const dupName = await prisma.product.findFirst({
+            where: { tenantId, name: data.name.trim(), isActive: true }
+        })
+        if (dupName) return err(`มีสินค้าชื่อ "${data.name}" อยู่แล้ว (SKU: ${dupName.sku}) — ถ้าต้องการแก้ไขให้กดปุ่มแก้ไขที่รายการเดิม`)
+
         const product = await prisma.product.create({
             data: { ...data, sku, tenantId },   // always inject tenantId
             include: { category: true },
