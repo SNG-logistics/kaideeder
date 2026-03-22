@@ -13,7 +13,7 @@ export async function GET(
     try {
         const tenant = await prisma.tenant.findFirst({
             where: { code: tenantCode, status: 'ACTIVE' },
-            select: { id: true, code: true, name: true, displayName: true, logoUrl: true, currency: true },
+            select: { id: true, code: true, name: true, displayName: true, logoUrl: true, currency: true, qrBankingBase64: true },
         })
         if (!tenant) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
 

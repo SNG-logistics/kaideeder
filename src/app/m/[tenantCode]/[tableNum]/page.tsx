@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 
 type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
-type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string; hasBanner?: boolean }
+type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string; hasBanner?: boolean; qrBankingBase64?: string | null }
 type CartItem = Product & { quantity: number; note: string }
 
 type BillRound = {
@@ -329,6 +329,17 @@ export default function MenuPage() {
                                 </div>
                                 <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.5rem' }}>{Math.round(bill.grandTotal ?? 0).toLocaleString()} {currency}</span>
                             </div>
+                            {/* QR Banking — แสดงเมื่อมีรูป */}
+                            {tenant?.qrBankingBase64 && (
+                                <div style={{ textAlign: 'center', margin: '0 0 14px', padding: '16px', background: '#fff', borderRadius: 16, border: `1px solid ${C.border}`, boxShadow: C.shadow }}>
+                                    <div style={{ fontSize: '0.72rem', color: C.muted, fontWeight: 600, letterSpacing: '0.06em', marginBottom: 8 }}>📲 ໂອນເງິນ · โอนเงิน</div>
+                                    <img
+                                        src={`data:image/jpeg;base64,${tenant.qrBankingBase64}`}
+                                        alt="QR Banking"
+                                        style={{ width: 180, height: 180, objectFit: 'contain', borderRadius: 10 }}
+                                    />
+                                </div>
+                            )}
                             {hasOpenRound && (
                                 billDone || bill.billRequested ? (
                                     <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.3)`, borderRadius: 16, padding: '18px', textAlign: 'center' }}>
