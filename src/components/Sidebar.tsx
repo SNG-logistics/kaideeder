@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
     { href: '/recipes',      icon: '📋', label: 'สูตรอาหาร (BOM)',        labelLo: 'ສູດອາຫານ (BOM)',          permission: 'RECIPE_VIEW' },
     { href: '/products',     icon: '🥩', label: 'วัตถุดิบ / Stock',       labelLo: 'ວັດຖຸດິບ / Stock',        permission: 'PRODUCT_VIEW' },
     { href: '/inventory',    icon: '📦', label: 'สต็อคคลัง',             labelLo: 'ສະຕ໋ອກຄັງ',              permission: 'INVENTORY_VIEW' },
+    { href: '/stock-count',  icon: '📋', label: 'นับสต็อคจริง',          labelLo: 'ນັບສະຕ໋ອກຈິງ',           permission: 'INVENTORY_VIEW' },
     { href: '/purchase',     icon: '🛒', label: 'ซื้อเข้า / GR',          labelLo: 'ຊື້ເຂົ້າ / GR',          permission: 'PURCHASE_VIEW' },
     { href: '/transfer',     icon: '🔄', label: 'เบิก / โอนคลัง',        labelLo: 'ເບີກ / ໂອນຄັງ',          permission: 'TRANSFER_USE' },
     { href: '/adjustment',   icon: '⚖️', label: 'ปรับสต็อค',             labelLo: 'ປັບສະຕ໋ອກ',              permission: 'ADJUSTMENT_USE' },

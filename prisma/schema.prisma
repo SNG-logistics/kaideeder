@@ -68,6 +68,7 @@ model Tenant {
   prepRecipes      PrepRecipe[]
   prepProductions  PrepProduction[]
   prepRecipeLines  PrepRecipeLine[]
+  stockCounts      StockCount[]
 
   // SaaS relations
   wallet           Wallet?
@@ -191,6 +192,7 @@ model Product {
   menuFailLogs          ConsumeFailLog[]      @relation("FailMenu")
   prepOutputRecipes     PrepRecipe[]          @relation("PrepRecipeOutput")
   prepRecipeLines       PrepRecipeLine[]      @relation("PrepRecipeIngredient")
+  stockCountItems       StockCountItem[]      @relation("CountProduct")
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -215,6 +217,8 @@ model Location {
   transferFrom  StockTransfer[] @relation("TransferFrom")
   transferTo    StockTransfer[] @relation("TransferTo")
   prepProductions PrepProduction[]
+  stockCounts   StockCount[]    @relation("CountLocation")
+  stockCountItems StockCountItem[] @relation("CountItemLocation")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -243,6 +247,57 @@ model Inventory {
   @@index([tenantId])
   @@index([locationId], map: "inventory_locationId_fkey")
   @@map("inventory")
+}
+
+// ─────────────────────────────────────────────
+// STOCK COUNT SHEET (นับสต็อคจริง)
+// ─────────────────────────────────────────────
+
+/// Session นับสต็อค: สร้าง → เริ่มนับ → เสร็จ → Approve (apply adjustment)
+model StockCount {
+  id           String           @id @default(cuid())
+  tenantId     String
+  name         String           // "นับสต็อค มี.ค. 67", "สิ้นเดือน Q1"
+  locationId   String?          // null = ทุกคลัง
+  status       StockCountStatus @default(DRAFT)
+  startedAt    DateTime?        // เวลา snapshot systemQty
+  completedAt  DateTime?        // นับครบทุก item
+  approvedAt   DateTime?        // apply adjustment แล้ว
+  note         String?
+  createdById  String?
+  createdAt    DateTime         @default(now())
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  location     Location?        @relation("CountLocation", fields: [locationId], references: [id])
+  createdBy    User?            @relation("StockCountCreator", fields: [createdById], references: [id])
+  items        StockCountItem[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("stock_counts")
+}
+
+/// รายการสินค้าในแต่ละ session
+model StockCountItem {
+  id          String  @id @default(cuid())
+  tenantId    String
+  countId     String
+  productId   String
+  locationId  String
+  systemQty   Float   // snapshot ณ ตอน start
+  countedQty  Float?  // null = ยังไม่ได้นับ
+  difference  Float?  // countedQty - systemQty (คำนวณตอน complete)
+  unit        String
+
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  count       StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  product     Product    @relation("CountProduct", fields: [productId], references: [id])
+  location    Location   @relation("CountItemLocation", fields: [locationId], references: [id])
+
+  @@unique([countId, productId, locationId])
+  @@index([tenantId])
+  @@index([countId])
+  @@map("stock_count_items")
 }
 
 model StockMovement {
@@ -1108,4 +1163,12 @@ enum FailLogStatus {
   OPEN       // รอดำเนินการ
   RESOLVED   // แก้ไขแล้ว
   IGNORED    // ยกเลิก/ข้ามไป
+}
+
+enum StockCountStatus {
+  DRAFT        // เตรียมรายการ
+  IN_PROGRESS  // กำลังนับ (systemQty ถูก snapshot แล้ว)
+  COMPLETED    // นับครบทุกรายการ รอ Approve
+  ADJUSTED     // Apply adjustment เข้าระบบแล้ว
+  CANCELLED
 }
