@@ -649,6 +649,31 @@ export default function POSPage() {
         setDiscount(0)
     }
 
+    // ─── Open Table for QR Order (no items, creates OPEN order) ──────────
+    const openTableForQR = async () => {
+        if (!selectedTable || currentOrder || loading) return
+        setLoading(true)
+        try {
+            const res = await fetch('/api/pos/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tableId: selectedTable.id }),
+            })
+            if (handleApiError(res, 'เปิดโต๊ะ')) return
+            const json = await res.json()
+            if (json.success) {
+                setCurrentOrder(json.data)
+                setOrderItems([])
+                setOrderStartTime(new Date())
+                setToast({ message: `🟢 โต๊ะ ${selectedTable.name} เปิดแล้ว — ลูกค้าสแกน QR สั่งออเดอร์ได้เลย`, type: 'success' })
+                fetchTables()
+            } else {
+                setToast({ message: json.error || 'เปิดโต๊ะไม่สำเร็จ', type: 'error' })
+            }
+        } catch { setToast({ message: 'เกิดข้อผิดพลาดในการเปิดโต๊ะ', type: 'error' }) }
+        finally { setLoading(false) }
+    }
+
     // ─── Move order to another table ──────────────────────────
     const moveOrder = async (targetTable: DiningTable) => {
         if (!currentOrder) return
@@ -966,7 +991,7 @@ export default function POSPage() {
                         <div style={{ display: 'flex', gap: 5, padding: '0 0.75rem', flexShrink: 0 }}>
                             {([
                                 { label: 'เพิ่ม', icon: '➕', bg: '#4F46E5', onClick: () => setShowMenuOverlay(true), off: false },
-                                { label: 'QRcode', icon: '📱', bg: '#374151', onClick: () => setToast({ message: 'QR Code — Coming Soon', type: 'warning' }), off: false },
+                                { label: currentOrder ? 'QR✓' : 'เปิด QR', icon: '📱', bg: currentOrder ? '#059669' : '#0D9488', onClick: openTableForQR, off: !!currentOrder || loading },
                                 { label: 'ยกเลิก', icon: '✕', bg: '#DC2626', onClick: cancelOrder, off: orderItems.length === 0 },
                                 { label: 'ย้าย', icon: '⇄', bg: '#7C3AED', onClick: () => setShowMoveModal(true), off: !currentOrder },
                                 { label: 'สถานะ', icon: '✓', bg: '#0EA5E9', onClick: confirmAndSaveOrder, off: orderItems.length === 0 || loading },
@@ -997,9 +1022,61 @@ export default function POSPage() {
                         {/* Order Items List */}
                         <div style={{ flex: 1, overflowY: 'auto', background: '#fff' }}>
                             {orderItems.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>
-                                    <div style={{ fontSize: '2rem' }}>🛒</div>
-                                    <div style={{ fontSize: '0.85rem', marginTop: 6 }}>ยังไม่มีรายการ — กด ➕ เพิ่มเมนู</div>
+                                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {/* QR Open Card — show when table is not opened yet */}
+                                    {!currentOrder && (
+                                        <div style={{
+                                            borderRadius: 16, border: '2px dashed #10B981',
+                                            background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)',
+                                            padding: '1.25rem', textAlign: 'center',
+                                        }}>
+                                            <div style={{ fontSize: '2rem', marginBottom: 8 }}>📱</div>
+                                            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#065f46', marginBottom: 4 }}>
+                                                เปิดโต๊ะให้ลูกค้า QR สั่งเองได้เลย
+                                            </div>
+                                            <div style={{ fontSize: '0.78rem', color: '#047857', marginBottom: 12, lineHeight: 1.5 }}>
+                                                กดปุ่ม <b>เปิด QR</b> ด้านบน หรือปุ่มด้านล่างนี้<br />
+                                                แล้วให้ลูกค้า สแกน QR บนโต๊ะ → สั่งได้เลย
+                                            </div>
+                                            <button
+                                                onClick={openTableForQR}
+                                                disabled={loading}
+                                                style={{
+                                                    background: loading ? '#d1d5db' : '#059669',
+                                                    color: '#fff', border: 'none', borderRadius: 12,
+                                                    padding: '0.7rem 1.5rem', fontSize: '0.88rem',
+                                                    fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer',
+                                                    fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(5,150,105,0.35)',
+                                                    display: 'flex', alignItems: 'center', gap: 8, margin: '0 auto',
+                                                }}
+                                            >
+                                                📱 {loading ? 'กำลังเปิด...' : 'เปิดโต๊ะ QR Order'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    {/* Already open — show QR hint */}
+                                    {currentOrder && (
+                                        <div style={{
+                                            borderRadius: 14, border: '1.5px solid #A7F3D0',
+                                            background: '#ECFDF5', padding: '0.9rem 1rem',
+                                            display: 'flex', alignItems: 'center', gap: 10,
+                                        }}>
+                                            <span style={{ fontSize: '1.4rem' }}>🟢</span>
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#065f46' }}>
+                                                    โต๊ะ {selectedTable?.name} เปิดแล้ว
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: '#047857', marginTop: 2 }}>
+                                                    ลูกค้าสแกน QR สั่งออเดอร์ได้เลย
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* Generic empty hint */}
+                                    <div style={{ textAlign: 'center', padding: '0.75rem', color: '#9CA3AF' }}>
+                                        <div style={{ fontSize: '1.5rem' }}>🛒</div>
+                                        <div style={{ fontSize: '0.82rem', marginTop: 4 }}>กด ➕ เพิ่มเมนูจากพนักงาน</div>
+                                    </div>
                                 </div>
                             ) : (
                                 orderItems.map((item, idx) => (
