@@ -26,6 +26,65 @@ const PKG_CODES = ['PACKAGING']
 const RAW_CATEGORY_CODES = [...MEAT_CODES, ...VEG_CODES, ...PKG_CODES, ...DRINK_CODES]
 const STOCK_TYPES = ['RAW_MATERIAL', 'PACKAGING']
 
+// ─── Completeness Score ────────────────────────────────────────────
+function getScore(p: Product): { score: number; missing: string[] } {
+    const missing: string[] = []
+    let score = 0
+    const isMenu = p.productType === 'SALE_ITEM' || p.productType === 'ENTERTAIN'
+    const isRaw  = p.productType === 'RAW_MATERIAL' || p.productType === 'PACKAGING'
+
+    // name (always required)
+    if (p.name?.trim()) score += 15
+    else missing.push('ชื่อสินค้า')
+
+    // SKU (auto = not great)
+    if (p.sku && !p.sku.startsWith('AUTO-')) score += 10
+    else missing.push('SKU')
+
+    // costPrice
+    if ((p.costPrice ?? 0) > 0) score += 20
+    else missing.push('ต้นทุน')
+
+    // salePrice (only for menu)
+    if (isMenu) {
+        if ((p.salePrice ?? 0) > 0) score += 20
+        else missing.push('ราคาขาย')
+    }
+
+    // reorderPoint (important for raw)
+    if (isRaw) {
+        if ((p.reorderPoint ?? 0) > 0) score += 20
+        else missing.push('จุดสั่งซื้อ')
+    }
+
+    // unit
+    if (p.unit?.trim()) score += 10
+    else missing.push('หน่วย')
+
+    // image
+    if (p.imageUrl) score += isMenu ? 15 : 5
+    else missing.push('รูปภาพ')
+
+    // cap at 100
+    const total = isMenu ? 80 : 80  // base without image = 75-80
+    const pct = Math.min(100, Math.round(score * 100 / (isMenu ? 80 : 75)))
+    return { score: pct, missing }
+}
+
+function ScoreBadge({ score }: { score: number }) {
+    const color = score >= 80 ? '#059669' : score >= 50 ? '#D97706' : '#DC2626'
+    const bg    = score >= 80 ? '#ECFDF5' : score >= 50 ? '#FFFBEB' : '#FEF2F2'
+    return (
+        <span style={{
+            fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px',
+            borderRadius: 20, background: bg, color,
+            border: `1px solid ${color}30`, whiteSpace: 'nowrap', flexShrink: 0,
+        }}>
+            {score}%
+        </span>
+    )
+}
+
 type TabKey = 'meat' | 'veg' | 'pkg' | 'drink' | 'all'
 
 export default function ProductsPage() {
@@ -48,6 +107,7 @@ export default function ProductsPage() {
     const [isMobile, setIsMobile] = useState(false)
     const [photoProduct, setPhotoProduct] = useState<Product | null>(null)
     const [showImportRaw, setShowImportRaw] = useState(false)
+    const [showIncompleteOnly, setShowIncompleteOnly] = useState(false)
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 768)
@@ -100,7 +160,20 @@ export default function ProductsPage() {
         if (activeTab === 'veg') return VEG_CODES.includes(p.category?.code)
         if (activeTab === 'pkg') return PKG_CODES.includes(p.category?.code)
         return true
+    }).filter(p => !showIncompleteOnly || getScore(p).score < 80)
+
+    // Summary stats for completeness banner
+    const allTabProducts = products.filter(p => {
+        if (activeTab === 'drink') return DRINK_CODES.includes(p.category?.code)
+        if (!STOCK_TYPES.includes(p.productType)) return false
+        if (activeTab === 'meat') return MEAT_CODES.includes(p.category?.code)
+        if (activeTab === 'veg') return VEG_CODES.includes(p.category?.code)
+        if (activeTab === 'pkg') return PKG_CODES.includes(p.category?.code)
+        return true
     })
+    const incompleteCount = allTabProducts.filter(p => getScore(p).score < 80).length
+    const needCost = allTabProducts.filter(p => (p.costPrice ?? 0) === 0).length
+    const needReorder = allTabProducts.filter(p => p.productType === 'RAW_MATERIAL' && (p.reorderPoint ?? 0) === 0).length
 
     const tabs: { key: TabKey; label: string; icon: string }[] = [
         { key: 'meat', label: 'เนื้อ / โปรตีน', icon: '🥩' },
@@ -186,6 +259,37 @@ export default function ProductsPage() {
                     <button suppressHydrationWarning onClick={() => { setShowTypePicker(true) }} className="btn-primary" style={{ minHeight: 44, whiteSpace: 'nowrap' }}>➕ เพิ่มสินค้า</button>
                 </div>
             </div>
+            {/* AI Completeness Banner */}
+            {!loading && incompleteCount > 0 && (
+                <div style={{
+                    marginBottom: 14, padding: '10px 16px', borderRadius: 12,
+                    background: 'linear-gradient(135deg,#FFFBEB,#FEF9C3)',
+                    border: '1px solid #FDE68A',
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                }}>
+                    <span style={{ fontSize: '1.2rem' }}>🤖</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#92400E' }}>
+                            {incompleteCount} รายการข้อมูลยังไม่สมบูรณ์
+                        </span>
+                        <span style={{ fontSize: '0.78rem', color: '#B45309', marginLeft: 8 }}>
+                            {needCost > 0 ? `ขาดต้นทุน ${needCost} ` : ''}
+                            {needReorder > 0 ? `ขาดจุดสั่งซื้อ ${needReorder}` : ''}
+                        </span>
+                    </div>
+                    <button suppressHydrationWarning
+                        onClick={() => setShowIncompleteOnly(v => !v)}
+                        style={{
+                            padding: '6px 14px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
+                            border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                            background: showIncompleteOnly ? '#D97706' : '#F59E0B',
+                            color: '#fff', transition: 'background 0.15s',
+                        }}
+                    >
+                        {showIncompleteOnly ? '✕ ยกเลิกกรอง' : '🔍 แสดงเฉพาะไม่ครบ'}
+                    </button>
+                </div>
+            )}
 
             {/* Tabs */}
             <div style={{
@@ -250,7 +354,7 @@ export default function ProductsPage() {
                         {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
                 )}
-                <button suppressHydrationWarning onClick={() => { setSearch(''); setSelectedCat(''); setSelectedType('') }} className="btn-secondary" style={{ fontSize: '0.8rem', minHeight: 40 }}>🔄 รีเซ็ต</button>
+                <button suppressHydrationWarning onClick={() => { setSearch(''); setSelectedCat(''); setSelectedType(''); setShowIncompleteOnly(false) }} className="btn-secondary" style={{ fontSize: '0.8rem', minHeight: 40 }}>🔄 รีเซ็ต</button>
             </div>
 
             {/* Content: Table on desktop, Cards on mobile */}
@@ -270,6 +374,7 @@ export default function ProductsPage() {
                     {filteredProducts.map(p => {
                         const totalQty = p.inventory?.reduce((s, i) => s + i.quantity, 0) || 0
                         const isLow = totalQty <= p.minQty && p.minQty > 0
+                        const { score, missing } = getScore(p)
                         return (
                             <div key={p.id} className="card" style={{ padding: '0.75rem', display: 'flex', gap: 10, alignItems: 'center' }}
                                 onClick={() => { setEditProduct(p); setShowForm(true) }}
@@ -311,6 +416,9 @@ export default function ProductsPage() {
                                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: isLow ? '#EF4444' : 'var(--text-secondary)', marginTop: 2 }}>
                                         {formatNumber(totalQty, 1)} {p.unit}
                                     </div>
+                                    <div style={{ marginTop: 4 }}>
+                                        <ScoreBadge score={score} />
+                                    </div>
                                 </div>
                             </div>
                         )
@@ -325,13 +433,16 @@ export default function ProductsPage() {
                                 <th style={{ width: 56 }}>รูป</th>
                                 <th>SKU</th><th>ชื่อสินค้า</th><th>หมวด</th><th>ประเภท</th>
                                 <th>หน่วย</th><th style={{ textAlign: 'right' }}>ต้นทุน</th><th style={{ textAlign: 'right' }}>ขาย</th>
-                                <th style={{ textAlign: 'right' }}>สต็อครวม</th><th></th>
+                                <th style={{ textAlign: 'right' }}>สต็อครวม</th>
+                                <th style={{ textAlign: 'center', width: 64 }}>🤖ครบ</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredProducts.map(p => {
                                 const totalQty = p.inventory?.reduce((s, i) => s + i.quantity, 0) || 0
                                 const isLow = totalQty <= p.minQty && p.minQty > 0
+                                const { score, missing } = getScore(p)
                                 return (
                                     <tr key={p.id}>
                                         <td style={{ padding: '6px 8px' }}>
@@ -376,6 +487,9 @@ export default function ProductsPage() {
                                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.85rem', color: '#059669' }}>{fmt(p.salePrice)}</td>
                                         <td style={{ textAlign: 'right', fontWeight: 700, color: isLow ? '#EF4444' : 'var(--accent)' }}>
                                             {formatNumber(totalQty, 1)} {p.unit}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }} title={missing.length > 0 ? `ขาด: ${missing.join(', ')}` : 'ครบสมบูรณ์'}>
+                                            <ScoreBadge score={score} />
                                         </td>
                                         <td>
                                             <button suppressHydrationWarning onClick={() => { setEditProduct(p); setShowForm(true) }}
