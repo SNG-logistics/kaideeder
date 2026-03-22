@@ -166,6 +166,7 @@ model Product {
   reorderPoint   Float           @default(0)
   minQty         Float           @default(0)
   isActive       Boolean         @default(true)
+  isFeatured     Boolean         @default(false)
   note           String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt

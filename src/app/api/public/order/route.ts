@@ -42,6 +42,20 @@ export async function POST(req: Request) {
         })
         if (!table) return NextResponse.json({ error: 'Table not found' }, { status: 404 })
 
+        // ── SESSION GUARD ──────────────────────────────────────────────────────
+        // Check if there is any active order at this table (OPEN or PENDING_CONFIRM)
+        const activeOrder = await prisma.order.findFirst({
+            where: { tenantId: tenant.id, tableId: table.id, status: { in: ['OPEN', 'PENDING_CONFIRM'] } },
+        })
+
+        // If no active order AND table is not OCCUPIED → QR link is stale (customer left)
+        if (!activeOrder && table.status !== 'OCCUPIED') {
+            return NextResponse.json({
+                error: 'SESSION_EXPIRED',
+                message: 'โต๊ะนี้ยังไม่ได้เปิดบริการ\nกรุณาแจ้งพนักงานเพื่อเปิดโต๊ะก่อนสั่งอาหาร',
+            }, { status: 403 })
+        }
+
         // Block only if there's already a PENDING_CONFIRM waiting (to avoid double-tap spam)
         const existingPending = await prisma.order.findFirst({
             where: { tenantId: tenant.id, tableId: table.id, status: 'PENDING_CONFIRM' },

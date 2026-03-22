@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 
-type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null }
+type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
 type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string; hasBanner?: boolean }
 type CartItem = Product & { quantity: number; note: string }
@@ -72,9 +72,11 @@ export default function MenuPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [activeCategory, setActiveCategory] = useState<string>('all')
+    const [catDropdownOpen, setCatDropdownOpen] = useState(false)
     const [search, setSearch] = useState('')
     const [submitting, setSubmitting] = useState(false)
     const [cartOpen, setCartOpen] = useState(false)
+    const [sessionExpired, setSessionExpired] = useState(false)
 
     const [submitted, setSubmitted] = useState(false)
     const [submittedRound, setSubmittedRound] = useState(1)
@@ -142,7 +144,9 @@ export default function MenuPage() {
     const totalItems = cart.reduce((s, i) => s + i.quantity, 0)
     const totalPrice = cart.reduce((s, i) => s + (i.price ?? 0) * i.quantity, 0)
     const filtered = products.filter(p => {
-        const matchCat = activeCategory === 'all' || p.categoryId === activeCategory
+        const matchCat = activeCategory === 'all'
+            || (activeCategory === 'featured' && p.isFeatured)
+            || p.categoryId === activeCategory
         const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
         return matchCat && matchSearch
     })
@@ -164,7 +168,17 @@ export default function MenuPage() {
                 }),
             })
             const json = await res.json()
-            if (!res.ok) { setError(json.error || 'เกิดข้อผิดพลาด'); setCartOpen(false); return }
+            if (!res.ok) {
+                // Session expired = table not open / customer already left
+                if (res.status === 403 && json.error === 'SESSION_EXPIRED') {
+                    setCartOpen(false)
+                    setSessionExpired(true)
+                    return
+                }
+                setError(json.error || 'เกิดข้อผิดพลาด')
+                setCartOpen(false)
+                return
+            }
             setOrderNumber(json.orderNumber)
             setIsAddon(json.isAddon ?? false)
             setCart([])
@@ -188,6 +202,42 @@ export default function MenuPage() {
     }
 
     const currency = bill?.currency || tenant?.currency || 'LAK'
+
+    // ── Session Expired Screen ─────────────────────────────────────────
+    if (sessionExpired) return (
+        <div style={{ minHeight: '100dvh', background: '#fdf2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 0, padding: 28, textAlign: 'center', fontFamily: FONT }}>
+            <style>{GLOBAL_CSS}</style>
+            <div style={{
+                width: 96, height: 96, borderRadius: '50%',
+                background: 'linear-gradient(135deg,#fee2e2,#fecaca)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '3rem', marginBottom: 24,
+                boxShadow: '0 8px 32px rgba(239,68,68,0.2)',
+                animation: 'popIn 0.4s ease',
+            }}>🔒</div>
+            <h1 style={{ color: '#7f1d1d', fontWeight: 900, fontSize: '1.35rem', margin: '0 0 12px', lineHeight: 1.3 }}>
+                QR นี้หมดอายุแล้ว
+            </h1>
+            <p style={{ color: '#991b1b', fontSize: '0.92rem', lineHeight: 1.75, margin: '0 0 8px', fontWeight: 500 }}>
+                โต๊ะ <b>{tableNum}</b> ยังไม่ได้เปิดบริการ
+            </p>
+            <p style={{ color: '#b91c1c', fontSize: '0.82rem', lineHeight: 1.7, margin: '0 0 28px' }}>
+                ลิงก์นี้ใช้ได้เฉพาะเมื่อนั่งโต๊ะที่ร้านเท่านั้น<br />
+                กรุณาแจ้งพนักงานเพื่อเปิดโต๊ะ
+            </p>
+            <div style={{
+                background: '#fff', borderRadius: 18, padding: '18px 24px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                border: '1px solid rgba(239,68,68,0.15)',
+                maxWidth: 320, width: '100%',
+            }}>
+                <p style={{ color: '#6b7280', fontSize: '0.78rem', margin: 0, lineHeight: 1.7 }}>
+                    🪑 นั่งที่โต๊ะ → แจ้งพนักงานเปิดโต๊ะ<br />
+                    📱 สแกน QR ใหม่อีกครั้ง → สั่งได้เลย
+                </p>
+            </div>
+        </div>
+    )
 
     // ── Loading ────────────────────────────────────────────────────────
     if (loading) return (
@@ -412,26 +462,99 @@ export default function MenuPage() {
 
                     {/* Search + Category */}
                     <div style={{ background: '#fff', boxShadow: '0 3px 12px rgba(0,0,0,0.06)' }}>
-                        <div style={{ padding: '12px 14px 8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 14, padding: '10px 14px' }}>
+                        <div style={{ padding: '10px 14px 8px', display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 14, padding: '9px 14px', flex: 1 }}>
                                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
-                                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเมนู…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.9rem', fontFamily: FONT }} />
-                                {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', padding: 0, lineHeight: 1 }}>✕</button>}
+                                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเมนู…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.88rem', fontFamily: FONT }} />
+                                {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', padding: 0 }}>✕</button>}
                             </div>
-                        </div>
-                        {/* Category tabs — circular icon style */}
-                        <div style={{ display: 'flex', overflowX: 'auto', padding: '4px 14px 14px', scrollbarWidth: 'none' }}>
-                            <button onClick={() => setActiveCategory('all')} style={catTabStyle(activeCategory === 'all')}>
-                                <div style={catCircleStyle(activeCategory === 'all')}>🍽️</div>
-                                <span style={catLabelStyle(activeCategory === 'all')}>ทั้งหมด</span>
+                            {/* Dropdown trigger */}
+                            <button onClick={() => setCatDropdownOpen(o => !o)} style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                background: catDropdownOpen ? C.accent : '#f3f4f6',
+                                border: 'none', borderRadius: 14, padding: '9px 14px',
+                                color: catDropdownOpen ? '#fff' : C.text, fontFamily: FONT,
+                                fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                                whiteSpace: 'nowrap', transition: 'all 0.15s',
+                            }}>
+                                <span style={{ fontSize: '1rem' }}>
+                                    {activeCategory === 'all' ? '🍽️'
+                                        : activeCategory === 'featured' ? '⭐'
+                                        : categories.find(c => c.id === activeCategory)?.icon || '🍴'}
+                                </span>
+                                <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {activeCategory === 'all' ? 'ทั้งหมด'
+                                        : activeCategory === 'featured' ? 'เมนูแนะนำ'
+                                        : categories.find(c => c.id === activeCategory)?.name || 'หมวด'}
+                                </span>
+                                <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{catDropdownOpen ? '▲' : '▼'}</span>
                             </button>
-                            {categories.map(c => (
-                                <button key={c.id} onClick={() => setActiveCategory(c.id)} style={catTabStyle(activeCategory === c.id)}>
-                                    <div style={catCircleStyle(activeCategory === c.id)}>{c.icon || '🍴'}</div>
-                                    <span style={catLabelStyle(activeCategory === c.id)}>{c.name}</span>
-                                </button>
-                            ))}
                         </div>
+
+                        {/* Dropdown menu */}
+                        {catDropdownOpen && (
+                            <div onClick={() => setCatDropdownOpen(false)} style={{
+                                position: 'fixed', inset: 0, zIndex: 60,
+                            }}>
+                                <div onClick={e => e.stopPropagation()} style={{
+                                    position: 'absolute', top: 'auto', right: 14, left: 14,
+                                    background: '#fff', borderRadius: 18,
+                                    boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
+                                    overflow: 'hidden', zIndex: 61,
+                                    marginTop: 4,
+                                    maxHeight: '70dvh', overflowY: 'auto',
+                                }}>
+                                    {/* Header */}
+                                    <div style={{ padding: '14px 16px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6' }}>
+                                        <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>หมวดหมู่ทั้งหมด</div>
+                                        <button onClick={() => setCatDropdownOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.1rem', cursor: 'pointer', color: C.muted }}>✕</button>
+                                    </div>
+                                    {/* เมนูแนะนำ */}
+                                    {products.some(p => p.isFeatured) && (
+                                        <div onClick={() => { setActiveCategory('featured'); setCatDropdownOpen(false) }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 12,
+                                                padding: '13px 16px', cursor: 'pointer',
+                                                background: activeCategory === 'featured' ? C.goldLight : '#fff',
+                                                borderBottom: '1px solid #f9fafb',
+                                            }}
+                                        >
+                                            <span style={{ fontSize: '1.3rem' }}>⭐</span>
+                                            <span style={{ fontWeight: 700, fontSize: '0.92rem', color: activeCategory === 'featured' ? C.gold : C.text }}>เมนูแนะนำ</span>
+                                            {activeCategory === 'featured' && <span style={{ marginLeft: 'auto', color: C.gold, fontSize: '1rem' }}>✓</span>}
+                                        </div>
+                                    )}
+                                    {/* ทั้งหมด */}
+                                    <div onClick={() => { setActiveCategory('all'); setCatDropdownOpen(false) }}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 12,
+                                            padding: '13px 16px', cursor: 'pointer',
+                                            background: activeCategory === 'all' ? C.accentLight : '#fff',
+                                            borderBottom: '1px solid #f9fafb',
+                                        }}
+                                    >
+                                        <span style={{ fontSize: '1.3rem' }}>🍽️</span>
+                                        <span style={{ fontWeight: activeCategory === 'all' ? 700 : 500, fontSize: '0.92rem', color: activeCategory === 'all' ? C.accent : C.text }}>ทั้งหมด</span>
+                                        {activeCategory === 'all' && <span style={{ marginLeft: 'auto', color: C.accent, fontSize: '1rem' }}>✓</span>}
+                                    </div>
+                                    {/* หมวดหมู่ */}
+                                    {categories.map(c => (
+                                        <div key={c.id} onClick={() => { setActiveCategory(c.id); setCatDropdownOpen(false) }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 12,
+                                                padding: '13px 16px', cursor: 'pointer',
+                                                background: activeCategory === c.id ? C.accentLight : '#fff',
+                                                borderBottom: '1px solid #f9fafb',
+                                            }}
+                                        >
+                                            <span style={{ fontSize: '1.3rem' }}>{c.icon || '🍴'}</span>
+                                            <span style={{ fontWeight: activeCategory === c.id ? 700 : 500, fontSize: '0.92rem', color: activeCategory === c.id ? C.accent : C.text }}>{c.name}</span>
+                                            {activeCategory === c.id && <span style={{ marginLeft: 'auto', color: C.accent, fontSize: '1rem' }}>✓</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

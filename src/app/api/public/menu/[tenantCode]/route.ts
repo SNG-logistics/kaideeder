@@ -29,17 +29,16 @@ export async function GET(
             select: {
                 id: true, name: true, sku: true,
                 salePrice: true, unit: true, categoryId: true,
-                imageUrl: true,
+                imageUrl: true, isFeatured: true,
                 // check if base64 exists (boolean only) — actual bytes loaded per-product
                 imageBase64: true,
             },
         })
 
-        const products = rawProducts.map(({ imageBase64, imageUrl, ...p }) => ({
+        const products = rawProducts.map(({ imageBase64, imageUrl, isFeatured, ...p }) => ({
             ...p,
             price: p.salePrice,
-            // If stored as base64 → use dedicated image endpoint (avoids 2-6MB JSON)
-            // If external URL → use directly
+            isFeatured: isFeatured ?? false,
             imageUrl: imageBase64
                 ? `/api/public/img/${p.id}`
                 : (imageUrl ?? null),

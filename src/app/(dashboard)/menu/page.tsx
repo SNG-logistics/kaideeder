@@ -9,6 +9,7 @@ interface Product {
     id: string; sku: string; name: string; unit: string
     costPrice: number; salePrice: number
     productType: string; note?: string; imageUrl?: string
+    isFeatured?: boolean
     category: { id: string; code: string; name: string; icon: string; color: string }
 }
 interface Category { id: string; code: string; name: string; icon: string; color: string; _count: { products: number } }
@@ -246,6 +247,7 @@ export default function MenuPage() {
                             product={p}
                             onEdit={() => { setEditProduct(p); setShowForm(true) }}
                             onPhoto={() => setPhotoProduct(p)}
+                            onToggleFeatured={fetchProducts}
                         />
                     ))}
                 </div>
@@ -286,9 +288,28 @@ export default function MenuPage() {
 }
 
 // ─── Menu Card (Green Premium) ───────────────────────────────────
-function MenuCard({ product: p, onEdit, onPhoto }: {
-    product: Product; onEdit: () => void; onPhoto: () => void
+function MenuCard({ product: p, onEdit, onPhoto, onToggleFeatured }: {
+    product: Product; onEdit: () => void; onPhoto: () => void; onToggleFeatured: () => void
 }) {
+    const [starring, setStarring] = useState(false)
+
+    async function toggleFeatured(e: React.MouseEvent) {
+        e.stopPropagation()
+        setStarring(true)
+        try {
+            const res = await fetch(`/api/products/${p.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isFeatured: !p.isFeatured }),
+            })
+            const json = await res.json()
+            if (json.success) {
+                toast.success(p.isFeatured ? '⭐ ถอดออกจากเมนูแนะนำแล้ว' : '⭐ เพิ่มเป็นเมนูแนะนำแล้ว')
+                onToggleFeatured()
+            }
+        } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setStarring(false) }
+    }
     const { fmt } = useCurrency();
     return (
         <div
@@ -341,14 +362,24 @@ function MenuCard({ product: p, onEdit, onPhoto }: {
                 }}>
                     {p.category.icon} {p.category.name}
                 </div>
-                {/* Photo icon badge */}
-                <div style={{
-                    position: 'absolute', top: 8, right: 8,
-                    background: 'rgba(255,255,255,0.85)',
-                    borderRadius: 8, width: 28, height: 28,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.85rem', backdropFilter: 'blur(4px)',
-                }}>📷</div>
+                {/* Star badge — เมนูแนะนำ */}
+                <button
+                    onClick={toggleFeatured}
+                    disabled={starring}
+                    title={p.isFeatured ? 'ถอดออกจากเมนูแนะนำ' : 'เพิ่มเป็นเมนูแนะนำ'}
+                    style={{
+                        position: 'absolute', top: 8, right: 8,
+                        background: p.isFeatured ? 'rgba(245,158,11,0.92)' : 'rgba(255,255,255,0.88)',
+                        border: 'none', borderRadius: 8, width: 30, height: 30,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1rem', backdropFilter: 'blur(4px)',
+                        cursor: starring ? 'wait' : 'pointer',
+                        transition: 'all 0.18s',
+                        boxShadow: p.isFeatured ? '0 2px 8px rgba(245,158,11,0.5)' : 'none',
+                    }}
+                >
+                    {starring ? '⏳' : p.isFeatured ? '⭐' : '☆'}
+                </button>
             </div>
 
             {/* Info */}
