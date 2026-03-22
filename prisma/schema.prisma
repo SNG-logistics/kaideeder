@@ -69,6 +69,7 @@ model Tenant {
   prepProductions  PrepProduction[]
   prepRecipeLines  PrepRecipeLine[]
   stockCounts      StockCount[]
+  stockCountItems  StockCountItem[]
 
   // SaaS relations
   wallet           Wallet?
@@ -125,6 +126,7 @@ model User {
   transfers         StockTransfer[]
   topupRequests     TopupRequest[]
   auditLogs         AuditLog[]
+  stockCountsCreated StockCount[] @relation("StockCountCreator")
 
   @@unique([tenantId, username])
   @@index([tenantId])
