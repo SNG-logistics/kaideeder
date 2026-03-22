@@ -1,398 +1,708 @@
 'use client'
-import { useRoleGuard } from '@/hooks/useRoleGuard'
-import { useStoreBranding } from '@/hooks/useStoreBranding'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
+/* ────────────────────────────────────────────────────────────
+   DATA — Sections grouped into 5 tabs
+──────────────────────────────────────────────────────────── */
+const TABS = [
+    { id: 'overview',  icon: '🌐', label: 'ภาพรวมระบบ' },
+    { id: 'pos',       icon: '💰', label: 'POS & ขาย' },
+    { id: 'stock',     icon: '📦', label: 'สต็อค & คลัง' },
+    { id: 'recipe',    icon: '📋', label: 'สูตร & BOM' },
+    { id: 'settings',  icon: '⚙️', label: 'ตั้งค่า & จัดการ' },
+] as const
+
+type TabId = typeof TABS[number]['id']
+
+type Step = { text: string; sub?: string[] }
+type Tip  = { type: 'tip' | 'warn' | 'info'; text: string }
+type Section = {
+    id: string
+    icon: string
+    title: string
+    subtitle: string
+    roles?: string[]
+    steps: Step[]
+    tips?: Tip[]
+}
+type TabContent = { sections: Section[] }
+
+const CONTENT: Record<TabId, TabContent> = {
+    overview: {
+        sections: [
+            {
+                id: 'intro',
+                icon: '🏢',
+                title: 'KAIDEEDER คืออะไร?',
+                subtitle: 'ระบบจัดการร้านอาหารและสต็อคแบบ Multi-Tenant',
+                roles: [],
+                steps: [
+                    { text: 'KAIDEEDER เป็นระบบ POS + สต็อค + BOM ออกแบบมาสำหรับร้านอาหาร' },
+                    { text: 'ระบบทำงานบนเบราว์เซอร์ — ไม่ต้องติดตั้งโปรแกรม' },
+                    { text: 'หลายร้านใช้งานพร้อมกันได้ (Multi-Tenant) — ข้อมูลแยกกันสมบูรณ์' },
+                    { text: 'รองรับภาษาไทย / ลาว และสกุลเงิน KIP' },
+                ],
+                tips: [
+                    { type: 'info', text: 'URL: https://kaideeder.com/  เข้าใช้งานด้วย Email + Password ที่ได้รับจาก Admin' },
+                ],
+            },
+            {
+                id: 'roles',
+                icon: '👥',
+                title: 'บทบาทผู้ใช้ (Roles)',
+                subtitle: 'แต่ละ Role เห็นและใช้งานเมนูต่างกัน',
+                roles: [],
+                steps: [
+                    { text: '👑 Owner — เข้าถึงได้ทุกอย่าง รวมถึงการตั้งค่า, ผู้ใช้, รายงาน' },
+                    { text: '📊 Manager — จัดการสต็อค, BOM, รายงาน, ผู้ใช้' },
+                    { text: '💰 Cashier — ใช้ POS, รับชำระ, ดูรายงานยอดขาย' },
+                    { text: '🍳 Kitchen — เห็นจอครัว (KDS), ยืนยัน/เสร็จออเดอร์' },
+                    { text: '🍸 Bar — เหมือนครัว แต่เห็นเฉพาะออเดอร์เครื่องดื่ม' },
+                    { text: '🏭 Warehouse — รับสินค้า, โอนคลัง, นับสต็อค' },
+                    { text: '🛒 Purchaser — สั่งซื้อสินค้า, GR, ดูรายงานการซื้อ' },
+                ],
+                tips: [
+                    { type: 'tip', text: 'Owner/Manager เท่านั้นที่เพิ่ม/ลบผู้ใช้ได้' },
+                ],
+            },
+            {
+                id: 'login',
+                icon: '🔐',
+                title: 'การเข้าสู่ระบบ',
+                subtitle: 'Login ด้วย Email + Password',
+                roles: ['ทุก role'],
+                steps: [
+                    { text: 'เปิด https://kaideeder.com/ ด้วย Chrome / Safari / Edge' },
+                    { text: 'กรอก Email และ Password ที่ได้รับจาก Manager' },
+                    { text: 'กด Login — ระบบจะพาไปหน้า Dashboard' },
+                    { text: 'ถ้าลืม Password: แจ้ง Owner หรือ Manager ให้รีเซ็ตให้' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'อย่าแชร์ Password กับคนอื่น — แต่ละคนควรมี Account ของตัวเอง' },
+                    { type: 'tip', text: 'บุ๊กมาร์คหน้า Login ไว้ใน browser เพื่อความรวดเร็ว' },
+                ],
+            },
+            {
+                id: 'dashboard',
+                icon: '🏠',
+                title: 'หน้า Dashboard (Home)',
+                subtitle: 'สรุปยอดขาย, สต็อคต่ำ, กิจกรรมล่าสุด',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ยอดขายวันนี้ — แสดงจำนวน Order และมูลค่ารวม' },
+                    { text: 'สต็อคต่ำ — แสดงวัตถุดิบที่ต้องสั่งซื้อ (ต่ำกว่า Reorder Point)' },
+                    { text: 'กิจกรรมล่าสุด — Stock Movement และ Consume ล่าสุด' },
+                    { text: 'ไปยังหน้าอื่น: คลิก Sidebar ซ้ายมือ' },
+                ],
+            },
+        ],
+    },
+
+    pos: {
+        sections: [
+            {
+                id: 'pos-use',
+                icon: '💰',
+                title: 'POS ขายหน้าร้าน',
+                subtitle: 'รับออเดอร์, เพิ่มสินค้า, ชำระเงิน',
+                roles: ['Cashier', 'Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ POS ขายหน้าร้าน จาก Sidebar (สีแดง บนสุด)' },
+                    { text: 'เลือกโต๊ะ (ถ้ามี) หรือ Walk-in' },
+                    { text: 'เพิ่มเมนู: คลิกสินค้าในกริดด้านขวา', sub: ['ค้นหาเมนูด้วยช่องค้นหาด้านบน', 'คลิกหมวดหมู่เพื่อกรอง'] },
+                    { text: 'แก้ไขจำนวน: คลิกตัวเลขในรายการออเดอร์' },
+                    { text: 'เพิ่ม Note ต่อ Item: กดค้างที่รายการ หรือปุ่ม ✏️' },
+                    { text: 'ส่งไปครัว: กด 📤 ส่งครัว — KDS จะแสดงออเดอร์ทันที' },
+                    { text: 'ชำระเงิน: กด 💰 ชำระ → เลือกวิธีชำระ → ยืนยัน' },
+                    { text: 'พิมพ์ใบเสร็จ: กด 🖨️ ใบเสร็จ (ต้องเชื่อมต่อเครื่องพิมพ์)' },
+                ],
+                tips: [
+                    { type: 'tip', text: 'สามารถเปิดหลายโต๊ะพร้อมกันได้ — สลับโต๊ะด้วยปุ่มด้านบน' },
+                    { type: 'info', text: 'ระบบตัดสต็อคอัตโนมัติตาม BOM ทุกครั้งที่ชำระเงิน' },
+                    { type: 'warn', text: 'ถ้า BOM ไม่ครบ ระบบจะบันทึกใน Consume Fail Log — ต้องแก้ BOM ให้ครบ' },
+                ],
+            },
+            {
+                id: 'kds',
+                icon: '🍳',
+                title: 'จอครัว (KDS)',
+                subtitle: 'ติดตามออเดอร์ที่ส่งมาจาก POS',
+                roles: ['Kitchen', 'Bar', 'Manager'],
+                steps: [
+                    { text: 'เปิด /kitchen หรือ /bar บน iPad/จอครัว' },
+                    { text: 'ออเดอร์ใหม่จะปรากฏเป็น Card สีเหลือง' },
+                    { text: 'กด ✅ บน Item เมื่อทำเสร็จแต่ละรายการ' },
+                    { text: 'กด ✅ เสร็จแล้ว บน Card เมื่อออเดอร์ทั้งหมดพร้อมเสิร์ฟ' },
+                    { text: 'Card จะเปลี่ยนเป็นสีเขียว และหายออกไปหลัง 30 วิ' },
+                ],
+                tips: [
+                    { type: 'info', text: 'KDS รีเฟรชอัตโนมัติทุก 10 วินาที — ไม่ต้องกด Refresh' },
+                    { type: 'tip', text: 'ครัว/บาร์เห็นเฉพาะ Item ที่กำหนดให้แต่ละฝ่าย (routing ตามหมวดหมู่)' },
+                ],
+            },
+            {
+                id: 'waiter',
+                icon: '🍽️',
+                title: 'หน้าเสิร์ฟ (Waiter)',
+                subtitle: 'ดูสถานะออเดอร์ สั่งอาหารเพิ่ม',
+                roles: ['Waiter', 'Manager'],
+                steps: [
+                    { text: 'เปิด /waiter บน iPad หรือมือถือ' },
+                    { text: 'เห็นรายการโต๊ะและสถานะออเดอร์แต่ละโต๊ะ' },
+                    { text: 'กดโต๊ะเพื่อเพิ่มรายการอาหารพิเศษ หรือ Note' },
+                    { text: 'เห็นสถานะจากครัว: ⏳ รอ / 🔔 พร้อมเสิร์ฟ' },
+                ],
+            },
+            {
+                id: 'tables',
+                icon: '🪑',
+                title: 'จัดการโต๊ะ',
+                subtitle: 'เพิ่ม/แก้ไขโต๊ะและโซน',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'กดปุ่ม 🪑 Tables ใน Sidebar (หรือในหน้า POS)' },
+                    { text: 'กด + เพิ่มโต๊ะ → กรอกชื่อโต๊ะ (เช่น A1, VIP1)' },
+                    { text: 'กำหนด Zone: กด + โซน → ตั้งชื่อ (ในร้าน, นอกร้าน, VIP)' },
+                    { text: 'ลากย้ายโต๊ะระหว่างโซนได้' },
+                ],
+            },
+        ],
+    },
+
+    stock: {
+        sections: [
+            {
+                id: 'products',
+                icon: '🥩',
+                title: 'วัตถุดิบ / Products',
+                subtitle: 'จัดการรายการสินค้าและวัตถุดิบทั้งหมด',
+                roles: ['Manager', 'Owner', 'Warehouse'],
+                steps: [
+                    { text: 'ไปที่ วัตถุดิบ / Stock จาก Sidebar' },
+                    { text: 'กด ➕ เพิ่มสินค้าใหม่ → กรอก:', sub: ['SKU (รหัสสินค้า) — ต้องไม่ซ้ำ', 'ชื่อสินค้า', 'หมวดหมู่', 'หน่วย (กก. / ชิ้น / ถุง)', 'ราคาต้นทุนเริ่มต้น', 'Reorder Point (จุดสั่งซื้อ)'] },
+                    { text: 'บันทึก — สินค้าจะปรากฏในรายการ' },
+                    { text: 'แก้ไข: กดปุ่ม ✏️ ที่แถวสินค้า' },
+                    { text: 'ปิดการใช้งาน: Toggle ที่ Active — ไม่ปรากฏใน BOM และ POS' },
+                ],
+                tips: [
+                    { type: 'info', text: 'SKU ใช้เป็น Key หลักในการ match กับ Excel Import — ตั้งให้สั้น จดจำง่าย เช่น PORK-NECK, GARLIC' },
+                    { type: 'tip', text: 'ตั้ง Reorder Point ให้ถูกต้อง — ระบบจะแจ้งเตือนใน Sidebar badge' },
+                ],
+            },
+            {
+                id: 'inventory',
+                icon: '📦',
+                title: 'สต็อคคลัง',
+                subtitle: 'ดูยอดคงเหลือแต่ละคลัง',
+                roles: ['Manager', 'Owner', 'Warehouse'],
+                steps: [
+                    { text: 'ไปที่ สต็อคคลัง จาก Sidebar' },
+                    { text: 'ดูยอดคงเหลือ (onHand) แต่ละสินค้าต่อคลัง' },
+                    { text: 'กรองด้วยคลัง: เลือก Location ด้านบน' },
+                    { text: 'ค้นหาสินค้า: พิมพ์ในช่อง 🔍' },
+                    { text: 'สินค้าสีแดง: ต่ำกว่า Reorder Point → ต้องสั่งซื้อด่วน' },
+                ],
+                tips: [
+                    { type: 'info', text: 'Sidebar badge 🔴 แสดงจำนวนสินค้าที่ต่ำกว่า Reorder Point — Refresh ทุก 60 วินาที' },
+                ],
+            },
+            {
+                id: 'stock-count',
+                icon: '📋',
+                title: 'นับสต็อคจริง (Stock Count)',
+                subtitle: 'นับสต็อครอบสิ้นเดือน แล้ว Auto Adjust',
+                roles: ['Manager', 'Owner', 'Warehouse'],
+                steps: [
+                    { text: 'ไปที่ นับสต็อคจริง จาก Sidebar' },
+                    { text: 'กด + สร้าง Sheet ใหม่ → กรอกชื่อ (เช่น "นับสต็อค มี.ค. 67")', sub: ['เลือกคลัง: ถ้าต้องการนับเฉพาะคลัง', 'ว่างเปล่า = นับทุกคลัง'] },
+                    { text: 'กด ▶️ เริ่มนับ — ระบบ Snapshot ยอดปัจจุบัน' },
+                    { text: 'กรอกจำนวนที่นับได้จริงทุกรายการ', sub: ['กด Enter เพื่อไปรายการถัดไป', 'ช่องว่าง = ถือว่าตรงกับระบบ'] },
+                    { text: 'กด 💾 บันทึก หรือ Floating bar ด้านล่าง' },
+                    { text: 'กด ✅ เสร็จสิ้นการนับ — คำนวณผลต่าง' },
+                    { text: 'ตรวจสอบรายงานผลต่าง (บวก/ลบ) → กด ✅ Approve' },
+                    { text: 'ระบบปรับ Inventory อัตโนมัติ + บันทึก Movement[ADJUSTMENT]' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'Approve แล้วไม่สามารถย้อนคืนได้ — ตรวจสอบให้ดีก่อน' },
+                    { type: 'tip', text: 'ยกเลิก Sheet ได้ระหว่าง DRAFT / IN_PROGRESS โดยกด "ยกเลิก"' },
+                ],
+            },
+            {
+                id: 'purchase',
+                icon: '🛒',
+                title: 'ซื้อเข้า / GR (Goods Receipt)',
+                subtitle: 'บันทึกการรับสินค้าเข้าคลัง',
+                roles: ['Manager', 'Owner', 'Purchaser', 'Warehouse'],
+                steps: [
+                    { text: 'ไปที่ ซื้อเข้า / GR จาก Sidebar' },
+                    { text: 'กด ➕ GR ใหม่ → เลือกซัพพลายเออร์ + วันที่' },
+                    { text: 'เพิ่มรายการสินค้า:', sub: ['ค้นหาสินค้าด้วย SKU หรือชื่อ', 'ระบุจำนวนที่รับ, หน่วย, ราคาต่อหน่วย', 'เลือกคลังที่รับเข้า'] },
+                    { text: 'ตรวจสอบมูลค่ารวม → กด ✅ บันทึก GR' },
+                    { text: 'ระบบเพิ่มสต็อคอัตโนมัติ + คำนวณ Avg Cost ใหม่' },
+                ],
+                tips: [
+                    { type: 'info', text: 'Avg Cost คำนวณแบบ Moving Average ทุกครั้งที่ GR' },
+                ],
+            },
+            {
+                id: 'transfer',
+                icon: '🔄',
+                title: 'เบิก / โอนคลัง',
+                subtitle: 'ย้ายสินค้าระหว่าง Location',
+                roles: ['Manager', 'Owner', 'Warehouse'],
+                steps: [
+                    { text: 'ไปที่ เบิก / โอนคลัง → กด ➕' },
+                    { text: 'เลือก จาก: ต้นทาง → ไป: ปลายทาง' },
+                    { text: 'เพิ่มรายการสินค้าและจำนวน' },
+                    { text: 'กด ✅ โอน — สต็อคเปลี่ยนทันที' },
+                ],
+                tips: [
+                    { type: 'tip', text: 'ตัวอย่าง: โอนหมูจาก WH_MAIN → KIT_STOCK ก่อนเปิดร้าน' },
+                ],
+            },
+            {
+                id: 'adjustment',
+                icon: '⚖️',
+                title: 'ปรับสต็อค (Adjustment)',
+                subtitle: 'ปรับยอดสต็อคแบบ Manual (บวก/ลบ)',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ ปรับสต็อค จาก Sidebar' },
+                    { text: 'เลือกสินค้า + คลัง' },
+                    { text: 'ระบุจำนวนที่ปรับ (+ เพิ่ม / - ลด) และเหตุผล' },
+                    { text: 'กด ✅ บันทึก — ระบบปรับสต็อคและบันทึก Movement' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'ใช้ Stock Count Sheet แทน Adjustment ทุกครั้งที่เป็นไปได้ — Audit trail ครบกว่า' },
+                ],
+            },
+            {
+                id: 'quick-receive',
+                icon: '⚡',
+                title: 'รับสินค้าด่วน (Quick Receive)',
+                subtitle: 'รับสินค้าโดยไม่ต้องสร้าง GR เต็มรูปแบบ',
+                roles: ['Warehouse', 'Manager'],
+                steps: [
+                    { text: 'ไปที่ ⚡ รับสินค้าด่วน จาก Quick Actions ใน Sidebar' },
+                    { text: 'ค้นหาสินค้าด้วยชื่อหรือ SKU → กรอกจำนวน + คลัง' },
+                    { text: 'กด ✅ บันทึก — สต็อคเพิ่มทันที' },
+                ],
+                tips: [
+                    { type: 'info', text: 'เหมาะสำหรับของสดที่รับประจำวัน รวดเร็วกว่า GR เต็มรูปแบบ' },
+                ],
+            },
+            {
+                id: 'quick-waste',
+                icon: '🗑️',
+                title: 'บันทึก Waste',
+                subtitle: 'บันทึกของเสีย / หมดอายุ / ตกแตก',
+                roles: ['Warehouse', 'Kitchen', 'Manager'],
+                steps: [
+                    { text: 'ไปที่ 🗑️ บันทึก Waste จาก Quick Actions' },
+                    { text: 'เลือกคลัง → ค้นหาสินค้า → กรอกจำนวน + หน่วย + สาเหตุ' },
+                    { text: 'กด 🗑️ บันทึก Waste — สต็อคลดทันที' },
+                ],
+            },
+            {
+                id: 'sales-import',
+                icon: '💾',
+                title: 'นำเข้ายอดขาย (Sales Import)',
+                subtitle: 'Import Excel จาก POS เก่า เพื่อตัดสต็อค',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ นำเข้ายอดขาย จาก Sidebar' },
+                    { text: 'Download Template Excel → กรอกข้อมูลยอดขาย' },
+                    { text: 'Upload → Preview → ตรวจสอบ Match เมนู' },
+                    { text: 'กด ✅ Import — ตัดสต็อคตาม BOM อัตโนมัติ' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'ชื่อเมนูใน Excel ต้องตรงกับ POS Menu Code หรือชื่อเมนูในระบบ' },
+                ],
+            },
+            {
+                id: 'qr-sheets',
+                icon: '🖨️',
+                title: 'พิมพ์ QR Sheet',
+                subtitle: 'พิมพ์ QR Code สำหรับนับสต็อคด้วยมือถือ',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ 🖨️ พิมพ์ QR Sheet จาก Quick Actions' },
+                    { text: 'เลือก Location → กด ⚡ สร้าง QR' },
+                    { text: 'กด 🖨️ Print — พิมพ์เป็น A4 (4 คอลัมน์)' },
+                    { text: 'ติดบนชั้นวาง → พนักงานสแกนมือถือ กรอกจำนวน' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'QR Token หมดอายุใน 8 ชั่วโมง — พิมพ์ใหม่ทุกวัน' },
+                    { type: 'info', text: 'พนักงานสแกน QR ด้วยมือถือ ไม่ต้อง Login ระบบ' },
+                ],
+            },
+            {
+                id: 'consume-fail',
+                icon: '⚠️',
+                title: 'ปัญหาตัดสต็อค (Consume Fail)',
+                subtitle: 'ดูรายการที่ระบบตัดสต็อคไม่ได้',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'Badge ⚠️ ใน Sidebar แสดงจำนวน Fail ที่ค้างอยู่' },
+                    { text: 'ไปที่ ⚠️ ปัญหาตัดสต็อค → ดูสาเหตุ:', sub: ['NO_BOM: สูตรอาหารยังไม่มี BOM', 'STOCK_EMPTY: สต็อคในคลัง = 0', 'NO_UOM_CONV: ไม่มีหน่วยแปลง'] },
+                    { text: 'แก้ไขปัญหา (เพิ่ม BOM / GR สต็อค / ตั้ง UOM)' },
+                    { text: 'กด ✅ Resolved หรือ Skip' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'Consume Fail = สต็อคไม่ถูกตัด — ยอดในระบบสูงกว่าความเป็นจริง' },
+                ],
+            },
+        ],
+    },
+
+    recipe: {
+        sections: [
+            {
+                id: 'menu',
+                icon: '🍽️',
+                title: 'เมนูร้าน',
+                subtitle: 'จัดการเมนูที่แสดงใน POS และ QR Menu',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ เมนูร้าน จาก Sidebar' },
+                    { text: 'กด ➕ เพิ่มเมนู → กรอกชื่อ, ราคา, หมวดหมู่, รูปภาพ' },
+                    { text: 'ตั้ง Featured ⭐: กดไอคอนดาว → ปรากฏหน้า QR Menu ลูกค้า' },
+                    { text: 'ปิดเมนู: Toggle Active → ซ่อนจาก POS ชั่วคราว' },
+                ],
+                tips: [
+                    { type: 'tip', text: 'เมนู Featured แสดงในส่วน "แนะนำ" ของ QR Menu ลูกค้า' },
+                ],
+            },
+            {
+                id: 'recipes',
+                icon: '📋',
+                title: 'สูตรอาหาร (BOM)',
+                subtitle: 'เชื่อมเมนูกับวัตถุดิบที่ต้องตัดสต็อค',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ สูตรอาหาร (BOM) จาก Sidebar' },
+                    { text: 'กด ➕ เพิ่มสูตร → ระบุชื่อเมนู + POS Menu Code' },
+                    { text: 'เพิ่มวัตถุดิบ (BOM Line):', sub: ['เลือกสินค้า → ระบุจำนวน + หน่วย + คลัง', 'เพิ่มได้หลายรายการต่อสูตร'] },
+                    { text: 'กด ✅ บันทึก' },
+                    { text: 'ตรวจสอบ Badge:', sub: ['✅ เขียว = BOM ครบ', '⚠️ เหลือง = BOM ไม่ครบ', '❌ แดง = ยังไม่มี BOM'] },
+                ],
+                tips: [
+                    { type: 'warn', text: 'ไม่มี BOM = ตัดสต็อคไม่ได้เมื่อขาย — ต้องสร้าง BOM ทุกเมนู' },
+                    { type: 'info', text: 'Banner แจ้งเตือนสีส้ม: กด 🔍 แสดงเฉพาะที่ขาด เพื่อแก้ทีเดียวได้เลย' },
+                ],
+            },
+            {
+                id: 'prep',
+                icon: '🧪',
+                title: 'สูตรแปรรูป (Prep Recipe)',
+                subtitle: 'บันทึก Semi-finished goods เช่น หมูหมัก, น้ำซุป',
+                roles: ['Manager', 'Owner', 'Kitchen'],
+                steps: [
+                    { text: 'ไปที่ สูตรแปรรูป (Prep) จาก Sidebar' },
+                    { text: 'กด ➕ เพิ่ม Prep → ระบุชื่อ, Output: จำนวน + หน่วย + คลัง Output' },
+                    { text: 'เพิ่ม Ingredient (Input): เลือกวัตถุดิบ → จำนวน + หน่วย + คลัง Input' },
+                    { text: 'เมื่อผลิตจริง: กด ✅ ผลิต → ตัด Input + เพิ่ม Output สต็อคอัตโนมัติ' },
+                ],
+                tips: [
+                    { type: 'info', text: 'ตัวอย่าง: "หมูหมัก" 10 kg จาก หมูสาม 12 kg + น้ำปลา 200 ml + กระเทียม 100 g' },
+                    { type: 'tip', text: 'BOM เมนูสามารถ link ไปที่ Prep Item แทนวัตถุดิบดิบได้' },
+                ],
+            },
+            {
+                id: 'sku-queue',
+                icon: '🔍',
+                title: 'SKU Queue',
+                subtitle: 'จัดการรายการที่ระบบยังไม่จับคู่ SKU',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ SKU Queue จาก Sidebar' },
+                    { text: 'ดูรายการเมนูที่ Import แต่ยังไม่ Match กับ Recipe' },
+                    { text: 'กด Match → เลือก Recipe ที่ตรงกัน' },
+                    { text: 'หรือกด สร้าง Recipe ใหม่ → ระบบพาไป /recipes' },
+                ],
+            },
+            {
+                id: 'uom',
+                icon: '🔄',
+                title: 'หน่วยแปลง (UOM Conversion)',
+                subtitle: 'ตั้งค่าการแปลงหน่วยวัดสำหรับตัดสต็อค',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ หน่วยแปลง (UOM) จาก Settings' },
+                    { text: 'กด ➕ เพิ่มการแปลง: สินค้า → 1 ถุง = 500 กรัม' },
+                    { text: 'บันทึก — ระบบใช้อัตราแปลงนี้ตอนตัดสต็อคโดยอัตโนมัติ' },
+                ],
+                tips: [
+                    { type: 'info', text: 'BOM เขียนว่า 1 ถุง แต่สต็อคบันทึกเป็น กรัม → ต้องตั้ง UOM: 1 ถุง = 500 กรัม' },
+                ],
+            },
+        ],
+    },
+
+    settings: {
+        sections: [
+            {
+                id: 'reports',
+                icon: '📈',
+                title: 'Reports & รายงาน',
+                subtitle: 'ดูยอดขาย, ต้นทุน, การซื้อ',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ Reports จาก Sidebar' },
+                    { text: 'รายงานที่มี:', sub: ['ยอดขายรายวัน/สัปดาห์/เดือน', 'ต้นทุนต่อเมนู (Theoretical)', 'วิเคราะห์การสั่งซื้อ (AI Purchase Analysis)', 'Stock Movement history'] },
+                    { text: 'กด AI Analyze: วิเคราะห์สินค้าที่ซื้อเกิน (Over-bought)' },
+                    { text: 'Export: กด 📥 Download เพื่อดาวน์โหลด Excel' },
+                ],
+            },
+            {
+                id: 'ai-chat',
+                icon: '🤖',
+                title: 'AI Assistant',
+                subtitle: 'ถามคำถามเกี่ยวกับร้านด้วย AI',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ AI Assistant จาก Sidebar' },
+                    { text: 'พิมพ์คำถาม เช่น:', sub: ['"สรุปยอดขายวันนี้"', '"วัตถุดิบไหนใกล้หมด?"', '"แนะนำเมนูที่ทำกำไรดี"'] },
+                    { text: 'กด Enter หรือ 📤 ส่ง — AI ตอบภาษาไทย' },
+                ],
+                tips: [
+                    { type: 'info', text: 'AI มี Budget จำกัด — ดูยอดใช้ที่มุมขวาบน ($x.xx remaining)' },
+                ],
+            },
+            {
+                id: 'categories',
+                icon: '📂',
+                title: 'จัดการหมวดหมู่',
+                subtitle: 'สร้างหมวดหมู่สินค้าและเมนู',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ จัดการหมวดหมู่ จาก Settings' },
+                    { text: 'กด ➕ เพิ่มหมวดหมู่ → กรอกชื่อ, ไอคอน (Emoji), สี' },
+                    { text: 'กำหนด Route to Kitchen/Bar: ออเดอร์ในหมวดนี้ไปที่ KDS ใด' },
+                    { text: 'บันทึก — ปรากฏใน POS, Menu, Products' },
+                ],
+            },
+            {
+                id: 'locations',
+                icon: '🏭',
+                title: 'จัดการคลัง (Locations)',
+                subtitle: 'ตั้งค่าคลังสินค้าต่างๆ',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ระบบมาพร้อม Location มาตรฐาน:', sub: ['WH_MAIN — คลังกลาง', 'WH_FRESH — ของสด', 'KIT_STOCK — ครัว', 'BAR_STOCK — บาร์', 'FR_FREEZER — ตู้แช่'] },
+                    { text: 'กด ➕ เพิ่มคลังใหม่ → ตั้ง Code + ชื่อ + ประเภท' },
+                    { text: 'ปิด Location: Toggle ปิด — ไม่ปรากฏใน Dropdown' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'ไม่แนะนำให้ลบ Location ที่มีสต็อคอยู่ — ให้ Disable แทน' },
+                ],
+            },
+            {
+                id: 'users',
+                icon: '👥',
+                title: 'จัดการผู้ใช้',
+                subtitle: 'เพิ่ม/แก้ไข/ปิดบัญชีพนักงาน',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ จัดการผู้ใช้ → กด ➕ เพิ่มผู้ใช้' },
+                    { text: 'กรอก: ชื่อ, Email, Password, Role' },
+                    { text: 'รีเซ็ต Password: กด 🔑 → ตั้ง Password ใหม่' },
+                    { text: 'ปิดบัญชี: Toggle ปิด — ยังเก็บข้อมูลไว้' },
+                ],
+                tips: [
+                    { type: 'warn', text: 'ต้องมี Owner อย่างน้อย 1 คนเสมอ — ลบ Owner คนสุดท้ายไม่ได้' },
+                ],
+            },
+            {
+                id: 'qr-menu',
+                icon: '📱',
+                title: 'QR Menu โต๊ะ',
+                subtitle: 'ให้ลูกค้าสแกน QR ดูเมนูตัวเอง',
+                roles: ['Manager', 'Owner'],
+                steps: [
+                    { text: 'ไปที่ QR Menu โต๊ะ จาก Settings' },
+                    { text: 'ดู QR Code ของแต่ละโต๊ะ' },
+                    { text: 'กด 📥 Download PNG → พิมพ์ติดที่โต๊ะ' },
+                    { text: 'ลูกค้าสแกน → เปิดเมนูในมือถือ ไม่ต้อง App' },
+                ],
+            },
+        ],
+    },
+}
+
+/* ────────────────────────────────────────────────────────────
+   COMPONENT
+──────────────────────────────────────────────────────────── */
 export default function ManualPage() {
-    useRoleGuard(['owner', 'manager'])
-    const branding = useStoreBranding()
-    const storeName = branding.displayName || 'ร้านอาหาร'
-    const [printDate, setPrintDate] = useState('')
-    useEffect(() => {
-        setPrintDate(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }))
-    }, [])
+    const [activeTab, setActiveTab] = useState<TabId>('overview')
+    const [openSection, setOpenSection] = useState<string | null>(null)
+
+    const sections = CONTENT[activeTab].sections
 
     return (
-        <div style={{ fontFamily: "'Sarabun', 'Inter', sans-serif", padding: '24px 32px', maxWidth: 900, margin: '0 auto' }}>
-            {/* Toolbar */}
-            <div className="no-print" style={{
-                marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 20px',
-            }}>
-                <div>
-                    <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1A1D26' }}>📖 คู่มือการใช้งานระบบ</h1>
-                    <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.85rem' }}>คลิกปุ่ม &quot;ดาวน์โหลด PDF&quot; เพื่อบันทึกเป็นไฟล์</p>
-                </div>
-                <button
-                    onClick={() => window.print()}
-                    style={{
-                        padding: '10px 24px', borderRadius: 10, border: 'none',
-                        background: 'linear-gradient(135deg,#3B82F6,#2563EB)',
-                        color: '#fff', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
-                        fontFamily: 'inherit', boxShadow: '0 4px 12px rgba(59,130,246,0.4)',
-                    }}
-                >
-                    📄 ดาวน์โหลด PDF
-                </button>
+        <div className="page-container" style={{ maxWidth: 1100 }}>
+            {/* Header */}
+            <div style={{ marginBottom: 28, borderBottom: '2px solid var(--border)', paddingBottom: 18 }}>
+                <h1 className="page-title">📖 คู่มือการใช้งาน KAIDEEDER</h1>
+                <p className="page-subtitle">
+                    ฉบับสมบูรณ์ — ครอบคลุมทุก feature &nbsp;•&nbsp; อัปเดต มี.ค. 2568
+                </p>
             </div>
 
-            <div id="manual-content">
-                {/* Cover */}
-                <div style={{ textAlign: 'center', padding: '48px 0 40px', borderBottom: '3px double #000', marginBottom: 32, pageBreakAfter: 'avoid' }}>
-                    <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>🍽️</div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 900, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-                        คู่มือการใช้งานระบบ POS &amp; จัดการร้านอาหาร
-                    </h1>
-                    <div style={{ fontSize: '1.1rem', color: '#555', marginBottom: 4 }}>{storeName}</div>
-                    <div style={{ fontSize: '0.85rem', color: '#888' }}>จัดทำ: {printDate}</div>
-                    <div style={{ marginTop: 12, display: 'inline-block', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '4px 14px', fontSize: '0.8rem', color: '#1D4ED8', fontWeight: 600 }}>
-                        ✨ อัพเดต: QR Self-Order · จัดการคลัง · ย้ายสินค้า · บิล 80mm
+            <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24, alignItems: 'start' }}>
+                {/* ── Left Tab Navigation ────────────────── */}
+                <div style={{ position: 'sticky', top: 80 }}>
+                    <div className="card" style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {TABS.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => { setActiveTab(tab.id); setOpenSection(null) }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                    background: activeTab === tab.id ? 'var(--accent)' : 'transparent',
+                                    color: activeTab === tab.id ? '#fff' : 'var(--text)',
+                                    fontWeight: activeTab === tab.id ? 700 : 500,
+                                    fontSize: '0.82rem', textAlign: 'left', width: '100%',
+                                    fontFamily: 'inherit', transition: 'all 0.15s',
+                                }}
+                            >
+                                <span>{tab.icon}</span>
+                                <span>{tab.label}</span>
+                            </button>
+                        ))}
+
+                        {sections.length > 0 && (
+                            <>
+                                <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
+                                {sections.map(s => (
+                                    <button
+                                        key={s.id}
+                                        onClick={() => {
+                                            setOpenSection(openSection === s.id ? null : s.id)
+                                            setTimeout(() => document.getElementById(`sec-${s.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+                                        }}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                            padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                                            background: openSection === s.id ? 'rgba(232,54,78,0.08)' : 'transparent',
+                                            color: openSection === s.id ? 'var(--accent)' : 'var(--text-secondary)',
+                                            fontWeight: openSection === s.id ? 600 : 400,
+                                            fontSize: '0.74rem', textAlign: 'left', width: '100%',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        <span style={{ fontSize: '0.7rem' }}>{s.icon}</span>
+                                        <span style={{ lineHeight: 1.3 }}>{s.title}</span>
+                                    </button>
+                                ))}
+                            </>
+                        )}
                     </div>
                 </div>
 
-                {/* TOC */}
-                <Section title="📋 สารบัญ">
-                    <ol style={{ lineHeight: 2.1, paddingLeft: 24 }}>
-                        <li>ภาพรวมระบบและโครงสร้าง Role</li>
-                        <li>เจ้าของร้าน / ผู้จัดการ (OWNER / MANAGER)</li>
-                        <li>แคชเชียร์ (CASHIER) — ระบบ POS</li>
-                        <li>พนักงานครัว (KITCHEN) — KDS</li>
-                        <li>บาร์เทนเดอร์ (BAR) — KDS</li>
-                        <li>พนักงานเสิร์ฟ (WAITER)</li>
-                        <li>คลังสินค้า (WAREHOUSE)</li>
-                        <li>ฝ่ายจัดซื้อ (PURCHASER)</li>
-                        <li>Flow การทำงานครบวงจร</li>
-                        <li>การตั้งค่าระบบ (Settings)</li>
-                        <li>✨ ใหม่: QR Self-Order — ลูกค้าสั่งเองที่โต๊ะ</li>
-                        <li>✨ ใหม่: จัดการหมวดหมู่ &amp; ย้ายสินค้าผิดหมวด</li>
-                        <li>✨ ใหม่: จัดการคลังสินค้า (Warehouse Locations)</li>
-                    </ol>
-                </Section>
+                {/* ── Right Content ─────────────────────────────── */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {sections.map((sec, idx) => {
+                        const isOpen = openSection === null || openSection === sec.id
+                        return (
+                            <div
+                                key={sec.id}
+                                id={`sec-${sec.id}`}
+                                className="card"
+                                style={{ padding: 0, overflow: 'hidden', scrollMarginTop: 90 }}
+                            >
+                                {/* Section Header */}
+                                <button
+                                    onClick={() => setOpenSection(openSection === sec.id ? null : sec.id)}
+                                    style={{
+                                        width: '100%', border: 'none', cursor: 'pointer', background: 'none',
+                                        padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: 14,
+                                        textAlign: 'left', fontFamily: 'inherit',
+                                        borderBottom: isOpen ? '1px solid var(--border)' : 'none',
+                                    }}
+                                >
+                                    <span style={{
+                                        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '1.3rem',
+                                        background: `hsl(${(idx * 47) % 360}, 55%, 94%)`,
+                                    }}>
+                                        {sec.icon}
+                                    </span>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)' }}>{sec.title}</div>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 1 }}>{sec.subtitle}</div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {sec.roles && sec.roles.filter(Boolean).map(r => (
+                                            <span key={r} style={{
+                                                fontSize: '0.65rem', padding: '2px 8px', borderRadius: 20,
+                                                background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE',
+                                                fontWeight: 600, whiteSpace: 'nowrap',
+                                            }}>{r}</span>
+                                        ))}
+                                        <span style={{
+                                            color: 'var(--text-secondary)', fontSize: '0.75rem',
+                                            transition: 'transform 0.2s', display: 'inline-block',
+                                            transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        }}>▶</span>
+                                    </div>
+                                </button>
 
-                {/* §1 */}
-                <Section title="1. ภาพรวมระบบและโครงสร้าง Role">
-                    <p>ระบบนี้เป็นระบบจัดการร้านอาหารครบวงจร ประกอบด้วย:</p>
-                    <ul style={{ lineHeight: 1.9, paddingLeft: 24 }}>
-                        <li><b>POS (Point of Sale)</b> — รับออเดอร์และเก็บเงิน</li>
-                        <li><b>KDS (Kitchen Display System)</b> — จอครัวแสดงออเดอร์แบบ real-time</li>
-                        <li><b>QR Self-Order</b> — ลูกค้าสแกน QR ที่โต๊ะแล้วสั่งอาหารเองผ่านมือถือ</li>
-                        <li><b>Waiter Display</b> — แจ้งพนักงานเสิร์ฟอาหารพร้อม</li>
-                        <li><b>Stock Management</b> — จัดการสต็อควัตถุดิบและคลัง</li>
-                        <li><b>Reports</b> — รายงานยอดขายและสต็อค</li>
-                    </ul>
-                    <h4 style={{ marginTop: 16 }}>ตารางสิทธิ์การเข้าถึง</h4>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                        <thead>
-                            <tr style={{ background: '#1A1D26', color: '#fff' }}>
-                                <Th>Role</Th><Th>POS</Th><Th>KDS</Th><Th>Waiter</Th><Th>สต็อค</Th><Th>จัดซื้อ</Th><Th>Reports</Th><Th>ตั้งค่า</Th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <Tr cells={['OWNER 👑', '✅', '✅', '✅', '✅', '✅', '✅', '✅']} />
-                            <Tr cells={['MANAGER', '✅', '✅', '✅', '✅', '✅', '✅', '❌']} alt />
-                            <Tr cells={['CASHIER', '✅', '👁️', '❌', '❌', '❌', '✅', '❌']} />
-                            <Tr cells={['KITCHEN', '❌', '✅', '❌', '❌', '❌', '❌', '❌']} alt />
-                            <Tr cells={['BAR', '❌', '✅', '❌', '❌', '❌', '❌', '❌']} />
-                            <Tr cells={['WAITER', '❌', '👁️', '✅', '❌', '❌', '❌', '❌']} alt />
-                            <Tr cells={['WAREHOUSE', '❌', '❌', '❌', '✅', '✅', '✅', '❌']} />
-                            <Tr cells={['PURCHASER', '❌', '❌', '❌', '👁️', '✅', '✅', '❌']} alt />
-                        </tbody>
-                    </table>
-                    <p style={{ fontSize: '0.78rem', color: '#666', marginTop: 6 }}>✅ = เข้าถึงได้เต็ม · 👁️ = ดูได้อย่างเดียว · ❌ = ไม่มีสิทธิ์</p>
-                </Section>
+                                {/* Section Body */}
+                                {isOpen && (
+                                    <div style={{ padding: '1rem 1.25rem' }}>
+                                        <ol style={{ margin: 0, padding: '0 0 0 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {sec.steps.map((step, si) => (
+                                                <li key={si} style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.65 }}>
+                                                    <span style={{ fontWeight: 500 }}>{step.text}</span>
+                                                    {step.sub && (
+                                                        <ul style={{ margin: '4px 0 0', padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                            {step.sub.map((s, si2) => (
+                                                                <li key={si2} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{s}</li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ol>
 
-                {/* §2 */}
-                <Section title="2. เจ้าของร้าน / ผู้จัดการ (OWNER / MANAGER)">
-                    <Steps items={[
-                        'เข้าระบบที่ kaideeder.com → กรอก Email + Password',
-                        'Dashboard — ดูภาพรวม ยอดขายวัน, ออเดอร์ที่เปิดอยู่, สต็อคต่ำ',
-                        'เมนูร้าน (/menu) — เพิ่ม/แก้ไข/ลบเมนูอาหาร, กำหนดราคาและหมวดหมู่',
-                        'วัตถุดิบ (/products) — จัดการวัตถุดิบ ราคาต้นทุน, unit',
-                        'สูตรอาหาร (/recipes) — กำหนด BOM ว่าเมนูใช้วัตถุดิบอะไร',
-                        'สต็อค (/inventory) — ดูสต็อคทุก location',
-                        'ปรับสต็อค (/adjustment) — ปรับยอดสต็อค',
-                        'ซื้อเข้า (/purchase) — สร้างใบ GR รับสินค้า',
-                        'รายงาน (/reports) — ดูยอดขาย, สต็อค, กำไร',
-                        'ตั้งค่าผู้ใช้ (/settings/users) — เพิ่ม/แก้ไขพนักงาน กำหนด Role',
-                        'QR Menu โต๊ะ (/settings/qr) — พิมพ์ QR ติดโต๊ะ',
-                        'จัดการคลัง (/settings/locations) — สร้างหรือแก้ไข warehouse location',
-                    ]} />
-                </Section>
+                                        {sec.tips && sec.tips.length > 0 && (
+                                            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                {sec.tips.map((tip, ti) => (
+                                                    <div key={ti} style={{
+                                                        padding: '8px 14px', borderRadius: 8, fontSize: '0.8rem', lineHeight: 1.55,
+                                                        background: tip.type === 'warn' ? '#FFF8F0' : tip.type === 'tip' ? '#F0FDF4' : '#EFF6FF',
+                                                        border: `1px solid ${tip.type === 'warn' ? '#FED7AA' : tip.type === 'tip' ? '#BBF7D0' : '#BFDBFE'}`,
+                                                        color: tip.type === 'warn' ? '#9A3412' : tip.type === 'tip' ? '#166534' : '#1D4ED8',
+                                                    }}>
+                                                        {tip.type === 'warn' ? '⚠️ ' : tip.type === 'tip' ? '💡 ' : 'ℹ️ '}{tip.text}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
 
-                {/* §3 */}
-                <Section title="3. แคชเชียร์ (CASHIER) — ระบบ POS">
-                    <Steps items={[
-                        'เข้าระบบ → คลิก "POS ขายหน้าร้าน" ในเมนูซ้ายมือ',
-                        'เลือกโต๊ะที่มีจุดสีเขียว (AVAILABLE) ที่ต้องการเปิดบิล',
-                        'คลิก "➕ เพิ่ม" → เลือกหมวดหมู่ → คลิกเมนูที่ต้องการ',
-                        'เพิ่มหลายเมนูซ้ำได้ — ปรับจำนวน เพิ่มหมายเหตุ ยกเลิกรายการได้',
-                        'กด "✓ สถานะ" — ส่งออเดอร์ → ปริ้นบิลครัว/บาร์อัตโนมัติ (80mm thermal)',
-                        'หากมีออเดอร์ "รอยืนยัน" จาก QR Self-Order → กด "✅ ยืนยัน" เพื่อส่งครัว',
-                        'เมื่อลูกค้าต้องการชำระ กด "เช็คบิล" → เลือกวิธีชำระ → กด "ยืนยันชำระ"',
-                        'โต๊ะจะกลับสู่สถานะ AVAILABLE อัตโนมัติ',
-                    ]} />
-                    <Note>Pop-up บิลต้องอนุญาตให้ browser เปิด popup จาก kaideeder.com ก่อนครั้งแรก — บิลครัว/บาร์ใช้กระดาษ 80mm thermal</Note>
-                </Section>
-
-                {/* §4 */}
-                <Section title="4. พนักงานครัว (KITCHEN) — KDS">
-                    <Steps items={[
-                        'เข้าระบบ → คลิก "จอครัว (KDS)"',
-                        'หน้าจอแสดงออเดอร์แบบ real-time อัตโนมัติทุก 5 วินาที',
-                        'Card ที่มีขอบสีแดง = ออเดอร์ใหม่ที่ยังไม่รับ',
-                        'กด "👌 รับงาน" — เปลี่ยนสถานะเป็น "รับแล้ว"',
-                        'กด "🔥 เริ่มทำ" — เปลี่ยนสถานะเป็น "กำลังทำ"',
-                        'กด "✅ เสร็จแล้ว" — เปลี่ยนสถานะเป็น READY → พนักงานเสิร์ฟได้รับแจ้ง',
-                        'แท็บ "บาร์" — กรองเฉพาะรายการเครื่องดื่ม',
-                        'ตัวเลขสีส้ม/เหลือง = เวลารอ (เขียว < 5 นาที, เหลือง < 10, แดง > 10)',
-                    ]} />
-                    <Note>พนักงานครัวจะได้รับเสียงแจ้งเตือน "bing" เมื่อมีออเดอร์ใหม่</Note>
-                </Section>
-
-                {/* §5 */}
-                <Section title="5. บาร์เทนเดอร์ (BAR) — KDS">
-                    <Steps items={[
-                        'เข้าระบบ → คลิก "จอครัว (KDS)"',
-                        'คลิกแท็บ "🍺 บาร์" ด้านบน — แสดงเฉพาะรายการเครื่องดื่ม',
-                        'สถานะปุ่มและ flow เดียวกับพนักงานครัว',
-                        'เมื่อเตรียมเครื่องดื่มเสร็จ กด "✅ เสร็จแล้ว"',
-                    ]} />
-                </Section>
-
-                {/* §6 */}
-                <Section title="6. พนักงานเสิร์ฟ (WAITER)">
-                    <Steps items={[
-                        'เข้าระบบ → คลิก "หน้าเสิร์ฟ"',
-                        'หน้าจอแสดงรายการอาหาร READY (พร้อมเสิร์ฟ) แบบ real-time',
-                        'เสียงกริ่งจะดังเมื่อมีอาหารพร้อมใหม่',
-                        'นำอาหารไปเสิร์ฟ → กด "🍽️ เสิร์ฟ" ทีละรายการ',
-                        'หรือกด "✅ เสิร์ฟครบทั้งโต๊ะ" เมื่อนำออกหมดแล้ว',
-                        'รายการจะหายออกจากหน้าจอเมื่อ mark SERVED',
-                    ]} />
-                </Section>
-
-                {/* §7 */}
-                <Section title="7. คลังสินค้า (WAREHOUSE)">
-                    <Steps items={[
-                        'สต็อค (/inventory) — ดูยอดสต็อคทุก location',
-                        'รับของเข้า (/quick-receive) — บันทึกรับวัตถุดิบรายวัน พิมพ์ชื่อหรือสแกน SKU',
-                        'ปรับสต็อค (/adjustment) — แก้ไขยอด (สูญหาย, นับใหม่)',
-                        'บันทึก Waste (/quick-waste) — บันทึกของเสีย/ของสูญเสีย',
-                        'โอนสต็อค (/transfer) — โอนระหว่าง location',
-                        'จัดการคลัง (/settings/locations) — เพิ่ม/ปิดใช้งาน location',
-                    ]} />
-                </Section>
-
-                {/* §8 */}
-                <Section title="8. ฝ่ายจัดซื้อ (PURCHASER)">
-                    <Steps items={[
-                        'ซื้อเข้า/GR (/purchase) — สร้างใบ GR เมื่อรับของจากซัพพลายเออร์',
-                        'ดูสต็อค (/inventory) — ตรวจสอบสต็อคก่อนสั่งซื้อ',
-                        'รับของเข้า (/quick-receive) — บันทึกรับสินค้าด่วน',
-                    ]} />
-                </Section>
-
-                {/* §9 */}
-                <Section title="9. Flow การทำงานครบวงจร">
-                    <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 16, border: '1px solid #E2E8F0', marginBottom: 12 }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#374151', marginBottom: 8 }}>🔷 Flow ปกติ (Cashier เปิดบิลเอง)</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: '0.82rem', lineHeight: 2 }}>
-                            <b>CASHIER</b> → เปิดโต๊ะ → เพิ่มเมนู → กด &quot;✓&quot;<br />
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓ ส่งออเดอร์ + ปริ้นบิลอัตโนมัติ<br />
-                            <b>KITCHEN/BAR</b> → รับงาน → เริ่มทำ → เสร็จ (READY)<br />
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓ แจ้งพนักงานเสิร์ฟ<br />
-                            <b>WAITER</b> → เสิร์ฟ → กด &quot;เสิร์ฟ&quot;<br />
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br />
-                            <b>CASHIER</b> → เช็คบิล → ชำระ → โต๊ะ AVAILABLE → ตัดสต็อค
-                        </div>
+                    {/* Footer */}
+                    <div style={{
+                        textAlign: 'center', padding: '1.5rem', borderRadius: 12, marginTop: 8,
+                        background: 'linear-gradient(135deg, rgba(232,54,78,0.06), rgba(232,54,78,0.02))',
+                        border: '1px solid rgba(232,54,78,0.15)',
+                    }}>
+                        <p style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)', marginBottom: 4 }}>
+                            📖 KAIDEEDER User Manual v1.0
+                        </p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            มีปัญหาหรือข้อสงสัย — ใช้ 🤖 AI Assistant บน Sidebar ได้เลย
+                        </p>
                     </div>
-                    <div style={{ background: '#F0FDF4', borderRadius: 10, padding: 16, border: '1px solid #BBF7D0' }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#166534', marginBottom: 8 }}>📱 Flow QR Self-Order (ลูกค้าสั่งเอง)</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: '0.82rem', lineHeight: 2, color: '#15803D' }}>
-                            <b>ลูกค้า</b> → สแกน QR บนโต๊ะ → เลือกเมนู → ส่งออเดอร์<br />
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓ ออเดอร์ขึ้น POS สถานะ &quot;รอยืนยัน&quot;<br />
-                            <b>CASHIER</b> → กด &quot;✅ ยืนยัน&quot; → ออเดอร์ OPEN<br />
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓ ส่งครัว/บาร์<br />
-                            <b>KITCHEN/BAR → WAITER → CASHIER</b> → (เช่นเดิม)
-                        </div>
-                    </div>
-                </Section>
-
-                {/* §10 */}
-                <Section title="10. การตั้งค่าระบบ (Settings)">
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                        <thead>
-                            <tr style={{ background: '#1A1D26', color: '#fff' }}>
-                                <Th>หน้า</Th><Th>ใช้ทำอะไร</Th><Th>สิทธิ์</Th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <Tr cells={['/settings/categories', 'จัดการหมวดหมู่ + ย้ายสินค้าผิดหมวด', 'OWNER/MANAGER']} />
-                            <Tr cells={['/settings/locations', 'จัดการ warehouse location + template', 'OWNER/MANAGER']} alt />
-                            <Tr cells={['/settings/qr', 'สร้าง/พิมพ์ QR Code ติดโต๊ะ', 'OWNER/MANAGER']} />
-                            <Tr cells={['/settings/users', 'เพิ่ม/ลบ/แก้ไขพนักงาน กำหนด Role', 'OWNER/MANAGER']} alt />
-                            <Tr cells={['/settings/manual', 'คู่มือนี้ — ดาวน์โหลด PDF', 'OWNER/MANAGER']} />
-                        </tbody>
-                    </table>
-                    <h4 style={{ marginTop: 14 }}>ขั้นตอนเพิ่มพนักงานใหม่:</h4>
-                    <ol style={{ lineHeight: 1.9, paddingLeft: 24 }}>
-                        <li>ไปที่ ตั้งค่า → จัดการผู้ใช้</li>
-                        <li>กด &quot;+ เพิ่มผู้ใช้&quot;</li>
-                        <li>กรอกชื่อ, Email, รหัสผ่าน</li>
-                        <li>เลือก Role ที่เหมาะสม</li>
-                        <li>กด &quot;บันทึก&quot;</li>
-                    </ol>
-                </Section>
-
-                {/* §11 NEW */}
-                <Section title="✨ 11. QR Self-Order — ลูกค้าสั่งอาหารเองที่โต๊ะ">
-                    <p style={{ lineHeight: 1.8 }}>ฟีเจอร์นี้ช่วยให้ลูกค้าสั่งอาหารเองผ่านมือถือ <b>ไม่ต้องติดตั้ง App</b> — แค่สแกน QR แล้วเปิดเมนูได้ทันที</p>
-
-                    <h4 style={{ marginTop: 14 }}>การติดตั้ง (admin/manager ทำครั้งเดียว):</h4>
-                    <Steps items={[
-                        'ไปที่ Settings → 📱 QR Menu โต๊ะ',
-                        'เห็น QR Code ของทุกโต๊ะ — กดปุ่ม 🖨️ พิมพ์รายโต๊ะ หรือ "พิมพ์ QR ทุกโต๊ะ" พร้อมกัน',
-                        'ตัด QR ขนาด 9×11 ซม. ติดบนโต๊ะแต่ละตัว',
-                    ]} />
-
-                    <h4 style={{ marginTop: 14 }}>Flow ลูกค้า:</h4>
-                    <Steps items={[
-                        'ลูกค้าสแกน QR → เปิดเมนูใน browser โดยอัตโนมัติ (URL: kaideeder.com/m/[code]/[เลขโต๊ะ])',
-                        'เลือกหมวดหมู่ → กด "+ เพิ่ม" ที่เมนูที่ต้องการ',
-                        'กด "ดูตะกร้า" → ตรวจสอบรายการ → กด "🍽️ ยืนยันสั่งอาหาร"',
-                        'ลูกค้าเห็นหน้า "สั่งอาหารเรียบร้อยแล้ว ✅" พร้อมเลขออเดอร์',
-                    ]} />
-
-                    <h4 style={{ marginTop: 14 }}>Flow แคชเชียร์ (รับออเดอร์ QR):</h4>
-                    <Steps items={[
-                        'ออเดอร์จาก QR จะขึ้นใน POS สถานะ "🟡 รอยืนยัน" (PENDING_CONFIRM)',
-                        'แคชเชียร์ตรวจสอบรายการ → กด "✅ ยืนยัน"',
-                        'ออเดอร์เปลี่ยนเป็น OPEN → ส่งครัว/บาร์ → flow ปกติต่อไป',
-                    ]} />
-                    <Note>หากโต๊ะมีออเดอร์ OPEN อยู่แล้ว ระบบจะแจ้ง "โต๊ะนี้มีออเดอร์อยู่แล้ว กรุณาติดต่อพนักงาน" — ลูกค้าต้องแจ้งพนักงานให้รวมออเดอร์</Note>
-                </Section>
-
-                {/* §12 NEW */}
-                <Section title="✨ 12. จัดการหมวดหมู่ &amp; ย้ายสินค้าผิดหมวด">
-                    <p style={{ lineHeight: 1.8 }}>เมื่อโหลดข้อมูลสินค้าจากไฟล์ Excel อาจมีบางรายการอยู่ผิดหมวดหมู่ ใช้ฟีเจอร์นี้แก้ไขได้ง่าย</p>
-
-                    <h4 style={{ marginTop: 14 }}>วิธีย้ายสินค้าผิดหมวด (ใช้ Auto-Select):</h4>
-                    <Steps items={[
-                        'ไปที่ Settings → 📂 จัดการหมวดหมู่',
-                        'คลิกปุ่ม 📦 (ย้ายสินค้า) ที่หมวดที่ต้องการจัดการ',
-                        'Modal จะแสดงสินค้าทั้งหมดในหมวด พร้อม badge ประเภท (🛒 ขายหน้าร้าน / 🥩 วัตถุดิบ / 📦 บรรจุภัณฑ์)',
-                        'สินค้าที่มีเส้นขอบแดง + ป้าย "⚠️ ผิดประเภท" = มีประเภทไม่ตรงกับหมวด',
-                        'กดปุ่ม "⚠️ เลือกผิดประเภทอัตโนมัติ (X)" — เลือกให้ทั้งหมดอัตโนมัติ',
-                        'เลือกหมวดหมู่ปลายทาง → กด "ย้าย X รายการ"',
-                    ]} />
-
-                    <h4 style={{ marginTop: 14 }}>ทำความเข้าใจ productType:</h4>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                        <thead>
-                            <tr style={{ background: '#374151', color: '#fff' }}>
-                                <Th>ประเภท</Th><Th>badge</Th><Th>ควรอยู่ในหมวด</Th><Th>ขึ้น QR Menu</Th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <Tr cells={['SALE_ITEM', '🛒 ขายหน้าร้าน', 'เมนูอาหาร / เมนูเครื่องดื่ม', '✅']} />
-                            <Tr cells={['ENTERTAIN', '🎉 Entertain', 'เมนู / โปรโมชั่น', '✅']} alt />
-                            <Tr cells={['RAW_MATERIAL', '🥩 วัตถุดิบ', 'หมวดวัตถุดิบ', '❌']} />
-                            <Tr cells={['PACKAGING', '📦 บรรจุภัณฑ์', 'หมวดวัตถุดิบ', '❌']} alt />
-                        </tbody>
-                    </table>
-                </Section>
-
-                {/* §13 NEW */}
-                <Section title="✨ 13. จัดการคลังสินค้า (Warehouse Locations)">
-                    <p style={{ lineHeight: 1.8 }}>ระบบรองรับหลาย location (คลัง) สำหรับร้านที่มีพื้นที่เก็บของแยกกัน</p>
-
-                    <h4 style={{ marginTop: 14 }}>สร้างคลังด้วย Template (แนะนำ):</h4>
-                    <Steps items={[
-                        'ไปที่ Settings → 🏭 จัดการคลัง',
-                        'เลือก Template ที่เหมาะกับร้าน:',
-                        '• 🏪 ร้านเล็ก — คลังหลักเดียว (WH_MAIN)',
-                        '• 🍽️ ร้านอาหาร — คลังใหญ่ + ของสด + ครัว',
-                        '• 🍺 ร้านอาหาร + บาร์ — เพิ่ม BAR_STOCK และตู้แช่',
-                        '• 🏭 เต็มรูปแบบ — ทั้ง 7 คลัง',
-                        'กด "🚀 ใช้ Template นี้" — ระบบสร้างคลังให้อัตโนมัติ (ข้ามรายการที่มีอยู่แล้ว)',
-                    ]} />
-
-                    <h4 style={{ marginTop: 14 }}>ประเภทคลังที่รองรับ:</h4>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                        <thead>
-                            <tr style={{ background: '#374151', color: '#fff' }}>
-                                <Th>ประเภท</Th><Th>ใช้สำหรับ</Th><Th>Code ตัวอย่าง</Th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <Tr cells={['🏭 คลังหลัก', 'เก็บสินค้าหลักทั้งหมด', 'WH_MAIN']} />
-                            <Tr cells={['🌿 คลังของสด', 'ผัก, เนื้อ, อาหารสด', 'WH_FRESH']} alt />
-                            <Tr cells={['🍺 คลังเครื่องดื่ม', 'เบียร์, น้ำดื่ม, วัตถุดิบบาร์', 'WH_DRINKbar1']} />
-                            <Tr cells={['❄️ ตู้แช่', 'ของแช่หน้าร้าน', 'FR_FREEZER']} alt />
-                            <Tr cells={['🍳 ครัว', 'สต็อคพร้อมใช้ในครัว', 'KIT_STOCK']} />
-                            <Tr cells={['🍸 บาร์', 'สต็อคพร้อมใช้ที่บาร์', 'BAR_STOCK']} alt />
-                        </tbody>
-                    </table>
-                    <Note>หาก Quick Receive ขึ้น error ว่า "ไม่พบคลัง" ให้ตรวจสอบว่า location code ที่ใช้ใน Quick Receive มีอยู่ในระบบแล้ว (/settings/locations)</Note>
-                </Section>
-
-                {/* Footer */}
-                <div style={{ textAlign: 'center', marginTop: 48, paddingTop: 16, borderTop: '1px dashed #ccc', color: '#999', fontSize: '0.78rem' }}>
-                    {storeName} | ระบบ POS &amp; Stock Management | {printDate}
                 </div>
             </div>
-
-            <style>{`
-                @media print {
-                    .no-print { display: none !important; }
-                    body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-                    @page { size: A4; margin: 15mm; }
-                    section { page-break-inside: avoid; }
-                    table { page-break-inside: avoid; }
-                }
-            `}</style>
         </div>
-    )
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <section style={{ marginBottom: 32 }}>
-            <h2 style={{
-                fontSize: '1.1rem', fontWeight: 800, borderBottom: '2px solid #1A1D26',
-                paddingBottom: 6, marginBottom: 12, color: '#1A1D26',
-            }}>{title}</h2>
-            {children}
-        </section>
-    )
-}
-
-function Steps({ items }: { items: string[] }) {
-    return (
-        <ol style={{ lineHeight: 1.9, paddingLeft: 24 }}>
-            {items.map((item, i) => <li key={i}>{item}</li>)}
-        </ol>
-    )
-}
-
-function Note({ children }: { children: React.ReactNode }) {
-    return (
-        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 14px', marginTop: 10, fontSize: '0.83rem', color: '#92400E' }}>
-            ⚠️ {children}
-        </div>
-    )
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-    return <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, border: '1px solid #374151' }}>{children}</th>
-}
-
-function Tr({ cells, alt }: { cells: string[]; alt?: boolean }) {
-    return (
-        <tr style={{ background: alt ? '#F8FAFC' : '#fff' }}>
-            {cells.map((c, i) => (
-                <td key={i} style={{ padding: '5px 10px', textAlign: i === 0 ? 'left' : 'center', border: '1px solid #E2E8F0', fontWeight: i === 0 ? 700 : 400, fontSize: '0.8rem' }}>{c}</td>
-            ))}
-        </tr>
     )
 }
