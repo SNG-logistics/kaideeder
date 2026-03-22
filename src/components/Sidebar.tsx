@@ -80,21 +80,24 @@ export default function Sidebar() {
     useEffect(() => { setMounted(true) }, [])
     const canManageTables = mounted && (userRole === 'owner' || userRole === 'manager')
     const [failCount, setFailCount] = useState(0)
+    const [lowStockCount, setLowStockCount] = useState(0)
 
     useEffect(() => {
         if (!mounted) return
         if (userRole !== 'owner' && userRole !== 'manager') return
-        fetch('/api/consume-fail?status=OPEN&limit=1')
-            .then(r => r.json())
-            .then(j => j.success && setFailCount(j.data.total))
-            .catch(() => {})
-        // polling ทุก 60 วินาที เพื่ออัปเดต badge
-        const interval = setInterval(() => {
+        const fetchFail = () =>
             fetch('/api/consume-fail?status=OPEN&limit=1')
                 .then(r => r.json())
                 .then(j => j.success && setFailCount(j.data.total))
                 .catch(() => {})
-        }, 60_000)
+        const fetchLow = () =>
+            fetch('/api/alerts/low-stock?count=1')
+                .then(r => r.json())
+                .then(j => j.success && setLowStockCount(j.data.total ?? 0))
+                .catch(() => {})
+        fetchFail()
+        fetchLow()
+        const interval = setInterval(() => { fetchFail(); fetchLow() }, 60_000)
         return () => clearInterval(interval)
     }, [mounted, userRole])
 
@@ -249,7 +252,7 @@ export default function Sidebar() {
                                 >
                                     <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
                                     {showLabels && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{L(item.label, item.labelLo)}</span>}
-                                    {/* Badge: แสดงเฉพาะ consume-fail + มีของรอแก้ */}
+                                    {/* Badge: consume-fail */}
                                     {item.href === '/consume-fail' && failCount > 0 && (
                                         <span style={{
                                             marginLeft: 'auto', minWidth: 20, height: 20,
@@ -261,6 +264,19 @@ export default function Sidebar() {
                                             animation: 'pulse-badge 2s infinite',
                                         }}>
                                             {failCount > 99 ? '99+' : failCount}
+                                        </span>
+                                    )}
+                                    {/* Badge: low stock → แสดงบน /inventory */}
+                                    {item.href === '/inventory' && lowStockCount > 0 && (
+                                        <span style={{
+                                            marginLeft: 'auto', minWidth: 20, height: 20,
+                                            background: '#F59E0B', color: '#fff',
+                                            borderRadius: 10, fontSize: '0.65rem', fontWeight: 800,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '0 5px', lineHeight: 1, flexShrink: 0,
+                                            boxShadow: '0 2px 6px rgba(245,158,11,0.4)',
+                                        }}>
+                                            {lowStockCount > 99 ? '99+' : lowStockCount}
                                         </span>
                                     )}
                                 </Link>
