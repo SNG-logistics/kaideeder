@@ -211,7 +211,7 @@ export default function QuickReceivePage() {
                 </button>
 
                 <p style={{ textAlign: 'center', marginTop: 14, fontSize: '0.7rem', color: '#D1D5DB' }}>
-                    43 Garden · Quick Receive · ไม่ต้องมี QR ต่อสินค้า
+                    KAIDEEDER · Quick Receive · ไม่ต้องมี QR ต่อสินค้า
                 </p>
             </div>
         </div>

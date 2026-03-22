@@ -99,7 +99,7 @@ export const POST = withAuth(async (req: NextRequest) => {
             `- [${s.sku}] ${s.name} | ซื้อ: ${s.totalPurchased}${s.unit} (${s.purchaseCount}ครั้ง) | ใช้: ${s.totalUsed}${s.unit} | เกิน: ${s.surplus}${s.unit} (${s.surplusPercent}%) | สต็อคปัจจุบัน: ${s.currentStock}${s.unit}`
         ).join('\n')
 
-        const prompt = `คุณเป็นผู้เชี่ยวชาญด้านต้นทุนร้านอาหาร 43 Garden Cafe วังเวียง ลาว
+        const prompt = `คุณเป็นผู้เชี่ยวชาญด้านต้นทุนระบบ KAIDEEDER (Restaurant & Stock Management Platform)
 
 ข้อมูลการซื้อเทียบยอดใช้จริง ช่วง${period === 'day' ? '1 วัน' : period === 'week' ? '7 วัน' : '30 วัน'}ที่ผ่านมา:
 

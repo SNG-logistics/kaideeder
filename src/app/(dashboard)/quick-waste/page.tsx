@@ -104,7 +104,7 @@ export default function QuickWastePage() {
                 }}>
                     {loading ? '⏳ กำลังบันทึก…' : '🗑️ บันทึก Waste'}
                 </button>
-                <p style={{ textAlign: 'center', marginTop: 14, fontSize: '0.7rem', color: '#D1D5DB' }}>43 Garden · Quick Waste</p>
+                <p style={{ textAlign: 'center', marginTop: 14, fontSize: '0.7rem', color: '#D1D5DB' }}>KAIDEEDER · Quick Waste</p>
             </div>
         </div>
     )

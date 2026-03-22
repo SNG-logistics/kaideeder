@@ -227,7 +227,7 @@ export default function QRMobilePage({ params }: PageProps) {
                 </button>
 
                 <p style={{ textAlign: 'center', marginTop: 16, fontSize: '0.7rem', color: '#D1D5DB' }}>
-                    43 Garden Stock System · QR Scan
+                    KAIDEEDER Stock System · QR Scan
                 </p>
             </div>
         </div>

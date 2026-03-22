@@ -3,10 +3,11 @@ import { withAuth, ok, err } from '@/lib/api'
 import { pickTier, checkBudget } from '@/lib/ai-router'
 import { getAiConfig } from '@/lib/ai-config'
 
-const SYSTEM_PROMPT = `You are an AI assistant for 43 Garden Cafe & Restaurant (ร้าน 43 Garden วังเวียง).
+const SYSTEM_PROMPT = `You are an AI assistant for KAIDEEDER — a multi-tenant Restaurant & Stock Management Platform.
 You help with stock management, recipes, menu planning, and general restaurant operations.
 Currency: LAK (กีบ). Answer in Thai unless the user writes in English.
 Be concise, practical, and helpful. Use bullet points when listing items.`
+
 
 interface ChatMessage {
     role: string

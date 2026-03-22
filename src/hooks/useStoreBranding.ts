@@ -16,7 +16,7 @@ let cache: StoreBranding | null = null
 
 export function useStoreBranding(): StoreBranding {
     const [branding, setBranding] = useState<StoreBranding>(
-        cache ?? { displayName: '43 Garden', logoUrl: null, code: '' }
+        cache ?? { displayName: 'KAIDEEDER', logoUrl: null, code: '' }
     )
 
     useEffect(() => {
@@ -26,7 +26,7 @@ export function useStoreBranding(): StoreBranding {
             .then(j => {
                 if (j.success && j.data) {
                     const d: StoreBranding = {
-                        displayName: j.data.displayName || j.data.name || '43 Garden',
+                        displayName: j.data.displayName || j.data.name || 'KAIDEEDER',
                         logoUrl: j.data.logoUrl ?? null,
                         code: j.data.code ?? '',
                     }

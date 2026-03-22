@@ -147,7 +147,7 @@ export default function QRSheetPage() {
             {items.length > 0 && locationInfo && (
                 <div id="print-area" ref={printRef} style={{ padding: '8mm', fontFamily: 'sans-serif', maxWidth: 900, margin: '20px auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 16, borderBottom: '2px solid #E8162A', paddingBottom: 10 }}>
-                        <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#E8162A' }}>43 Garden — QR Inventory Sheet</h2>
+                        <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#E8162A' }}>KAIDEEDER — QR Inventory Sheet</h2>
                         <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
                             {locationInfo.code} ({locationInfo.name}) · {today} · Token หมดอายุ 8 ชม.
                         </p>
@@ -178,7 +178,7 @@ export default function QRSheetPage() {
                     </div>
 
                     <p style={{ marginTop: 12, fontSize: 9, color: '#aaa', textAlign: 'center' }}>
-                        สแกน QR → กรอกจำนวน → กด ✅ ระบบอัปเดตสต็อคอัตโนมัติ | 43 Garden Stock System
+                        สแกน QR → กรอกจำนวน → กด ✅ ระบบอัปเดตสต็อคอัตโนมัติ | KAIDEEDER Stock System
                     </p>
                 </div>
             )}

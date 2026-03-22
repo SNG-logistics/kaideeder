@@ -147,7 +147,7 @@ export default function AiChatPage() {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">🤖 AI Assistant</h1>
-                    <p className="page-subtitle">ผู้ช่วย AI สำหรับ 43 Garden — ถามได้ทุกเรื่องเกี่ยวกับร้าน</p>
+                    <p className="page-subtitle">ผู้ช่วย AI สำหรับ KAIDEEDER — ถามได้ทุกเรื่องเกี่ยวกับร้าน</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {/* Balance indicator */}
@@ -213,7 +213,7 @@ export default function AiChatPage() {
                                 สวัสดี! ยินดีให้บริการ
                             </p>
                             <p style={{ fontSize: '0.85rem', textAlign: 'center', maxWidth: 400 }}>
-                                ถามได้ทุกเรื่องเกี่ยวกับร้าน 43 Garden — สต็อก, เมนู, ต้นทุน, วัตถุดิบ, สูตรอาหาร
+                                ถามได้ทุกเรื่องเกี่ยวกับร้านใน KAIDEEDER — สต็อก, เมนู, ต้นทุน, วัตถุดิบ, สูตรอาหาร
                             </p>
                             <div style={{
                                 display: 'flex', flexWrap: 'wrap', gap: 8,
