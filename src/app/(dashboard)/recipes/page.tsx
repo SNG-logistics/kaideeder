@@ -3,7 +3,7 @@ import { useRoleGuard } from '@/hooks/useRoleGuard'
 import { useEffect, useState, useRef } from 'react'
 import toast from 'react-hot-toast'
 
-interface Recipe { id: string; menuName: string; posMenuCode?: string; bom: { id: string; quantity: number; unit: string; product: { name: string; sku: string } }[] }
+interface Recipe { id: string; menuName: string; posMenuCode?: string; bomStatus: 'OK' | 'INCOMPLETE' | 'MISSING'; bom: { id: string; quantity: number; unit: string; product: { name: string; sku: string } }[] }
 interface Product { id: string; sku: string; name: string; unit: string }
 interface Location { id: string; code: string; name: string }
 interface BOMItem { productId: string; locationId: string; quantity: number; unit: string; _search?: string }
@@ -189,6 +189,7 @@ export default function RecipesPage() {
     const [missingIngredients, setMissingIngredients] = useState<{ name: string; quantity: number; unit: string; location: string }[]>([])
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [categories, setCategories] = useState<{ id: string; name: string; code: string }[]>([])
+    const [showMissingOnly, setShowMissingOnly] = useState(false)
 
     const refreshProducts = () => fetch('/api/products?limit=500').then(r => r.json()).then(j => j.success && setProducts(j.data.products))
 
@@ -337,7 +338,11 @@ export default function RecipesPage() {
         finally { setSaving(false) }
     }
 
-    const filtered = recipes.filter(r => r.menuName.toLowerCase().includes(search.toLowerCase()))
+    const filtered = recipes
+        .filter(r => r.menuName.toLowerCase().includes(search.toLowerCase()))
+        .filter(r => !showMissingOnly || r.bomStatus !== 'OK')
+    const missingCount = recipes.filter(r => r.bomStatus === 'MISSING').length
+    const incompleteCount = recipes.filter(r => r.bomStatus === 'INCOMPLETE').length
     const kitLocId = locations.find(l => l.code === 'KIT_STOCK')?.id || locations[0]?.id || ''
 
     return (
@@ -355,6 +360,38 @@ export default function RecipesPage() {
                     {showForm ? '✕ ปิด' : '➕ เพิ่มสูตรใหม่'}
                 </button>
             </div>
+
+            {/* BOM Alert Banner */}
+            {(missingCount > 0 || incompleteCount > 0) && (
+                <div style={{
+                    background: 'rgba(245,158,11,0.06)', border: '1.5px solid rgba(245,158,11,0.35)',
+                    borderRadius: 12, padding: '0.75rem 1rem', marginBottom: 16,
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                }}>
+                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                        <p style={{ fontWeight: 700, fontSize: '0.85rem', color: '#d97706' }}>
+                            พบเมนูที่ยังไม่มี BOM — ระบบจะตัดสต็อคไม่ได้!
+                        </p>
+                        <p style={{ fontSize: '0.75rem', color: '#92400e', marginTop: 2 }}>
+                            {missingCount > 0 && <span>❌ ไม่มี BOM เลย: <strong>{missingCount} เมนู</strong>{'  '}</span>}
+                            {incompleteCount > 0 && <span>⚠️ BOM ไม่ครบ: <strong>{incompleteCount} เมนู</strong></span>}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setShowMissingOnly(v => !v)}
+                        style={{
+                            padding: '5px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+                            border: showMissingOnly ? 'none' : '1.5px solid #d97706',
+                            background: showMissingOnly ? '#d97706' : 'transparent',
+                            color: showMissingOnly ? '#fff' : '#d97706',
+                            fontFamily: 'inherit',
+                        }}
+                    >
+                        {showMissingOnly ? '✕ ดูทั้งหมด' : '🔍 แสดงเฉพาะที่ขาด'}
+                    </button>
+                </div>
+            )}
 
             {/* Add Form */}
             {showForm && (
@@ -576,6 +613,16 @@ export default function RecipesPage() {
                                         }}>
                                             {r.posMenuCode}
                                         </span>
+                                    )}
+                                    {/* BOM Status Badge */}
+                                    {r.bomStatus === 'MISSING' && (
+                                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>❌ ไม่มี BOM</span>
+                                    )}
+                                    {r.bomStatus === 'INCOMPLETE' && (
+                                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A' }}>⚠️ BOM ไม่ครบ</span>
+                                    )}
+                                    {r.bomStatus === 'OK' && (
+                                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0' }}>✅ {r.bom.length} วัตถุดิบ</span>
                                     )}
                                 </div>
                                 {/* Edit / Delete buttons */}

@@ -21,10 +21,22 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     const recipes = await prisma.recipe.findMany({
         where: { tenantId, isActive: true },
         orderBy: { menuName: 'asc' },
-        include: { bom: { include: { product: true } } },
+        include: { bom: { include: { product: { select: { id: true, name: true, sku: true, isActive: true } } } } },
     })
-    return ok(recipes)
+
+    // Annotate bomStatus for UI alerts
+    const annotated = recipes.map(r => ({
+        ...r,
+        bomStatus: r.bom.length === 0
+            ? 'MISSING'
+            : r.bom.some(b => !b.product || !b.product.isActive || b.quantity <= 0)
+                ? 'INCOMPLETE'
+                : 'OK',
+    }))
+
+    return ok(annotated)
 })
+
 
 // POST /api/recipes
 export const POST = withAuth<any>(async (req: NextRequest, context: any) => {
