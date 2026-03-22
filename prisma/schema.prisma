@@ -21,7 +21,8 @@ model Tenant {
   name        String
   displayName String?      // ชื่อร้านที่แสดงใน UI (ถ้าไม่ตั้ง จะใช้ name)
   storeNameLao String?     // ชื่อร้านภาษาลาว
-  logoUrl          String?      // URL รูปโลโก้ (relative path เช่น /uploads/logos/store-001.png)
+  logoUrl          String?      // URL รูปโลโก้ — ชี้ไป /api/public/logo/<code> (served from DB)
+  logoBase64       String?      @db.LongText  // รูปโลโก้ (Base64, เก็บใน DB เพื่อคงไว้หลัง deploy)
   menuBannerBase64 String?      @db.LongText  // Banner รูป header หน้าสแกน QR menu (Base64)
   status      TenantStatus @default(ACTIVE)
   subEndsAt   DateTime?
@@ -178,7 +179,7 @@ model Product {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   imageUrl       String?
-  imageBase64    String?         @db.Text
+  imageBase64    String?         @db.MediumText
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id])
   category       Category        @relation(fields: [categoryId], references: [id])
