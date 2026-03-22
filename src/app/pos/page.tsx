@@ -164,6 +164,8 @@ export default function POSPage() {
     const [selectedKitchenOrder, setSelectedKitchenOrder] = useState<any | null>(null)
     const [kitchenUpdating, setKitchenUpdating] = useState<string | null>(null)
     const [mobileTab, setMobileTab] = useState<'tables' | 'order'>('tables')  // mobile bottom nav
+    const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())  // ซ่อนหมวด
+    const [catEditMode, setCatEditMode] = useState(false)  // mode แก้ไขการมองเห็นหมวด
     const searchRef = useRef<HTMLInputElement>(null)
 
     // ─── Auth Check ───────────────────────────────────────────
@@ -677,6 +679,8 @@ export default function POSPage() {
 
     // ─── Filtered products ────────────────────────────────────
     const filteredProducts = products.filter(p => {
+        // ซ่อนสินค้าที่อยู่ในหมวดที่ถูกปิด (เฉพาะตอน ALL และไม่ได้ search)
+        if (selectedCategory === 'ALL' && hiddenCategories.has(p.categoryId) && !searchQuery) return false
         if (selectedCategory !== 'ALL' && p.categoryId !== selectedCategory) return false
         if (searchQuery) {
             const q = searchQuery.toLowerCase()
@@ -684,6 +688,16 @@ export default function POSPage() {
         }
         return true
     })
+
+    const toggleCategoryVisibility = (catId: string) => {
+        setHiddenCategories(prev => {
+            const next = new Set(prev)
+            if (next.has(catId)) next.delete(catId)
+            else next.add(catId)
+            return next
+        })
+    }
+
 
     // ════════════════════════════════════════════════════════════
     // RENDER
@@ -1039,13 +1053,68 @@ export default function POSPage() {
                         {/* Left: Category tabs + Product grid */}
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                             {/* Category Horizontal Scroll */}
-                            <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', scrollbarWidth: 'none', background: '#1A1D26', flexShrink: 0 }}>
-                                <button onClick={() => setSelectedCategory('ALL')} style={{ padding: '0.65rem 1rem', border: 'none', background: selectedCategory === 'ALL' ? '#E8364E' : 'transparent', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: selectedCategory === 'ALL' ? 700 : 400, fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>เมนู</button>
-                                {categories.map(cat => (
-                                    <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} style={{ padding: '0.65rem 0.9rem', border: 'none', background: selectedCategory === cat.id ? (cat.color || '#E8364E') : 'transparent', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: selectedCategory === cat.id ? 700 : 400, fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                        {cat.icon} {cat.name}
-                                    </button>
-                                ))}
+                            <div style={{ display: 'flex', alignItems: 'center', background: '#1A1D26', flexShrink: 0, overflow: 'hidden' }}>
+                                {/* Scrollable tabs */}
+                                <div style={{ flex: 1, display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
+                                    {/* ALL tab — hidden in edit mode */}
+                                    {!catEditMode && (
+                                        <button onClick={() => setSelectedCategory('ALL')} style={{ padding: '0.65rem 1rem', border: 'none', background: selectedCategory === 'ALL' ? '#E8364E' : 'transparent', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: selectedCategory === 'ALL' ? 700 : 400, fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>เมนู</button>
+                                    )}
+                                    {categories.map(cat => {
+                                        const isHidden = hiddenCategories.has(cat.id)
+                                        const isActive = selectedCategory === cat.id
+                                        if (catEditMode) {
+                                            // Edit mode: show all as toggle pill
+                                            return (
+                                                <button key={cat.id}
+                                                    onClick={() => toggleCategoryVisibility(cat.id)}
+                                                    style={{
+                                                        padding: '0.45rem 0.85rem', border: `2px solid ${isHidden ? '#4B5563' : '#4ADE80'}`,
+                                                        borderRadius: 99, margin: '0.3rem 0.25rem',
+                                                        background: isHidden ? 'rgba(75,85,99,0.3)' : 'rgba(74,222,128,0.15)',
+                                                        color: isHidden ? '#9CA3AF' : '#4ADE80',
+                                                        cursor: 'pointer', fontFamily: 'inherit',
+                                                        fontWeight: 700, fontSize: '0.78rem',
+                                                        whiteSpace: 'nowrap', flexShrink: 0,
+                                                        display: 'flex', alignItems: 'center', gap: 5,
+                                                        transition: 'all 0.15s',
+                                                        textDecoration: isHidden ? 'line-through' : 'none',
+                                                        opacity: isHidden ? 0.6 : 1,
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '0.9rem' }}>{isHidden ? '🚫' : '👁'}</span>
+                                                    {cat.icon} {cat.name}
+                                                </button>
+                                            )
+                                        }
+                                        // Normal mode
+                                        if (isHidden) return null  // ซ่อนหมวดที่ถูกปิด
+                                        return (
+                                            <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
+                                                style={{ padding: '0.65rem 0.9rem', border: 'none', background: isActive ? (cat.color || '#E8364E') : 'transparent', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: isActive ? 700 : 400, fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+                                            >
+                                                {cat.icon} {cat.name}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                                {/* Edit mode toggle button */}
+                                <button
+                                    onClick={() => { setCatEditMode(m => !m); if (catEditMode) setSelectedCategory('ALL') }}
+                                    title={catEditMode ? 'เสร็จสิ้นการแก้ไข' : 'แก้ไขหมวดหมู่ที่แสดง'}
+                                    style={{
+                                        flexShrink: 0, padding: '0.5rem 0.75rem',
+                                        border: `1.5px solid ${catEditMode ? '#4ADE80' : '#374151'}`,
+                                        background: catEditMode ? 'rgba(74,222,128,0.15)' : 'rgba(55,65,81,0.5)',
+                                        color: catEditMode ? '#4ADE80' : '#9CA3AF',
+                                        cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700,
+                                        borderRadius: 8, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                                        marginRight: '0.5rem', display: 'flex', alignItems: 'center', gap: 4,
+                                        transition: 'all 0.15s',
+                                    }}
+                                >
+                                    {catEditMode ? '✓ เสร็จ' : '⚙️'}
+                                </button>
                             </div>
                             {/* Search */}
                             <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #E5E7EB', background: '#fff', flexShrink: 0 }}>
