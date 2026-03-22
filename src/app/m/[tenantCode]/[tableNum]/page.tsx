@@ -60,94 +60,42 @@ const GLOBAL_CSS = `
   @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.5} }
 `
 
-// ── Session Expired / Table Not Open Screen ────────────────────────────────
-function SessionExpiredScreen({ tableNum, tenantCode, onOpened }: {
-    tableNum: number; tenantCode: string; onOpened: () => void
+// ── Session Expired / Table Closed Screen ──────────────────────────
+function SessionExpiredScreen({ tableNum }: {
+    tableNum: number
 }) {
-    const [opening, setOpening] = useState(false)
-    const [openError, setOpenError] = useState('')
-    const [openDone, setOpenDone] = useState(false)
-
-    async function handleOpen() {
-        setOpening(true); setOpenError('')
-        try {
-            const res = await fetch(`/api/public/open-table/${tenantCode}/${tableNum}`, { method: 'POST' })
-            const json = await res.json()
-            if (res.ok && json.success) {
-                setOpenDone(true)
-                setTimeout(() => onOpened(), 1000)
-            } else if (res.status === 401 || res.status === 403) {
-                setOpenError('กรุณา Login ก่อนเปิดโต๊ะ — เปิดหน้า Dashboard แล้วลองใหม่')
-            } else {
-                setOpenError(json.error || 'เกิดข้อผิดพลาด')
-            }
-        } catch { setOpenError('ไม่สามารถเชื่อมต่อได้') }
-        finally { setOpening(false) }
-    }
-
     return (
         <div style={{ minHeight: '100dvh', background: '#fdf2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 0, padding: 28, textAlign: 'center', fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{
                 width: 96, height: 96, borderRadius: '50%',
-                background: openDone ? 'linear-gradient(135deg,#d1fae5,#a7f3d0)' : 'linear-gradient(135deg,#fee2e2,#fecaca)',
+                background: 'linear-gradient(135deg,#fee2e2,#fecaca)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '3rem', marginBottom: 24,
-                boxShadow: openDone ? '0 8px 32px rgba(16,185,129,0.25)' : '0 8px 32px rgba(239,68,68,0.2)',
-                animation: 'popIn 0.4s ease', transition: 'all 0.4s ease',
-            }}>{openDone ? '✅' : '🔒'}</div>
-            <h1 style={{ color: openDone ? '#065f46' : '#7f1d1d', fontWeight: 900, fontSize: '1.35rem', margin: '0 0 12px', lineHeight: 1.3 }}>
-                {openDone ? 'เปิดโต๊ะสำเร็จแล้ว!' : 'QR นี้หมดอายุแล้ว'}
+                boxShadow: '0 8px 32px rgba(239,68,68,0.2)',
+                animation: 'popIn 0.4s ease',
+            }}>🔒</div>
+            <h1 style={{ color: '#7f1d1d', fontWeight: 900, fontSize: '1.35rem', margin: '0 0 12px', lineHeight: 1.3 }}>
+                QR นี้หมดอายุแล้ว
             </h1>
-            {!openDone && (
-                <>
-                    <p style={{ color: '#991b1b', fontSize: '0.92rem', lineHeight: 1.75, margin: '0 0 8px', fontWeight: 500 }}>
-                        โต๊ะ <b>{tableNum}</b> ยังไม่ได้เปิดบริการ
-                    </p>
-                    <p style={{ color: '#b91c1c', fontSize: '0.82rem', lineHeight: 1.7, margin: '0 0 24px' }}>
-                        ลิงก์นี้ใช้ได้เฉพาะเมื่อนั่งโต๊ะที่ร้านเท่านั้น<br />
-                        กรุณาแจ้งพนักงานเพื่อเปิดโต๊ะ
-                    </p>
-
-                    {/* Staff open button */}
-                    <button
-                        onClick={handleOpen}
-                        disabled={opening}
-                        style={{
-                            background: opening ? '#d1d5db' : 'linear-gradient(135deg,#059669,#10b981)',
-                            color: '#fff', border: 'none', borderRadius: 16,
-                            padding: '14px 32px', fontSize: '1rem', fontWeight: 800,
-                            cursor: opening ? 'not-allowed' : 'pointer', fontFamily: FONT,
-                            boxShadow: opening ? 'none' : '0 6px 20px rgba(16,185,129,0.4)',
-                            marginBottom: 12, width: '100%', maxWidth: 280,
-                            transition: 'all 0.2s ease',
-                        }}
-                    >
-                        {opening ? '⏳ กำลังเปิด...' : '🔓 เปิดโต๊ะ (พนักงาน)'}
-                    </button>
-
-                    {openError && (
-                        <p style={{ color: '#dc2626', fontSize: '0.8rem', margin: '0 0 16px', maxWidth: 280, lineHeight: 1.5 }}>
-                            ⚠️ {openError}
-                        </p>
-                    )}
-
-                    <div style={{
-                        background: '#fff', borderRadius: 18, padding: '14px 20px',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                        border: '1px solid rgba(239,68,68,0.15)',
-                        maxWidth: 300, width: '100%',
-                    }}>
-                        <p style={{ color: '#6b7280', fontSize: '0.75rem', margin: 0, lineHeight: 1.7 }}>
-                            🪑 นั่งที่โต๊ะ → กด <b>เปิดโต๊ะ</b> ด้านบน<br />
-                            📱 สแกน QR ใหม่อีกครั้ง → สั่งได้เลย
-                        </p>
-                    </div>
-                </>
-            )}
-            {openDone && (
-                <p style={{ color: '#065f46', fontSize: '0.9rem', margin: 0 }}>กำลังโหลดเมนู…</p>
-            )}
+            <p style={{ color: '#991b1b', fontSize: '0.92rem', lineHeight: 1.75, margin: '0 0 8px', fontWeight: 500 }}>
+                โต๊ะ <b>{tableNum}</b> ยังไม่ได้เปิดบริการ
+            </p>
+            <p style={{ color: '#b91c1c', fontSize: '0.82rem', lineHeight: 1.7, margin: '0 0 28px' }}>
+                ลิงก์นี้ใช้ได้เฉพาะเมื่อนั่งโต๊ะที่ร้านเท่านั้น<br />
+                กรุณาแจ้งพนักงานเพื่อเปิดโต๊ะ
+            </p>
+            <div style={{
+                background: '#fff', borderRadius: 18, padding: '18px 24px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                border: '1px solid rgba(239,68,68,0.15)',
+                maxWidth: 320, width: '100%',
+            }}>
+                <p style={{ color: '#6b7280', fontSize: '0.78rem', margin: 0, lineHeight: 1.7 }}>
+                    🪑 นั่งที่โต๊ะ → แจ้งพนักงานเปิดโต๊ะ<br />
+                    📱 สแกน QR ใหม่อีกครั้ง → สั่งได้เลย
+                </p>
+            </div>
         </div>
     )
 }
@@ -295,16 +243,8 @@ export default function MenuPage() {
 
     const currency = bill?.currency || tenant?.currency || 'LAK'
 
-    // ── Session Expired Screen OR Table Not Open ───────────────────────
-    // Show immediately if bill loaded and no open order (not just after failed submit)
-    const tableNotOpen = !loading && !billLoading && bill !== null && !hasOpenRound
-    if (sessionExpired || tableNotOpen) return (
-        <SessionExpiredScreen
-            tableNum={tableNum}
-            tenantCode={tenantCode}
-            onOpened={() => { setSessionExpired(false); loadBill() }}
-        />
-    )
+    // ── Session Expired Screen (only shows after failed order submit) ──
+    if (sessionExpired) return <SessionExpiredScreen tableNum={tableNum} />
 
     // ── Loading ────────────────────────────────────────────────────────
     if (loading) return (
