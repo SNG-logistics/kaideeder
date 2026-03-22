@@ -35,8 +35,9 @@ model Tenant {
   phone         String?                   // เบอร์โทรร้าน
   address       String?  @db.Text         // ที่อยู่ร้าน
   taxId         String?                   // เลขประจำตัวผู้เสียภาษี / ທຸລະກິດ
-  receiptHeader String?  @db.Text         // หัวใบบิล (custom text / HTML)
-  timezone      String   @default("Asia/Vientiane")
+  receiptHeader    String?  @db.Text         // หัวใบบิล (custom text / HTML)
+  qrBankingBase64  String?  @db.LongText     // QR โอนเงิน สำหรับพิมพ์บนใบเสร็จ (Base64)
+  timezone         String   @default("Asia/Vientiane")
 
   // Store data relations
   users            User[]

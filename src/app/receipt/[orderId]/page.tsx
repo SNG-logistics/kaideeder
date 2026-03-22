@@ -51,6 +51,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
     const receiptHeader = settings?.receiptHeader ?? ''
     const receiptFooter = (settings as any)?.receiptFooter ?? ''
     const logoUrl       = branding.logoUrl ?? null
+    const qrBankingBase64 = (settings as any)?.qrBankingBase64 ?? null
 
     useEffect(() => {
         fetch(`/api/pos/orders/${orderId}`)
@@ -251,6 +252,19 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                         <span style={{ fontSize:9, color:'#9CA3AF', textAlign:'center', padding:4 }}>{order.orderNumber}</span>
                     </div>
                 </div>
+
+                {/* ── QR Banking ─────────────────────────────────────── */}
+                {qrBankingBase64 && (
+                    <div style={{ margin: '0 16px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}
+                        >📲 ໂອນເງິນ · โอนเงิน</div>
+                        <img
+                            src={`data:image/jpeg;base64,${qrBankingBase64}`}
+                            alt="QR Banking"
+                            style={{ width: 140, height: 140, objectFit: 'contain', borderRadius: 8 }}
+                        />
+                    </div>
+                )}
 
                 {/* ── Footer ──────────────────────────────────────────── */}
                 <div style={{ background:'#F8F9FC', padding:'14px 16px 20px', textAlign:'center', borderTop:'1px dashed #E5E7EB' }}>

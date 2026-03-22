@@ -327,7 +327,164 @@ function MenuBannerCard() {
 }
 
 
+
+// ─── QR Banking Card ──────────────────────────────────────────
+function QrBankingCard() {
+    const canManage = usePermission('SETTINGS_MANAGE')
+    const [preview, setPreview] = useState<string | null>(null)
+    const [uploading, setUploading] = useState(false)
+    const [loaded, setLoaded] = useState(false)
+    const fileRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        fetch('/api/tenant/settings')
+            .then(r => r.json())
+            .then(d => {
+                if (d.settings?.qrBankingBase64) {
+                    setPreview(`data:image/jpeg;base64,${d.settings.qrBankingBase64}`)
+                }
+                setLoaded(true)
+            })
+    }, [])
+
+    async function handleFile(file: File) {
+        if (!file) return
+        if (file.size > 5 * 1024 * 1024) { toast.error('ไฟล์ใหญ่เกิน 5MB'); return }
+        // Show local preview
+        const reader = new FileReader()
+        reader.onload = (e) => { if (e.target?.result) setPreview(e.target.result as string) }
+        reader.readAsDataURL(file)
+        setUploading(true)
+        try {
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const img = new Image()
+                img.onload = () => {
+                    // Resize to max 800px width (QR banking ไม่ต้องใหญ่มาก)
+                    const MAX_W = 800
+                    const scale = img.width > MAX_W ? MAX_W / img.width : 1
+                    const w = Math.round(img.width * scale)
+                    const h = Math.round(img.height * scale)
+                    const canvas = document.createElement('canvas')
+                    canvas.width = w; canvas.height = h
+                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+                    resolve(canvas.toDataURL('image/jpeg', 0.88).split(',')[1])
+                }
+                img.onerror = reject
+                img.src = URL.createObjectURL(file)
+            })
+            const res = await fetch('/api/tenant/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qrBankingBase64: base64 }),
+            })
+            const d = await res.json()
+            if (d.success) toast.success('✅ บันทึก QR Banking แล้ว')
+            else toast.error(d.error || 'อัปโหลดไม่สำเร็จ')
+        } catch { toast.error('เกิดข้อผิดพลาด') }
+        finally { setUploading(false) }
+    }
+
+    async function deleteQR() {
+        const res = await fetch('/api/tenant/settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ qrBankingBase64: null }),
+        })
+        const d = await res.json()
+        if (d.success) { setPreview(null); toast.success('ลบ QR Banking แล้ว') }
+        else toast.error(d.error || 'เกิดข้อผิดพลาด')
+    }
+
+    if (!canManage) return null
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(99,102,241,0.25)', background: 'rgba(99,102,241,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>📲</span> QR Banking (พิมพ์บนใบเสร็จ)
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
+                รูป QR โอนเงิน จะพิมพ์ที่ด้านล่างของใบเสร็จทุกใบ — JPG/PNG/WEBP max 5MB
+            </p>
+
+            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                {/* Preview box — square สำหรับ QR */}
+                <div
+                    onClick={() => !uploading && fileRef.current?.click()}
+                    onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+                    onDragOver={e => e.preventDefault()}
+                    style={{
+                        width: 160, height: 160, borderRadius: 14, flexShrink: 0,
+                        border: preview ? '2px solid rgba(99,102,241,0.5)' : '2.5px dashed var(--border)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: uploading ? 'wait' : 'pointer', overflow: 'hidden', position: 'relative',
+                        background: 'var(--bg)', transition: 'border-color 0.2s',
+                    }}
+                >
+                    {uploading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
+                            <div style={{ width: 28, height: 28, border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#6366F1', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                            <span style={{ fontSize: '0.72rem' }}>กำลังบันทึก...</span>
+                        </div>
+                    ) : preview ? (
+                        <>
+                            <img src={preview} alt="QR Banking" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'all 0.2s', fontSize: '0.85rem', color: '#fff', fontWeight: 700 }}
+                                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(0,0,0,0.45)' }}
+                                onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.background = 'rgba(0,0,0,0)' }}>
+                                🔄 เปลี่ยน
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '0.75rem' }}>
+                            <div style={{ fontSize: '2.5rem', marginBottom: 6 }}>📲</div>
+                            <p style={{ fontWeight: 600, fontSize: '0.78rem', margin: '0 0 4px' }}>คลิก/ลากวาง</p>
+                            <p style={{ fontSize: '0.68rem', margin: 0 }}>รูป QR Banking</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Info + Actions */}
+                <div style={{ flex: 1, minWidth: 180 }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text)', lineHeight: 1.7, marginBottom: 12 }}>
+                        <div>✅ รูปนี้จะนำไปพิมพ์ใต้ยอดชำระในใบเสร็จ</div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.73rem' }}>แนะนำ: รูป QR สี่เหลี่ยมจัตุรัส เช่น 400×400px</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button
+                            onClick={() => fileRef.current?.click()}
+                            disabled={uploading}
+                            style={{ minHeight: 40, borderRadius: 10, border: 'none', background: uploading ? '#d1d5db' : '#6366F1', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: uploading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', padding: '0 16px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            📷 อัปโหลด QR
+                        </button>
+                        {preview && !uploading && (
+                            <button
+                                onClick={deleteQR}
+                                style={{ minHeight: 40, borderRadius: 10, border: '1.5px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.06)', color: '#dc2626', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit', padding: '0 14px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                🗑️ ลบ
+                            </button>
+                        )}
+                    </div>
+                    {!loaded && !preview && (
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 8 }}>⏳ กำลังโหลด...</p>
+                    )}
+                    {preview && (
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                            ✅ มี QR Banking อยู่แล้ว — คลิกรูปเพื่อเปลี่ยน
+                        </p>
+                    )}
+                </div>
+            </div>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }}
+            />
+        </div>
+    )
+}
+
+
 function StoreSettingsCard() {
+
     const canManage = usePermission('SETTINGS_MANAGE')
     const { reload } = useTenant()
     const [form, setForm] = useState({
@@ -758,6 +915,9 @@ export default function SettingsPage() {
 
                 {/* ── Menu Banner ── */}
                 <MenuBannerCard />
+
+                {/* ── QR Banking ── */}
+                <QrBankingCard />
 
                 {/* ── User Management ── */}
                 <div className="card" style={{ borderColor: 'rgba(59,130,246,0.25)', background: 'rgba(59,130,246,0.03)' }}>
