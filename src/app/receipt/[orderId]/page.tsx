@@ -244,24 +244,20 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     </div>
                 )}
 
-                {/* ── QR Code ─────────────────────────────────────────── */}
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'4px 16px 14px', gap:6 }}>
-                    <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:600, letterSpacing:0.5 }}>ສະແກນເພື່ອດູລາຍລະອຽດ · สแกนดูรายละเอียด</div>
-                    {/* QR placeholder — only shows in Python version; here we show order number */}
-                    <div style={{ width:80, height:80, background:'#F3F4F6', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', border:'1px dashed #D1D5DB' }}>
-                        <span style={{ fontSize:9, color:'#9CA3AF', textAlign:'center', padding:4 }}>{order.orderNumber}</span>
-                    </div>
-                </div>
 
-                {/* ── QR Banking ─────────────────────────────────────── */}
+                {/* ── QR Banking ─────────────────────────────── */}
                 {qrBankingBase64 && (
-                    <div style={{ margin: '0 16px 14px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}
-                        >📲 ໂອນເງິນ · โอนเงิน</div>
+                    <div style={{ margin: '0 16px 16px', textAlign: 'center' }}>
+                        <div style={{
+                            fontSize: 11, color: '#374151', fontWeight: 700,
+                            marginBottom: 8, letterSpacing: 0.3,
+                        }}>
+                            📲 สแกนเพื่อจ่าย · ສະແກນຈ່າຍ
+                        </div>
                         <img
                             src={`data:image/jpeg;base64,${qrBankingBase64}`}
                             alt="QR Banking"
-                            style={{ width: 140, height: 140, objectFit: 'contain', borderRadius: 8 }}
+                            style={{ width: 160, height: 160, objectFit: 'contain', borderRadius: 10, border: '1.5px solid #E5E7EB' }}
                         />
                     </div>
                 )}
