@@ -42,7 +42,7 @@ export default function PrepRecipesPage() {
             ])
             const [rJ, pJ, lJ] = await Promise.all([rRes.json(), pRes.json(), lRes.json()])
             if (rJ.success) setRecipes(rJ.data)
-            if (pJ.success) setProducts(pJ.data)
+            if (pJ.success) setProducts(Array.isArray(pJ.data) ? pJ.data : (pJ.data.products ?? []))
             if (lJ.success) setLocations(lJ.data)
         } catch { showToast('โหลดข้อมูลไม่ได้', 'err') }
         finally { setLoading(false) }
