@@ -1,46 +1,34 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
-import { z } from 'zod'
+
+const include = {
+    outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
+    lines: {
+        include: {
+            product: { select: { id: true, name: true, sku: true, unit: true } },
+        },
+    },
+    productions: {
+        orderBy: { producedAt: 'desc' as const },
+        take: 20,
+        include: {
+            location: { select: { id: true, code: true, name: true } },
+        },
+    },
+}
 
 // GET /api/prep-recipes/[id]
 export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
     const { tenantId, params } = ctx
     const id = params?.id
-    const recipe = await prisma.prepRecipe.findFirst({
-        where: { id, tenantId },
-        include: {
-            outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
-            outputLocation: { select: { id: true, code: true, name: true } },
-            ingredients: {
-                include: {
-                    product: { select: { id: true, name: true, sku: true, unit: true } },
-                    location: { select: { id: true, code: true, name: true } },
-                },
-            },
-            batches: {
-                orderBy: { createdAt: 'desc' },
-                take: 20,
-            },
-        },
-    })
+    const recipe = await prisma.prepRecipe.findFirst({ where: { id, tenantId }, include })
     if (!recipe) return err('ไม่พบสูตร', 404)
     return ok(recipe)
 }, ['OWNER', 'MANAGER'])
 
-// DELETE /api/prep-recipes/[id]
-export const DELETE = withAuth(async (_req: NextRequest, ctx: any) => {
-    const { tenantId, params } = ctx
-    const id = params?.id
-    const recipe = await prisma.prepRecipe.findFirst({ where: { id, tenantId } })
-    if (!recipe) return err('ไม่พบสูตร', 404)
-    // Soft delete
-    await prisma.prepRecipe.update({ where: { id }, data: { isActive: false } })
-    return ok({ deleted: true })
-}, ['OWNER', 'MANAGER'])
-
-// PUT /api/prep-recipes/[id] — update recipe + replace ingredients
-export const PUT = withAuth(async (req: NextRequest, ctx: any) => {
+// PATCH /api/prep-recipes/[id]
+export const PATCH = withAuth(async (req: NextRequest, ctx: any) => {
     try {
         const { tenantId, params } = ctx
         const id = params?.id
@@ -49,53 +37,50 @@ export const PUT = withAuth(async (req: NextRequest, ctx: any) => {
         const recipe = await prisma.prepRecipe.findFirst({ where: { id, tenantId } })
         if (!recipe) return err('ไม่พบสูตร', 404)
 
-        const { ingredients, ...fields } = body
+        const { lines, ...fields } = body
 
         await prisma.$transaction(async tx => {
-            // Update main fields
             await tx.prepRecipe.update({
                 where: { id },
                 data: {
                     name: fields.name ?? recipe.name,
                     outputProductId: fields.outputProductId ?? recipe.outputProductId,
-                    outputQty: fields.outputQty ?? recipe.outputQty,
-                    outputUnit: fields.outputUnit ?? recipe.outputUnit,
-                    outputLocationId: fields.outputLocationId ?? recipe.outputLocationId,
-                    note: fields.note,
+                    yieldQty: fields.yieldQty ?? recipe.yieldQty,
+                    yieldUnit: fields.yieldUnit ?? recipe.yieldUnit,
+                    note: fields.note ?? recipe.note,
+                    isActive: fields.isActive ?? recipe.isActive,
                 },
             })
-            // Replace all ingredients if provided
-            if (Array.isArray(ingredients)) {
-                await tx.prepRecipeIngredient.deleteMany({ where: { recipeId: id } })
-                await tx.prepRecipeIngredient.createMany({
-                    data: ingredients.map((ing: any) => ({
-                        tenantId,
-                        recipeId: id,
-                        productId: ing.productId,
-                        quantity: ing.quantity,
-                        unit: ing.unit,
-                        locationId: ing.locationId,
-                    })),
-                })
+            if (Array.isArray(lines)) {
+                await tx.prepRecipeLine.deleteMany({ where: { prepRecipeId: id } })
+                if (lines.length > 0) {
+                    await tx.prepRecipeLine.createMany({
+                        data: lines.map((l: any) => ({
+                            tenantId,
+                            prepRecipeId: id,
+                            productId: l.productId,
+                            quantity: l.quantity,
+                            unit: l.unit,
+                        })),
+                    })
+                }
             }
         })
 
-        const updated = await prisma.prepRecipe.findUnique({
-            where: { id },
-            include: {
-                outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
-                outputLocation: { select: { id: true, code: true, name: true } },
-                ingredients: {
-                    include: {
-                        product: { select: { id: true, name: true, sku: true, unit: true } },
-                        location: { select: { id: true, code: true, name: true } },
-                    },
-                },
-            },
-        })
+        const updated = await prisma.prepRecipe.findUnique({ where: { id }, include })
         return ok(updated)
     } catch (e) {
-        console.error('PrepRecipe update error:', e)
+        console.error('PrepRecipe patch error:', e)
         return err('เกิดข้อผิดพลาด')
     }
+}, ['OWNER', 'MANAGER'])
+
+// DELETE /api/prep-recipes/[id]  — soft delete
+export const DELETE = withAuth(async (_req: NextRequest, ctx: any) => {
+    const { tenantId, params } = ctx
+    const id = params?.id
+    const recipe = await prisma.prepRecipe.findFirst({ where: { id, tenantId } })
+    if (!recipe) return err('ไม่พบสูตร', 404)
+    await prisma.prepRecipe.update({ where: { id }, data: { isActive: false } })
+    return ok({ deleted: true })
 }, ['OWNER', 'MANAGER'])

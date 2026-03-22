@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
     { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย',          labelLo: 'ນຳເຂົ້າຍອດຂາຍ',         permission: 'SALES_IMPORT' },
     { href: '/sku-queue',      icon: '🔍', label: 'SKU Queue',              labelLo: 'SKU Queue',               permission: 'SETTINGS_MANAGE' },
     { href: '/consume-fail',   icon: '⚠️', label: 'ปัญหาตัดสต็อค',        labelLo: 'ปัญหาตัดสต็อค',          permission: 'SETTINGS_MANAGE' },
-    { href: '/prep-recipe',    icon: '🧪', label: 'สูตรแปรรูป (Prep)',     labelLo: 'ສູດແປຮຮູບ (Prep)',        permission: 'SETTINGS_MANAGE' },
+    { href: '/prep-recipes',   icon: '🧪', label: 'สูตรแปรรูป (Prep)',     labelLo: 'ສູດແປຮຮູບ (Prep)',        permission: 'SETTINGS_MANAGE' },
     { href: '/reports',      icon: '📈', label: 'Reports',                labelLo: 'Reports',                 permission: 'REPORT_VIEW' },
     { href: '/ai-chat',      icon: '🤖', label: 'AI Assistant',           labelLo: 'AI Assistant',            permission: 'AI_CHAT' },
     { href: '/settings/categories', icon: '📂', label: 'จัดการหมวดหมู่',      labelLo: 'ຈັດການໝວດໝູ່',           divider: 'จัดการร้าน',      dividerLo: 'ຈັດການຮ້ານ', permission: 'SETTINGS_MANAGE' },

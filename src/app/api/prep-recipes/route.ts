@@ -3,100 +3,98 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
-const ingredientSchema = z.object({
+const lineSchema = z.object({
     productId: z.string().min(1),
     quantity: z.number().positive(),
     unit: z.string().min(1),
-    locationId: z.string().min(1),
 })
 
-const recipeSchema = z.object({
+const createSchema = z.object({
     name: z.string().min(1, 'ต้องระบุชื่อสูตร'),
-    outputProductId: z.string().min(1),
-    outputQty: z.number().positive(),
-    outputUnit: z.string().min(1),
-    outputLocationId: z.string().min(1),
+    outputProductId: z.string().min(1, 'ต้องเลือกสินค้าผลผลิต'),
+    yieldQty: z.number().positive('yieldQty ต้องมากกว่า 0'),
+    yieldUnit: z.string().min(1, 'ต้องระบุหน่วย'),
     note: z.string().optional(),
-    ingredients: z.array(ingredientSchema).min(1, 'ต้องมีวัตถุดิบอย่างน้อย 1 รายการ'),
+    lines: z.array(lineSchema).min(1, 'ต้องมีวัตถุดิบอย่างน้อย 1 รายการ'),
 })
 
-// GET /api/prep-recipes — list all prep recipes
+const include = {
+    outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
+    lines: {
+        include: {
+            product: { select: { id: true, name: true, sku: true, unit: true } },
+        },
+    },
+    productions: {
+        orderBy: { producedAt: 'desc' as const },
+        take: 5,
+        include: {
+            location: { select: { id: true, code: true, name: true } },
+        },
+    },
+}
+
+// GET /api/prep-recipes
 export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
     const { tenantId } = ctx
     const recipes = await prisma.prepRecipe.findMany({
         where: { tenantId, isActive: true },
-        include: {
-            outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
-            outputLocation: { select: { id: true, code: true, name: true } },
-            ingredients: {
-                include: {
-                    product: { select: { id: true, name: true, sku: true, unit: true } },
-                    location: { select: { id: true, code: true, name: true } },
-                },
-            },
-            batches: {
-                orderBy: { createdAt: 'desc' },
-                take: 5,
-            },
-        },
+        include,
         orderBy: { createdAt: 'desc' },
     })
-    return ok(recipes)
+
+    // Attach current stock for output product
+    const productIds = recipes.map(r => r.outputProductId)
+    const inventories = await prisma.inventory.findMany({
+        where: { tenantId, productId: { in: productIds } },
+        include: { location: { select: { code: true, name: true } } },
+    })
+    const stockMap: Record<string, { qty: number; location: string }[]> = {}
+    for (const inv of inventories) {
+        if (!stockMap[inv.productId]) stockMap[inv.productId] = []
+        if (inv.quantity !== 0) stockMap[inv.productId].push({ qty: inv.quantity, location: inv.location.code })
+    }
+
+    const result = recipes.map(r => ({
+        ...r,
+        currentStock: stockMap[r.outputProductId] || [],
+    }))
+
+    return ok(result)
 }, ['OWNER', 'MANAGER'])
 
-// POST /api/prep-recipes — create a new prep recipe
+// POST /api/prep-recipes
 export const POST = withAuth(async (req: NextRequest, ctx: any) => {
     try {
         const { tenantId } = ctx
         const body = await req.json()
-        const data = recipeSchema.parse(body)
+        const data = createSchema.parse(body)
 
-        // Verify output product belongs to tenant
-        const outputProduct = await prisma.product.findFirst({
-            where: { id: data.outputProductId, tenantId },
-        })
-        if (!outputProduct) return err('ไม่พบสินค้าผลผลิต')
+        const outProduct = await prisma.product.findFirst({ where: { id: data.outputProductId, tenantId } })
+        if (!outProduct) return err('ไม่พบสินค้าผลผลิต')
 
-        // Verify output location
-        const outputLocation = await prisma.location.findFirst({
-            where: { id: data.outputLocationId, tenantId },
-        })
-        if (!outputLocation) return err('ไม่พบคลังผลผลิต')
-
-        // Create recipe + ingredients in one transaction
         const recipe = await prisma.prepRecipe.create({
             data: {
                 tenantId,
                 name: data.name,
                 outputProductId: data.outputProductId,
-                outputQty: data.outputQty,
-                outputUnit: data.outputUnit,
-                outputLocationId: data.outputLocationId,
+                yieldQty: data.yieldQty,
+                yieldUnit: data.yieldUnit,
                 note: data.note,
-                ingredients: {
-                    create: data.ingredients.map(ing => ({
+                lines: {
+                    create: data.lines.map(l => ({
                         tenantId,
-                        productId: ing.productId,
-                        quantity: ing.quantity,
-                        unit: ing.unit,
-                        locationId: ing.locationId,
+                        productId: l.productId,
+                        quantity: l.quantity,
+                        unit: l.unit,
                     })),
                 },
             },
-            include: {
-                outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
-                outputLocation: { select: { id: true, code: true, name: true } },
-                ingredients: {
-                    include: {
-                        product: { select: { id: true, name: true, sku: true, unit: true } },
-                        location: { select: { id: true, code: true, name: true } },
-                    },
-                },
-            },
+            include,
         })
         return ok(recipe)
-    } catch (e) {
-        if (e instanceof z.ZodError) return err(e.errors.map(x => x.message).join(', '))
+    } catch (e: any) {
+        if (e?.name === 'ZodError') return err(e.errors.map((x: any) => x.message).join(', '))
         console.error('PrepRecipe create error:', e)
         return err('เกิดข้อผิดพลาด')
     }
