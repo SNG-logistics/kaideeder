@@ -130,3 +130,36 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
         return err('เกิดข้อผิดพลาด')
     }
 }, ['OWNER', 'MANAGER', 'CASHIER'])
+
+// DELETE /api/pos/orders/[id] — void empty OPEN order (no items)
+export const DELETE = withAuth(async (_req: NextRequest, ctx) => {
+    const { tenantId } = ctx as any
+    const params = await ctx.params
+    const id = params?.id
+    if (!id) return err('Missing order id')
+
+    const order = await prisma.order.findFirst({
+        where: { id, tenantId },
+        include: { items: { where: { isCancelled: false } } },
+    })
+    if (!order) return err('ไม่พบออเดอร์', 404)
+    if (order.status !== 'OPEN') return err('ยกเลิกได้เฉพาะออเดอร์ที่เปิดอยู่เท่านั้น')
+    if (order.items.length > 0) return err('ไม่สามารถยกเลิกได้ เพราะมีรายการสินค้าแล้ว')
+
+    await prisma.order.delete({ where: { id } })
+
+    // Reset table to AVAILABLE if no other active orders remain
+    if (order.tableId) {
+        const other = await prisma.order.findFirst({
+            where: { tableId: order.tableId, tenantId, status: { in: ['OPEN', 'PENDING_CONFIRM'] } },
+        })
+        if (!other) {
+            await prisma.diningTable.update({
+                where: { id: order.tableId },
+                data: { status: 'AVAILABLE' },
+            })
+        }
+    }
+
+    return ok({ voided: true })
+}, ['OWNER', 'MANAGER', 'CASHIER'])

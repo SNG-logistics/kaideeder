@@ -674,6 +674,26 @@ export default function POSPage() {
         finally { setLoading(false) }
     }
 
+    const closeEmptyTable = async () => {
+        if (!currentOrder || orderItems.length > 0 || loading) return
+        if (!confirm(`ยืนยันปิดโต๊ะ ${selectedTable?.name}?\n(Order ที่ยังไม่มีรายการจะถูกยกเลิก)`)) return
+        setLoading(true)
+        try {
+            const res = await fetch(`/api/pos/orders/${currentOrder.id}`, { method: 'DELETE' })
+            const json = await res.json()
+            if (json.success) {
+                setCurrentOrder(null)
+                setOrderItems([])
+                setSelectedTable(null)
+                setToast({ message: `โต๊ะ ${selectedTable?.name} ปิดแล้ว`, type: 'success' })
+                fetchTables()
+            } else {
+                setToast({ message: json.error || 'ปิดโต๊ะไม่สำเร็จ', type: 'error' })
+            }
+        } catch { setToast({ message: 'เกิดข้อผิดพลาดในการปิดโต๊ะ', type: 'error' }) }
+        finally { setLoading(false) }
+    }
+
     // ─── Move order to another table ──────────────────────────
     const moveOrder = async (targetTable: DiningTable) => {
         if (!currentOrder) return
@@ -1062,7 +1082,7 @@ export default function POSPage() {
                                             display: 'flex', alignItems: 'center', gap: 10,
                                         }}>
                                             <span style={{ fontSize: '1.4rem' }}>🟢</span>
-                                            <div>
+                                            <div style={{ flex: 1 }}>
                                                 <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#065f46' }}>
                                                     โต๊ะ {selectedTable?.name} เปิดแล้ว
                                                 </div>
@@ -1070,6 +1090,22 @@ export default function POSPage() {
                                                     ลูกค้าสแกน QR สั่งออเดอร์ได้เลย
                                                 </div>
                                             </div>
+                                            {/* ปิดโต๊ะ — only if no items yet */}
+                                            {orderItems.length === 0 && (
+                                                <button
+                                                    onClick={closeEmptyTable}
+                                                    disabled={loading}
+                                                    style={{
+                                                        background: '#dc2626', color: '#fff',
+                                                        border: 'none', borderRadius: 8,
+                                                        padding: '5px 12px', fontSize: '0.72rem',
+                                                        fontWeight: 700, cursor: 'pointer',
+                                                        fontFamily: 'inherit', flexShrink: 0,
+                                                    }}
+                                                >
+                                                    ❌ ปิดโต๊ะ
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                     {/* Generic empty hint */}

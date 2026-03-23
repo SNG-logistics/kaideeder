@@ -24,6 +24,9 @@ function generateOrderNumber(): string {
     return `QR-${yy}${mm}${dd}-${rand}`
 }
 
+const BAR_CATS = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER', 'ENTERTAIN', 'PR']
+const BAR_KEYWORDS = ['beer', 'drink', 'bev', 'bar', 'wine', 'cocktail', 'whisky', 'vodka', 'rum', 'เครื่องดื่ม', 'น้ำ', 'เบียร', 'เหล้า', 'แอลกอฮอล์']
+
 // POST /api/public/order — customer self-order (no auth)
 export async function POST(req: Request) {
     try {
@@ -43,12 +46,9 @@ export async function POST(req: Request) {
         if (!table) return NextResponse.json({ error: 'Table not found' }, { status: 404 })
 
         // ── SESSION GUARD ──────────────────────────────────────────────────────
-        // Check if there is any active order at this table (OPEN or PENDING_CONFIRM)
         const activeOrder = await prisma.order.findFirst({
             where: { tenantId: tenant.id, tableId: table.id, status: { in: ['OPEN', 'PENDING_CONFIRM'] } },
         })
-
-        // If no active order AND table is not OCCUPIED → QR link is stale (customer left)
         if (!activeOrder && table.status !== 'OCCUPIED') {
             return NextResponse.json({
                 error: 'SESSION_EXPIRED',
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
             }, { status: 403 })
         }
 
-        // Block only if there's already a PENDING_CONFIRM waiting (to avoid double-tap spam)
+        // Block if PENDING_CONFIRM already exists (anti-spam)
         const existingPending = await prisma.order.findFirst({
             where: { tenantId: tenant.id, tableId: table.id, status: 'PENDING_CONFIRM' },
         })
@@ -67,13 +67,60 @@ export async function POST(req: Request) {
             }, { status: 409 })
         }
 
-        // Check if table already has an OPEN order (customer ordering add-on items)
+        // ── KEY CHANGE: If OPEN order exists → add items directly to it ────────
         const openOrder = await prisma.order.findFirst({
             where: { tenantId: tenant.id, tableId: table.id, status: 'OPEN' },
         })
-        const isAddon = !!openOrder
 
-        // Generate unique order number
+        if (openOrder) {
+            // Fetch products to determine kitchen vs bar station
+            const productIds = data.items.map(i => i.productId)
+            const products = await prisma.product.findMany({
+                where: { id: { in: productIds }, tenantId: tenant.id },
+                include: { category: true },
+            })
+            const productMap = Object.fromEntries(products.map(p => [p.id, p]))
+
+            await prisma.orderItem.createMany({
+                data: data.items.map(item => {
+                    const prod = productMap[item.productId]
+                    const catCode = (prod?.category?.code || '').toUpperCase()
+                    const catName = (prod?.category?.name || '').toLowerCase()
+                    const isBar = BAR_CATS.some(c => catCode.includes(c)) ||
+                        BAR_KEYWORDS.some(k => catName.includes(k))
+                    return {
+                        tenantId: tenant.id,
+                        orderId: openOrder.id,
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        note: item.note || data.customerNote || null,
+                        stationId: isBar ? 'BAR' : 'KITCHEN',
+                        kitchenStatus: 'PENDING',
+                    }
+                }),
+            })
+
+            // Recalculate order totals
+            const allItems = await prisma.orderItem.findMany({
+                where: { orderId: openOrder.id, isCancelled: false },
+            })
+            const newSubtotal = allItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+            await prisma.order.update({
+                where: { id: openOrder.id },
+                data: { subtotal: newSubtotal, totalAmount: newSubtotal },
+            })
+
+            return NextResponse.json({
+                ok: true,
+                orderNumber: openOrder.orderNumber,
+                orderId: openOrder.id,
+                isAddon: true,
+                tableNumber: table.number,
+            })
+        }
+
+        // ── No OPEN order → create new PENDING_CONFIRM (needs staff confirmation) ──
         let orderNumber = generateOrderNumber()
         for (let i = 0; i < 10; i++) {
             const exists = await prisma.order.findFirst({ where: { tenantId: tenant.id, orderNumber } })
@@ -88,7 +135,7 @@ export async function POST(req: Request) {
                 tenantId: tenant.id,
                 orderNumber,
                 tableId: table.id,
-                status: 'PENDING_CONFIRM',    // ← awaiting cashier confirmation
+                status: 'PENDING_CONFIRM',
                 subtotal,
                 totalAmount: subtotal,
                 note: data.customerNote || null,
@@ -100,14 +147,20 @@ export async function POST(req: Request) {
                         unitPrice: item.unitPrice,
                         note: item.note || null,
                         stationId: 'KITCHEN',
-                        kitchenStatus: 'PENDING',  // will be processed after cashier confirms
+                        kitchenStatus: 'PENDING',
                     })),
                 },
             },
             include: { table: true, items: true },
         })
 
-        return NextResponse.json({ ok: true, orderNumber: order.orderNumber, orderId: order.id, isAddon, tableNumber: table.number })
+        return NextResponse.json({
+            ok: true,
+            orderNumber: order.orderNumber,
+            orderId: order.id,
+            isAddon: false,
+            tableNumber: table.number,
+        })
     } catch (e: any) {
         if (e instanceof z.ZodError) {
             return NextResponse.json({ error: e.errors.map(x => x.message).join(', ') }, { status: 400 })
