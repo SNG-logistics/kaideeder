@@ -166,6 +166,13 @@ export default function POSPage() {
     const [mobileTab, setMobileTab] = useState<'tables' | 'order'>('tables')  // mobile bottom nav
     const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())  // ซ่อนหมวด
     const [catEditMode, setCatEditMode] = useState(false)  // mode แก้ไขการมองเห็นหมวด
+    const [deliveryMode, setDeliveryMode] = useState(false)
+    const [deliveryOrders, setDeliveryOrders] = useState<any[]>([])
+    const [showDeliveryModal, setShowDeliveryModal] = useState(false)
+    const [deliveryForm, setDeliveryForm] = useState({
+        customerName: '', customerPhone: '', addressText: '',
+        channel: 'PHONE', deliveryFee: '0', isPrepaid: false,
+    })
     const searchRef = useRef<HTMLInputElement>(null)
 
     // ─── Auth Check ───────────────────────────────────────────
@@ -229,6 +236,15 @@ export default function POSPage() {
             console.error('Fetch tables error:', e)
             setToast({ message: 'ไม่สามารถโหลดข้อมูลโต๊ะได้', type: 'error' })
         }
+    }, [handleApiError])
+
+    const fetchDeliveryOrders = useCallback(async () => {
+        try {
+            const res = await fetch('/api/pos/delivery')
+            if (handleApiError(res, 'โหลด delivery')) return
+            const json = await res.json()
+            if (json.success) setDeliveryOrders(json.data)
+        } catch (e) { console.error('Fetch delivery error:', e) }
     }, [handleApiError])
 
     const fetchProducts = useCallback(async () => {
@@ -856,10 +872,102 @@ export default function POSPage() {
                             🕐 ประวัติ
                         </button>
                     )}
+                    <button
+                        onClick={() => {
+                            setDeliveryMode(m => {
+                                if (!m) fetchDeliveryOrders()
+                                return !m
+                            })
+                        }}
+                        style={{
+                            fontSize: '0.78rem', cursor: 'pointer',
+                            padding: '5px 14px', borderRadius: 8,
+                            border: `1px solid ${deliveryMode ? '#86EFAC' : '#4ADE80'}`,
+                            background: deliveryMode ? 'rgba(74,222,128,0.25)' : 'rgba(74,222,128,0.12)',
+                            color: '#4ADE80', fontFamily: 'inherit', fontWeight: 700,
+                            display: 'flex', alignItems: 'center', gap: 6,
+                        }}
+                    >
+                        🚵 {deliveryMode ? 'ปิด Delivery' : 'Delivery'}
+                        {deliveryOrders.filter(o => !['DELIVERED', 'CANCELLED'].includes(o.deliveryInfo?.deliveryStatus)).length > 0 && (
+                            <span style={{ background: '#E8364E', color: '#fff', borderRadius: 99, fontSize: '0.65rem', padding: '1px 6px', fontWeight: 800 }}>
+                                {deliveryOrders.filter(o => !['DELIVERED', 'CANCELLED'].includes(o.deliveryInfo?.deliveryStatus)).length}
+                            </span>
+                        )}
+                    </button>
                     <a href="/dashboard" style={{ fontSize: '0.78rem', color: '#9CA3AF', textDecoration: 'none', padding: '5px 12px', borderRadius: 8, border: '1px solid #374151' }}>← กลับ</a>
                 </div>
 
+                {/* ── DELIVERY QUEUE (when delivery mode active) ── */}
+                {deliveryMode && (
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        <button
+                            onClick={() => setShowDeliveryModal(true)}
+                            style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: 12, padding: '0.65rem 1rem', fontFamily: 'inherit', fontWeight: 800, fontSize: '0.88rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}
+                        >
+                            ➕ สร้างออเดอร์ Delivery
+                        </button>
+                        {deliveryOrders.length === 0 ? (
+                            <div style={{ textAlign: 'center', color: '#9CA3AF', padding: '3rem 1rem' }}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🚵</div>
+                                <div style={{ fontSize: '0.85rem' }}>ยังไม่มีออเดอร์ delivery</div>
+                                <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>กดปุ่มด้านบนเพื่อสร้างออเดอร์ใหม่</div>
+                            </div>
+                        ) : deliveryOrders.map(order => {
+                            const info = order.deliveryInfo
+                            const statusColors: Record<string, { bg: string; color: string; label: string }> = {
+                                RECEIVED:         { bg: '#FEF3C7', color: '#D97706', label: '📦 รับออเดอร์' },
+                                PREPARING:        { bg: '#DBEAFE', color: '#1D4ED8', label: '👨‍🍳 กำลังทำ' },
+                                ASSIGNED:         { bg: '#E0E7FF', color: '#4F46E5', label: '🚵 มอบ rider แล้ว' },
+                                OUT_FOR_DELIVERY: { bg: '#D1FAE5', color: '#059669', label: '🚗 ออกส่ง' },
+                                DELIVERED:        { bg: '#F0FDF4', color: '#16A34A', label: '✅ ส่งแล้ว' },
+                                CANCELLED:        { bg: '#FEF2F2', color: '#DC2626', label: '❌ ยกเลิก' },
+                            }
+                            const sc = statusColors[info?.deliveryStatus] || statusColors.RECEIVED
+                            const nextStatus: Record<string, string> = {
+                                RECEIVED: 'PREPARING', PREPARING: 'OUT_FOR_DELIVERY',
+                                OUT_FOR_DELIVERY: 'DELIVERED',
+                            }
+                            const next = info ? nextStatus[info.deliveryStatus] : null
+                            return (
+                                <div key={order.id} style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: '0.8rem 1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#1A1D26' }}>{info?.customerName || '-'}</div>
+                                            <div style={{ fontSize: '0.72rem', color: '#6B7280' }}>{info?.customerPhone} • {info?.channel}</div>
+                                        </div>
+                                        <span style={{ background: sc.bg, color: sc.color, borderRadius: 99, fontSize: '0.68rem', fontWeight: 700, padding: '3px 10px' }}>{sc.label}</span>
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: '#374151', marginBottom: 6, background: '#F9FAFB', borderRadius: 8, padding: '4px 8px' }}>
+                                        📍 {info?.addressText}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#E8364E' }}>
+                                            {fmt(order.totalAmount)} {info?.deliveryFee > 0 && <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(ค่าส่ง {fmt(info.deliveryFee)})</span>}
+                                        </div>
+                                        {next && (
+                                            <button
+                                                onClick={async () => {
+                                                    const r = await fetch(`/api/pos/delivery/${info.id}/status`, {
+                                                        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ deliveryStatus: next }),
+                                                    })
+                                                    if (r.ok) fetchDeliveryOrders()
+                                                }}
+                                                style={{ background: '#1A1D26', color: '#fff', border: 'none', borderRadius: 8, padding: '4px 12px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                                            >
+                                                {next === 'PREPARING' ? '👨‍🍳 เริ่มทำ' : next === 'OUT_FOR_DELIVERY' ? '🚗 ออกส่ง' : '✅ ส่งแล้ว'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+
                 {/* Zone Tabs */}
+                {!deliveryMode && (
                 <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, borderBottom: '1px solid #E5E7EB', background: '#FAFBFD' }}>
                     {['ALL', ...zones].map(zone => {
                         const isActive = selectedZone === zone
@@ -872,8 +980,10 @@ export default function POSPage() {
                         )
                     })}
                 </div>
+                )}
 
                 {/* Table Grid */}
+                {!deliveryMode && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: '0.6rem', alignContent: 'start' }}>
                     {displayTables.map(table => {
                         const hasOrder = !!(table.orders && table.orders.length > 0)
@@ -924,6 +1034,7 @@ export default function POSPage() {
                         </div>
                     )}
                 </div>
+                )}
 
                 {/* Bottom Filter Bar */}
                 <div style={{ display: 'flex', gap: 4, padding: '0.5rem 0.75rem', borderTop: '1px solid #E5E7EB', background: '#FAFBFD', flexShrink: 0 }}>
@@ -1913,6 +2024,108 @@ export default function POSPage() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ DELIVERY ORDER MODAL ═══════════════════════════════════ */}
+            {showDeliveryModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                    <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 460, padding: '1.5rem', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1A1D26' }}>🛵 สร้างออเดอร์ Delivery</div>
+                            <button onClick={() => setShowDeliveryModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#6B7280' }}>✕</button>
+                        </div>
+
+                        {[['ชื่อลูกค้า', 'customerName', 'text', 'แสง สมพล...'],
+                          ['เบอร์โทร', 'customerPhone', 'tel', '+856 20...'],
+                          ['ที่อยู่/สถานที่ส่ง', 'addressText', 'text', 'บ้านเลขที่, ถนน, คำสั่งบอกทาง...']
+                        ].map(([label, key, type, placeholder]) => (
+                            <div key={key} style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: 4 }}>{label}</label>
+                                <input
+                                    type={type}
+                                    value={(deliveryForm as any)[key]}
+                                    onChange={e => setDeliveryForm(f => ({ ...f, [key]: e.target.value }))}
+                                    placeholder={placeholder}
+                                    style={{ width: '100%', padding: '0.55rem 0.8rem', border: '1.5px solid #E5E7EB', borderRadius: 10, fontSize: '0.88rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                                />
+                            </div>
+                        ))}
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: 4 }}>ช่องทาง</label>
+                                <select
+                                    value={deliveryForm.channel}
+                                    onChange={e => setDeliveryForm(f => ({ ...f, channel: e.target.value }))}
+                                    style={{ width: '100%', padding: '0.55rem 0.8rem', border: '1.5px solid #E5E7EB', borderRadius: 10, fontSize: '0.88rem', fontFamily: 'inherit', background: '#fff' }}
+                                >
+                                    {[['WHATSAPP','WhatsApp'],['LINE','LINE'],['PHONE','โทรศัพท์'],['WALKIN','Walk-in'],['OTHER','อื่นๆ']].map(([v, l]) => (
+                                        <option key={v} value={v}>{l}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: 4 }}>ค่าส่ง (LAK)</label>
+                                <input
+                                    type="number"
+                                    value={deliveryForm.deliveryFee}
+                                    onChange={e => setDeliveryForm(f => ({ ...f, deliveryFee: e.target.value }))}
+                                    style={{ width: '100%', padding: '0.55rem 0.8rem', border: '1.5px solid #E5E7EB', borderRadius: 10, fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                />
+                            </div>
+                        </div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: '1.25rem', fontSize: '0.85rem', color: '#374151' }}>
+                            <input
+                                type="checkbox"
+                                checked={deliveryForm.isPrepaid}
+                                onChange={e => setDeliveryForm(f => ({ ...f, isPrepaid: e.target.checked }))}
+                            />
+                            ชำระเงินแล้ว (Pre-paid)
+                        </label>
+
+                        <button
+                            disabled={!deliveryForm.customerName.trim() || !deliveryForm.customerPhone.trim() || !deliveryForm.addressText.trim() || loading}
+                            onClick={async () => {
+                                if (!deliveryForm.customerName.trim() || !deliveryForm.customerPhone.trim() || !deliveryForm.addressText.trim()) return
+                                setLoading(true)
+                                try {
+                                    const res = await fetch('/api/pos/orders', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            deliveryInfo: {
+                                                customerName: deliveryForm.customerName.trim(),
+                                                customerPhone: deliveryForm.customerPhone.trim(),
+                                                addressText: deliveryForm.addressText.trim(),
+                                                channel: deliveryForm.channel,
+                                                deliveryFee: parseFloat(deliveryForm.deliveryFee) || 0,
+                                                isPrepaid: deliveryForm.isPrepaid,
+                                            },
+                                        }),
+                                    })
+                                    const json = await res.json()
+                                    if (json.success) {
+                                        setCurrentOrder(json.data)
+                                        setOrderItems([])
+                                        setOrderStartTime(new Date())
+                                        setSelectedTable(null)
+                                        setShowDeliveryModal(false)
+                                        setDeliveryForm({ customerName: '', customerPhone: '', addressText: '', channel: 'PHONE', deliveryFee: '0', isPrepaid: false })
+                                        setToast({ message: `🛵 สร้างออเดอร์สำเร็จ — เพิ่มเมนูได้เลย`, type: 'success' })
+                                        fetchDeliveryOrders()
+                                    } else {
+                                        setToast({ message: json.error || 'สร้างออเดอร์ไม่สำเร็จ', type: 'error' })
+                                    }
+                                } catch { setToast({ message: 'เกิดข้อผิดพลาด', type: 'error' }) }
+                                finally { setLoading(false) }
+                            }}
+                            style={{ width: '100%', padding: '0.75rem', background: loading ? '#d1d5db' : '#059669', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                        >
+                            {loading ? 'กำลังสร้าง...' : '➕ ยืนยันสร้างออเดอร์ Delivery'}
+                        </button>
                     </div>
                 </div>
             )}

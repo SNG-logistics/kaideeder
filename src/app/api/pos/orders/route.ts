@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
-// Generate order number: ORD-YYMMDD-XXXX
 function generateOrderNumber(): string {
     const now = new Date()
     const yy = String(now.getFullYear()).slice(-2)
@@ -13,8 +12,19 @@ function generateOrderNumber(): string {
     return `ORD-${yy}${mm}${dd}-${rand}`
 }
 
+const deliveryInfoSchema = z.object({
+    customerName: z.string().min(1),
+    customerPhone: z.string().min(1),
+    addressText: z.string().min(1),
+    channel: z.enum(['WHATSAPP', 'LINE', 'PHONE', 'WALKIN', 'WEBSITE', 'OTHER']).default('PHONE'),
+    deliveryFee: z.number().min(0).default(0),
+    isPrepaid: z.boolean().default(false),
+    paymentRef: z.string().optional(),
+    driverNote: z.string().optional(),
+})
+
 const createOrderSchema = z.object({
-    tableId: z.string().min(1),
+    tableId: z.string().min(1).optional(),
     skipKitchen: z.boolean().optional().default(false),
     items: z.array(z.object({
         productId: z.string().min(1),
@@ -22,6 +32,8 @@ const createOrderSchema = z.object({
         unitPrice: z.number().min(0),
         note: z.string().optional(),
     })).optional(),
+    // Delivery order fields
+    deliveryInfo: deliveryInfoSchema.optional(),
 })
 
 // GET /api/pos/orders — list open orders
@@ -38,26 +50,31 @@ export const GET = withAuth(async (req: NextRequest, context) => {
             items: { include: { product: true } },
             payments: true,
             createdBy: { select: { id: true, name: true } },
+            deliveryInfo: true,
         },
     })
     return ok(orders)
 })
 
-// POST /api/pos/orders — create new order
+// POST /api/pos/orders — create new order (dine-in or delivery)
 export const POST = withAuth(async (req: NextRequest, ctx) => {
     try {
         const { tenantId }: any = ctx
         const body = await req.json()
         const data = createOrderSchema.parse(body)
 
-        const existingOrder = await prisma.order.findFirst({
-            where: { tenantId, tableId: data.tableId, status: 'OPEN' },
-        })
-        if (existingOrder) {
-            return err('โต๊ะนี้มีออเดอร์เปิดอยู่แล้ว')
+        const isDelivery = !!data.deliveryInfo
+        const orderType = isDelivery ? 'DELIVERY' : 'DINE_IN'
+
+        // Dine-in: check for existing OPEN order at table
+        if (!isDelivery && data.tableId) {
+            const existingOrder = await prisma.order.findFirst({
+                where: { tenantId, tableId: data.tableId, status: 'OPEN' },
+            })
+            if (existingOrder) return err('โต๊ะนี้มีออเดอร์เปิดอยู่แล้ว')
         }
 
-        // Generate unique order number (scoped to tenant)
+        // Generate unique order number
         let orderNumber = generateOrderNumber()
         let attempts = 0
         while (attempts < 10) {
@@ -67,14 +84,9 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             attempts++
         }
 
-        const subtotal = data.items
-            ? data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-            : 0
-
         const BAR_CODES = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER', 'ENTERTAIN', 'PR']
         const BAR_KEYWORDS = ['beer', 'drink', 'bev', 'bar', 'wine', 'cocktail', 'whisky', 'vodka', 'rum', 'เครื่องดื่ม', 'น้ำ', 'เบียร', 'เหล้า', 'แอลกอฮอล์']
 
-        // Ensure items is defined before we proceed
         let itemsToCreate: typeof data.items = data.items || []
         let productMap: Record<string, { category: { code: string; name: string } | null }> = {}
 
@@ -87,14 +99,19 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             productMap = Object.fromEntries(products.map(p => [p.id, p]))
         }
 
+        const subtotal = itemsToCreate.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+        const deliveryFee = data.deliveryInfo?.deliveryFee ?? 0
+        const totalAmount = subtotal + deliveryFee
+
         const order = await prisma.order.create({
             data: {
                 tenantId,
                 orderNumber,
-                tableId: data.tableId,
+                tableId: data.tableId || null,
+                orderType,
                 createdById: ctx.user?.userId,
                 subtotal,
-                totalAmount: subtotal,
+                totalAmount,
                 items: itemsToCreate.length > 0 ? {
                     create: itemsToCreate.map(item => {
                         const prod = productMap[item.productId]
@@ -116,14 +133,35 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             include: {
                 table: true,
                 items: { include: { product: true } },
+                deliveryInfo: true,
             },
         })
 
-        // Update table status
-        await prisma.diningTable.update({
-            where: { id: data.tableId },
-            data: { status: 'OCCUPIED' },
-        })
+        // Create delivery info record if delivery order
+        if (isDelivery && data.deliveryInfo) {
+            await prisma.deliveryInfo.create({
+                data: {
+                    tenantId,
+                    orderId: order.id,
+                    customerName: data.deliveryInfo.customerName,
+                    customerPhone: data.deliveryInfo.customerPhone,
+                    addressText: data.deliveryInfo.addressText,
+                    channel: data.deliveryInfo.channel,
+                    deliveryFee,
+                    isPrepaid: data.deliveryInfo.isPrepaid,
+                    paymentRef: data.deliveryInfo.paymentRef || null,
+                    driverNote: data.deliveryInfo.driverNote || null,
+                },
+            })
+        }
+
+        // Update table status for dine-in
+        if (!isDelivery && data.tableId) {
+            await prisma.diningTable.update({
+                where: { id: data.tableId },
+                data: { status: 'OCCUPIED' },
+            })
+        }
 
         return ok(order)
     } catch (error) {

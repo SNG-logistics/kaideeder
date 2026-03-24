@@ -72,6 +72,7 @@ model Tenant {
   prepRecipeLines  PrepRecipeLine[]
   stockCounts      StockCount[]
   stockCountItems  StockCountItem[]
+  deliveryInfos    DeliveryInfo[]
 
   // SaaS relations
   wallet           Wallet?
@@ -773,6 +774,7 @@ model Order {
   tenantId      String
   orderNumber   String
   tableId       String?
+  orderType     OrderType    @default(DINE_IN)
   status        OrderStatus  @default(OPEN)
   subtotal      Float        @default(0)
   discount      Float        @default(0)
@@ -791,14 +793,44 @@ model Order {
   table         DiningTable? @relation(fields: [tableId], references: [id])
   payments      Payment[]
   salesEvents   SalesEvent[]
+  deliveryInfo  DeliveryInfo?
 
   @@unique([tenantId, orderNumber])
   @@index([tenantId])
   @@index([status])
+  @@index([orderType])
   @@index([openedAt])
   @@index([createdById], map: "orders_createdById_fkey")
   @@index([tableId], map: "orders_tableId_fkey")
   @@map("orders")
+}
+
+// ─────────────────────────────────────────────
+model DeliveryInfo {
+  id              String          @id @default(cuid())
+  tenantId        String
+  orderId         String          @unique
+  customerName    String
+  customerPhone   String
+  addressText     String
+  channel         DeliveryChannel @default(PHONE)
+  deliveryStatus  DeliveryStatus  @default(RECEIVED)
+  deliveryFee     Float           @default(0)
+  isPrepaid       Boolean         @default(false)
+  paymentRef      String?
+  riderId         String?
+  driverNote      String?
+  estimatedAt     DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id])
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, deliveryStatus])
+  @@map("delivery_info")
 }
 
 model OrderItem {
@@ -1175,4 +1207,32 @@ enum StockCountStatus {
   COMPLETED    // นับครบทุกรายการ รอ Approve
   ADJUSTED     // Apply adjustment เข้าระบบแล้ว
   CANCELLED
+}
+
+// ─────────────────────────────────────────────
+// DELIVERY ENUMS
+// ─────────────────────────────────────────────
+
+enum OrderType {
+  DINE_IN
+  DELIVERY
+  PICKUP
+}
+
+enum DeliveryStatus {
+  RECEIVED
+  PREPARING
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum DeliveryChannel {
+  WHATSAPP
+  LINE
+  PHONE
+  WALKIN
+  WEBSITE
+  OTHER
 }
