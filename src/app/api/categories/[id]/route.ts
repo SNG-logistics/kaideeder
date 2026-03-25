@@ -43,7 +43,7 @@ export const PUT = withAuth(async (req: NextRequest, context) => {
     })
 
     return ok(updated)
-}, ['owner', 'manager'])
+}, ['owner', 'manager', 'cashier'])
 
 // DELETE /api/categories/[id]
 export const DELETE = withAuth(async (req: NextRequest, context) => {
@@ -73,4 +73,4 @@ export const DELETE = withAuth(async (req: NextRequest, context) => {
     })
 
     return ok({ deleted: true })
-}, ['owner', 'manager'])
+}, ['owner', 'manager', 'cashier'])

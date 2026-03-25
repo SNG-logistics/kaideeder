@@ -45,5 +45,5 @@ export const POST = withAuth(async (req: NextRequest, context) => {
         },
     })
     return ok(category, 201)
-}, ['owner', 'manager'])
+}, ['owner', 'manager', 'cashier'])
 
