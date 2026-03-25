@@ -67,60 +67,15 @@ export async function POST(req: Request) {
             }, { status: 409 })
         }
 
-        // ── KEY CHANGE: If OPEN order exists → add items directly to it ────────
-        const openOrder = await prisma.order.findFirst({
-            where: { tenantId: tenant.id, tableId: table.id, status: 'OPEN' },
+        // ── Always create PENDING_CONFIRM → cashier must confirm every QR order ──
+        // Confirm endpoint handles: if OPEN order exists → merge; else → promote to OPEN.
+        const productIds = data.items.map(i => i.productId)
+        const products = await prisma.product.findMany({
+            where: { id: { in: productIds }, tenantId: tenant.id },
+            include: { category: true },
         })
+        const productMap = Object.fromEntries(products.map(p => [p.id, p]))
 
-        if (openOrder) {
-            // Fetch products to determine kitchen vs bar station
-            const productIds = data.items.map(i => i.productId)
-            const products = await prisma.product.findMany({
-                where: { id: { in: productIds }, tenantId: tenant.id },
-                include: { category: true },
-            })
-            const productMap = Object.fromEntries(products.map(p => [p.id, p]))
-
-            await prisma.orderItem.createMany({
-                data: data.items.map(item => {
-                    const prod = productMap[item.productId]
-                    const catCode = (prod?.category?.code || '').toUpperCase()
-                    const catName = (prod?.category?.name || '').toLowerCase()
-                    const isBar = BAR_CATS.some(c => catCode.includes(c)) ||
-                        BAR_KEYWORDS.some(k => catName.includes(k))
-                    return {
-                        tenantId: tenant.id,
-                        orderId: openOrder.id,
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        unitPrice: item.unitPrice,
-                        note: item.note || data.customerNote || null,
-                        stationId: isBar ? 'BAR' : 'KITCHEN',
-                        kitchenStatus: 'PENDING',
-                    }
-                }),
-            })
-
-            // Recalculate order totals
-            const allItems = await prisma.orderItem.findMany({
-                where: { orderId: openOrder.id, isCancelled: false },
-            })
-            const newSubtotal = allItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-            await prisma.order.update({
-                where: { id: openOrder.id },
-                data: { subtotal: newSubtotal, totalAmount: newSubtotal },
-            })
-
-            return NextResponse.json({
-                ok: true,
-                orderNumber: openOrder.orderNumber,
-                orderId: openOrder.id,
-                isAddon: true,
-                tableNumber: table.number,
-            })
-        }
-
-        // ── No OPEN order → create new PENDING_CONFIRM (needs staff confirmation) ──
         let orderNumber = generateOrderNumber()
         for (let i = 0; i < 10; i++) {
             const exists = await prisma.order.findFirst({ where: { tenantId: tenant.id, orderNumber } })
@@ -140,15 +95,22 @@ export async function POST(req: Request) {
                 totalAmount: subtotal,
                 note: data.customerNote || null,
                 items: {
-                    create: data.items.map(item => ({
-                        tenantId: tenant.id,
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        unitPrice: item.unitPrice,
-                        note: item.note || null,
-                        stationId: 'KITCHEN',
-                        kitchenStatus: 'PENDING',
-                    })),
+                    create: data.items.map(item => {
+                        const prod = productMap[item.productId]
+                        const catCode = (prod?.category?.code || '').toUpperCase()
+                        const catName = (prod?.category?.name || '').toLowerCase()
+                        const isBar = BAR_CATS.some(c => catCode.includes(c)) ||
+                            BAR_KEYWORDS.some(k => catName.includes(k))
+                        return {
+                            tenantId: tenant.id,
+                            productId: item.productId,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            note: item.note || data.customerNote || null,
+                            stationId: isBar ? 'BAR' : 'KITCHEN',
+                            kitchenStatus: 'PENDING',
+                        }
+                    }),
                 },
             },
             include: { table: true, items: true },
@@ -158,7 +120,7 @@ export async function POST(req: Request) {
             ok: true,
             orderNumber: order.orderNumber,
             orderId: order.id,
-            isAddon: false,
+            isAddon: !!activeOrder,   // true if table already had an order
             tableNumber: table.number,
         })
     } catch (e: any) {
