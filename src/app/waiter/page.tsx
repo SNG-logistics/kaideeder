@@ -94,7 +94,7 @@ export default function WaiterPage() {
 
     useEffect(() => { fetchReady() }, [fetchReady])
     useEffect(() => {
-        const iv = setInterval(fetchReady, 5000)
+        const iv = setInterval(fetchReady, 3000)
         return () => clearInterval(iv)
     }, [fetchReady])
 

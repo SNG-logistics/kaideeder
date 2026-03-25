@@ -15,8 +15,8 @@ type BillRequest = {
     items: OrderItem[]
 }
 
-const POLL_INTERVAL = 6000   // 6 s — new orders
-const BILL_POLL_INTERVAL = 8000  // 8 s — bill requests
+const POLL_INTERVAL = 3000   // 3 s — new orders
+const BILL_POLL_INTERVAL = 3000  // 3 s — bill requests
 
 function fmtTime(iso: string) {
     return new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })

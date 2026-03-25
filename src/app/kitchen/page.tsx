@@ -127,7 +127,7 @@ export default function KitchenPage() {
 
     useEffect(() => { fetchQueue() }, [fetchQueue])
     useEffect(() => {
-        const iv = setInterval(fetchQueue, 5000)
+        const iv = setInterval(fetchQueue, 3000)
         return () => clearInterval(iv)
     }, [fetchQueue])
     useEffect(() => {
