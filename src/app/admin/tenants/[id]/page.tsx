@@ -52,6 +52,7 @@ export default function TenantDetailPage() {
     const [resetUser, setResetUser] = useState<User | null>(null)
     const [newPass, setNewPass] = useState('')
     const [resetting, setResetting] = useState(false)
+    const [updatingUser, setUpdatingUser] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -92,6 +93,25 @@ export default function TenantDetailPage() {
         const d = await res.json()
         setResetting(false)
         if (res.ok) { setMsg({ ok: true, text: `Password for ${resetUser.name} reset OK` }); setResetUser(null); setNewPass('') }
+        else setMsg({ ok: false, text: d.error ?? 'Failed' })
+    }
+
+    async function handleRoleChange(userId: string, role: string) {
+        setUpdatingUser(userId)
+        const res = await adminFetch(`/api/admin/users/${userId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
+        const d = await res.json()
+        setUpdatingUser(null)
+        if (d.success) { setMsg({ ok: true, text: `Role → ${role} OK` }); load() }
+        else setMsg({ ok: false, text: d.error ?? 'Failed' })
+    }
+
+    async function handleToggleActive(userId: string, current: boolean) {
+        if (!confirm(`${current ? 'Deactivate' : 'Activate'} user?`)) return
+        setUpdatingUser(userId)
+        const res = await adminFetch(`/api/admin/users/${userId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !current }) })
+        const d = await res.json()
+        setUpdatingUser(null)
+        if (d.success) { setMsg({ ok: true, text: `User ${!current ? 'activated' : 'deactivated'}` }); load() }
         else setMsg({ ok: false, text: d.error ?? 'Failed' })
     }
 
@@ -238,18 +258,29 @@ export default function TenantDetailPage() {
                             {tenant.users.length === 0 ? (
                                 <tr><td colSpan={5} style={{ ...C.td, textAlign: 'center', color: '#475569', padding: '32px' }}>ไม่มีผู้ใช้</td></tr>
                             ) : tenant.users.map(u => (
-                                <tr key={u.id}>
+                                <tr key={u.id} style={{ opacity: updatingUser === u.id ? 0.5 : 1, transition: 'opacity 0.15s' }}>
                                     <td style={{ ...C.td, fontFamily: 'monospace', color: '#94a3b8' }}>{u.username}</td>
                                     <td style={{ ...C.td, fontWeight: 600, color: '#e2e8f0' }}>{u.name}</td>
                                     <td style={C.td}>
-                                        <span style={{ background: u.role === 'OWNER' ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.05)', color: u.role === 'OWNER' ? '#818cf8' : '#64748b', fontSize: '0.7rem', fontWeight: 700, padding: '3px 10px', borderRadius: 8, border: `1px solid ${u.role === 'OWNER' ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.08)'}` }}>
-                                            {u.role}
-                                        </span>
+                                        <select
+                                            value={u.role}
+                                            disabled={updatingUser === u.id}
+                                            onChange={e => handleRoleChange(u.id, e.target.value)}
+                                            style={{ ...C.input, width: 'auto', padding: '4px 10px', fontSize: '0.75rem', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8', fontWeight: 700, borderRadius: 8 }}
+                                        >
+                                            {['OWNER','MANAGER','PURCHASER','WAREHOUSE','KITCHEN','BAR','CASHIER','VIEWER'].map(r => (
+                                                <option key={r} value={r}>{r}</option>
+                                            ))}
+                                        </select>
                                     </td>
                                     <td style={C.td}>
-                                        <span style={{ color: u.isActive ? '#10b981' : '#ef4444', fontSize: '0.75rem', fontWeight: 600 }}>
+                                        <button
+                                            onClick={() => handleToggleActive(u.id, u.isActive)}
+                                            disabled={updatingUser === u.id}
+                                            style={{ padding: '4px 10px', borderRadius: 8, border: `1px solid ${u.isActive ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`, background: u.isActive ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', color: u.isActive ? '#10b981' : '#ef4444', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                                        >
                                             {u.isActive ? '● Active' : '● Inactive'}
-                                        </span>
+                                        </button>
                                     </td>
                                     <td style={C.td}>
                                         <button onClick={() => { setResetUser(u); setNewPass('') }} style={{ ...C.ghost, fontSize: '0.72rem', padding: '5px 12px' }}>
