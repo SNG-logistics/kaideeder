@@ -50,7 +50,6 @@ export const GET = withAuth(async (req: NextRequest, context) => {
             items: { include: { product: true } },
             payments: true,
             createdBy: { select: { id: true, name: true } },
-            deliveryInfo: true,
         },
     })
     return ok(orders)
