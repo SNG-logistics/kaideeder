@@ -387,7 +387,7 @@ export default function MenuPage() {
                 {isAddon ? '➕' : '✅'}
             </div>
             <h1 style={{ color: C.text, fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>
-                {isAddon ? `สั่งเพิ่มรอบที่ ${submittedRound} แล้ว!` : 'สั่งอาหารเรียบร้อยแล้ว!'}
+                {isAddon ? 'เพิ่มรายการเรียบร้อยแล้ว!' : 'สั่งอาหารเรียบร้อยแล้ว!'}
             </h1>
             <p style={{ color: C.muted, margin: 0, fontSize: '0.9rem', lineHeight: 1.7 }}>
                 {isAddon ? (
@@ -412,7 +412,7 @@ export default function MenuPage() {
             <p style={{ color: C.muted, fontSize: '0.75rem', margin: 0 }}>โต๊ะ {tableNum}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
                 <button onClick={() => { setSubmitted(false); setViewBill(true) }} style={{ width: '100%', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, fontSize: '0.92rem', boxShadow: C.shadowGreen }}>
-                    🧾 ดูบิลรวม {totalRounds} รอบ
+                    🧾 ดูบิลรวม
                 </button>
                 <button onClick={() => setSubmitted(false)} style={{ width: '100%', background: '#fff', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: FONT, fontSize: '0.88rem' }}>
                     ← สั่งอาหารเพิ่ม
@@ -445,7 +445,7 @@ export default function MenuPage() {
                                     <div style={{ display: 'flex', gap: 8 }}>
                                         {hasAnyOrder && (
                                             <button onClick={() => setViewBill(true)} style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 99, padding: '6px 12px', cursor: 'pointer', color: '#fff', fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
-                                                🧾 {totalRounds} รอบ{billDone && ' ✓'}
+                                                🧾 บิล{billDone && ' ✓'}
                                             </button>
                                         )}
                                     </div>
@@ -470,7 +470,7 @@ export default function MenuPage() {
                                     </div>
                                     {hasAnyOrder && (
                                         <button onClick={() => setViewBill(true)} style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 12, padding: '7px 14px', cursor: 'pointer', color: C.accent, fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
-                                            🧾 {totalRounds} รอบ{billDone && ' ✓'}
+                                            🧾 บิล{billDone && ' ✓'}
                                         </button>
                                     )}
                                 </div>
@@ -651,7 +651,7 @@ export default function MenuPage() {
                                 </div>
                             ) : (
                                 <button onClick={requestBill} disabled={billRequesting} style={{ width: '100%', background: billRequesting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '16px 20px', fontWeight: 800, fontSize: '0.97rem', cursor: billRequesting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: billRequesting ? 'none' : C.shadowGreen, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                                    {billRequesting ? '⏳ กำลังส่ง…' : `🧾 เรียกเช็คบิล (${totalRounds} รอบ · ${Math.round(bill?.grandTotal ?? 0).toLocaleString()} ${currency})`}
+                                    {billRequesting ? '⏳ กำลังส่ง…' : `🧾 เรียกเช็คบิล (${Math.round(bill?.grandTotal ?? 0).toLocaleString()} ${currency})`}
                                 </button>
                             )
                         )}
@@ -680,10 +680,10 @@ export default function MenuPage() {
                         <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '0 20px 40px', maxHeight: '84dvh', overflowY: 'auto', animation: 'slideUp 0.26s ease', boxShadow: '0 -12px 48px rgba(0,0,0,0.18)' }}>
                             <div style={{ width: 36, height: 4, background: '#dde1e0', borderRadius: 2, margin: '14px auto 16px' }} />
                             <h2 style={{ color: C.text, fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px' }}>
-                                {hasAnyOrder ? `➕ สั่งเพิ่ม รอบ ${totalRounds + 1}` : '🛒 รายการสั่งอาหาร'} — โต๊ะ {tableNum}
+                                {hasAnyOrder ? '➕ สั่งเพิ่ม' : '🛒 รายการสั่งอาหาร'} — โต๊ะ {tableNum}
                             </h2>
                             {hasAnyOrder && (
-                                <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>สั่งไปแล้ว {totalRounds} รอบ · ยอดเก่า {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
+                                <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>ยอดเก่า {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
                             )}
                             {cart.map(item => (
                                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: `1px solid ${C.border}` }}>
@@ -706,7 +706,7 @@ export default function MenuPage() {
                                         <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.1rem' }}>{Math.round(totalPrice).toLocaleString()} {currency}</span>
                                     </div>
                                     <button onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: submitting ? 'none' : C.shadowGreen }}>
-                                        {submitting ? '⏳ กำลังส่ง…' : hasAnyOrder ? `➕ ยืนยันสั่งเพิ่ม (รอบ ${totalRounds + 1})` : '🍽️ ยืนยันสั่งอาหาร'}
+                                        {submitting ? '⏳ กำลังส่ง…' : hasAnyOrder ? '➕ ยืนยันสั่งเพิ่ม' : '🍽️ ยืนยันสั่งอาหาร'}
                                     </button>
                                     <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '12px', fontWeight: 500, fontSize: '0.88rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>← ดูเมนูต่อ</button>
                                 </>
