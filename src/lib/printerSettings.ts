@@ -27,7 +27,7 @@ const DEFAULT: PrinterSettings = {
     autoBar: true,
     copies: 1,
     autoReceipt: false,
-    printerIp: '192.168.1.101',
+    printerIp: '192.168.1.100',
     printerPort: 9100,
     autoCut: true,
 }
