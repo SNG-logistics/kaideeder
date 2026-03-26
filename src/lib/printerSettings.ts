@@ -11,6 +11,12 @@ export interface PrinterSettings {
     copies: 1 | 2
     /** Auto-print receipt after payment */
     autoReceipt: boolean
+    /** Direct TCP/IP printer IP address (for ESC/POS raw printing) */
+    printerIp: string
+    /** TCP port (usually 9100) */
+    printerPort: number
+    /** Send auto-cut command after each ticket */
+    autoCut: boolean
 }
 
 const KEY = 'kaideeder_printer_settings'
@@ -21,6 +27,9 @@ const DEFAULT: PrinterSettings = {
     autoBar: true,
     copies: 1,
     autoReceipt: false,
+    printerIp: '192.168.1.101',
+    printerPort: 9100,
+    autoCut: true,
 }
 
 export function getPrinterSettings(): PrinterSettings {

@@ -22,7 +22,7 @@ function formatLAK(n: number): string {
 // ─── Raw category codes to exclude ──────────────────────────
 const RAW_CATEGORY_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'RAW_VEG', 'DRY_GOODS', 'PACKAGING', 'OTHER']
 
-// ─── Print Kitchen / Bar Ticket — reads paper width from printer settings ──
+// ─── Print Kitchen / Bar Ticket — TCP/ESC/POS first, browser fallback ───────
 function printKitchenTicket(opts: {
     station: 'KITCHEN' | 'BAR'
     items: OrderItemData[]
@@ -32,12 +32,29 @@ function printKitchenTicket(opts: {
 }) {
     if (opts.items.length === 0) return
     const { station, items, tableName, orderNumber } = opts
-    const isBar = station === 'BAR'
-    const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-    const { paperWidth, copies } = getPrinterSettings()
-    const bodyWidth = paperWidth === '58mm' ? '54mm' : '76mm'
+    const { paperWidth, copies, printerIp, printerPort, autoCut } = getPrinterSettings()
 
-    function doPrint() {
+    // ── 1. Try TCP/ESC/POS direct (auto-cut, no dialog) ─────────────────────
+    const printItems = items.map(i => ({ name: i.product?.name || '', quantity: i.quantity, note: i.note || undefined }))
+    fetch('/api/print/raw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: printerIp, port: printerPort, station, tableName, orderNumber, items: printItems, autoCut, copies }),
+    }).then(r => r.json()).then(d => {
+        if (d.ok) return   // TCP success → done ✓
+        console.warn('[print] TCP failed, falling back to browser:', d.error)
+        doBrowserPrint()
+    }).catch(e => {
+        console.warn('[print] TCP error, falling back to browser:', e.message)
+        doBrowserPrint()
+    })
+
+    // ── 2. Browser fallback (for copies via TCP, browser handles 1 copy only) ─
+    function doBrowserPrint() {
+        const isBar = station === 'BAR'
+        const time  = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+        const bodyWidth = paperWidth === '58mm' ? '54mm' : '76mm'
+
         const w = window.open('', '_blank', 'width=302,height=400,toolbar=0,menubar=0,scrollbars=0')
         if (!w) return
         w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -78,11 +95,6 @@ ${items.map(i => `<div class="row">
 <\/script>
 </body></html>`)
         w.document.close()
-    }
-
-    // Print requested number of copies
-    for (let i = 0; i < copies; i++) {
-        setTimeout(doPrint, i * 800)   // stagger 800ms between copies
     }
 }
 

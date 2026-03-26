@@ -664,20 +664,50 @@ function PrinterSettingsCard() {
         setS(next)
     }
 
-    function testPrint() {
+    async function testPrint() {
+        if (!s) return
+        // Try TCP direct first
+        try {
+            const res = await fetch('/api/print/raw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ip: s.printerIp,
+                    port: s.printerPort,
+                    station: 'KITCHEN',
+                    tableName: 'TEST',
+                    orderNumber: 'T001',
+                    items: [
+                        { name: 'TEST PRINT', quantity: 1 },
+                        { name: `IP: ${s.printerIp}:${s.printerPort}`, quantity: 1 },
+                        { name: `Paper: ${s.paperWidth}  Cut: ${s.autoCut ? 'ON' : 'OFF'}`, quantity: 1 },
+                    ],
+                    autoCut: s.autoCut,
+                    copies: s.copies,
+                }),
+            })
+            const d = await res.json()
+            if (d.ok) { toast.success(`✅ พิมพ์สำเร็จ (TCP ${d.bytes} bytes)`); return }
+            toast.error(`Printer error: ${d.error}`)
+        } catch (e: any) {
+            toast.error(`TCP failed: ${e.message}`)
+        }
+    }
+
+    function testPrintBrowser() {
+        const mm = s?.paperWidth ?? '80mm'
         const w = window.open('', '_blank', 'width=302,height=300,toolbar=0,menubar=0')
         if (!w) return
-        const mm = s?.paperWidth ?? '80mm'
         w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>*{margin:0;padding:0;box-sizing:border-box}@page{size:${mm} auto;margin:3mm 2mm}body{font-family:'Courier New',monospace;font-size:14px;width:${mm === '58mm' ? '54mm' : '76mm'}}.t{font-weight:900;font-size:16px;text-align:center;margin-bottom:6px}.d{font-size:11px;text-align:center;color:#444}.line{border-top:1px dashed #000;margin:6px 0}</style></head><body>
-<div class="t">🖨️ TEST PRINT</div>
+<div class="t">TEST PRINT</div>
 <div class="d">Paper: ${mm} | Copies: ${s?.copies ?? 1}</div>
 <div class="line"></div>
 <div class="d">Kitchen Auto: ${s?.autoKitchen ? '✅' : '❌'} | Bar Auto: ${s?.autoBar ? '✅' : '❌'}</div>
-<div class="d">Receipt Auto: ${s?.autoReceipt ? '✅' : '❌'}</div>
+<div class="d">Receipt Auto: ${s?.autoReceipt ? '✅' : '❌'} | Cut: ${s?.autoCut ? '✅' : '❌'}</div>
 <div class="line"></div>
 <div class="d">KAIDEEDER POS</div>
-<script>(function(){window.addEventListener('afterprint',function(){window.close()});window.onload=function(){window.focus();window.print()};})()</scr​ipt></body></html>`)
+<script>(function(){window.addEventListener('afterprint',function(){window.close()});window.onload=function(){window.focus();window.print()};})()</scr\u200bipt></body></html>`)
         w.document.close()
     }
 
@@ -789,18 +819,59 @@ function PrinterSettingsCard() {
                     <Toggle val={s.autoReceipt} onChange={v => update({ autoReceipt: v })} />
                 </div>
 
+                {/* Auto-cut */}
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>✂️ Auto-Cut (ตัดกระดาษอัตโนมัติ)</div>
+                        <div style={subStyle}>ESC/POS — ใช้ได้เฉพาะ Direct TCP print เท่านั้น</div>
+                    </div>
+                    <Toggle val={s.autoCut} onChange={v => update({ autoCut: v })} />
+                </div>
+
+            </div>
+
+            {/* TCP Printer Connection */}
+            <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--bg)', borderRadius: 10, border: '1px solid rgba(245,158,11,0.3)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🌐 Direct TCP/IP Printer (ESC/POS)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                    <div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Printer IP Address</div>
+                        <input
+                            value={s.printerIp}
+                            onChange={e => update({ printerIp: e.target.value })}
+                            placeholder="192.168.1.101"
+                            className="input"
+                            style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}
+                        />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Port</div>
+                        <input
+                            value={s.printerPort}
+                            onChange={e => update({ printerPort: Number(e.target.value) || 9100 })}
+                            type="number"
+                            className="input"
+                            style={{ fontSize: '0.85rem', fontFamily: 'monospace', width: 80 }}
+                        />
+                    </div>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                    ✅ Auto-cut ทำงานได้เต็มรูปแบบ · ⚠️ ต้องรัน server ใน network เดียวกับ printer
+                </div>
             </div>
 
             {/* Test print */}
             <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
                 <button onClick={testPrint}
                     style={{ flex: 1, minHeight: 40, borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    🖨️ พิมพ์ทดสอบ
+                    🖨️ พิมพ์ทดสอบ (TCP)
                 </button>
-                <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 10, padding: '4px 12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    <span style={{ fontSize: '1rem' }}>✅</span>
-                    <span>บันทึกอัตโนมัติ — ทุกครั้งที่เปลี่ยน</span>
-                </div>
+                <button onClick={testPrint}
+                    style={{ minHeight: 40, borderRadius: 10, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit', padding: '0 14px' }}>
+                    🌐 Browser
+                </button>
             </div>
         </div>
     )
