@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { usePermission } from '@/hooks/usePermission'
 import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBranding'
 import { useTenant } from '@/context/TenantContext'
+import { getPrinterSettings, setPrinterSettings, type PrinterSettings } from '@/lib/printerSettings'
 
 // ─── Store Branding Card ─────────────────────────────────────
 function StoreBrandingCard() {
@@ -651,6 +652,160 @@ const defaultConfig: PosConfig = {
     intervalMin: 15, enabled: false, lastSync: null,
 }
 
+
+// ─── Printer Settings Card ───────────────────────────────────────────
+function PrinterSettingsCard() {
+    const [s, setS] = useState<PrinterSettings | null>(null)
+
+    useEffect(() => { setS(getPrinterSettings()) }, [])
+
+    function update(patch: Partial<PrinterSettings>) {
+        const next = setPrinterSettings(patch)
+        setS(next)
+    }
+
+    function testPrint() {
+        const w = window.open('', '_blank', 'width=302,height=300,toolbar=0,menubar=0')
+        if (!w) return
+        const mm = s?.paperWidth ?? '80mm'
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>*{margin:0;padding:0;box-sizing:border-box}@page{size:${mm} auto;margin:3mm 2mm}body{font-family:'Courier New',monospace;font-size:14px;width:${mm === '58mm' ? '54mm' : '76mm'}}.t{font-weight:900;font-size:16px;text-align:center;margin-bottom:6px}.d{font-size:11px;text-align:center;color:#444}.line{border-top:1px dashed #000;margin:6px 0}</style></head><body>
+<div class="t">🖨️ TEST PRINT</div>
+<div class="d">Paper: ${mm} | Copies: ${s?.copies ?? 1}</div>
+<div class="line"></div>
+<div class="d">Kitchen Auto: ${s?.autoKitchen ? '✅' : '❌'} | Bar Auto: ${s?.autoBar ? '✅' : '❌'}</div>
+<div class="d">Receipt Auto: ${s?.autoReceipt ? '✅' : '❌'}</div>
+<div class="line"></div>
+<div class="d">KAIDEEDER POS</div>
+<script>(function(){window.addEventListener('afterprint',function(){window.close()});window.onload=function(){window.focus();window.print()};})()</scr​ipt></body></html>`)
+        w.document.close()
+    }
+
+    if (!s) return null  // avoid SSR mismatch
+
+    const rowStyle: React.CSSProperties = {
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 14px', background: 'var(--white)', borderRadius: 10,
+        border: '1px solid var(--border)',
+    }
+    const labelStyle: React.CSSProperties = { fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }
+    const subStyle: React.CSSProperties = { fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }
+
+    // Simple toggle button
+    function Toggle({ val, onChange }: { val: boolean; onChange: (v: boolean) => void }) {
+        return (
+            <button onClick={() => onChange(!val)}
+                style={{
+                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: val ? 'var(--accent)' : '#d1d5db', position: 'relative',
+                    transition: 'background 0.2s', flexShrink: 0,
+                }}>
+                <span style={{
+                    position: 'absolute', top: 2, left: val ? 22 : 2,
+                    width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                }} />
+            </button>
+        )
+    }
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🖨️</span> ตั้งค่าเครื่องพิมพ์
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
+                บันทึกในเครื่องนี้เท่านั้น (localStorage) — แต่ละเครื่องตั้งค่าได้อิสระ
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                {/* Paper width */}
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>📏 ขนาด Paper</div>
+                        <div style={subStyle}>ใช้กับ slip ครัว / บาร์ / ใบเสร็จ</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        {(['80mm', '58mm'] as const).map(w => (
+                            <button key={w} onClick={() => update({ paperWidth: w })}
+                                style={{
+                                    padding: '6px 14px', borderRadius: 8, border: '1.5px solid',
+                                    borderColor: s.paperWidth === w ? 'var(--accent)' : 'var(--border)',
+                                    background: s.paperWidth === w ? 'var(--accent)' : 'transparent',
+                                    color: s.paperWidth === w ? '#fff' : 'var(--text)',
+                                    fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit',
+                                    transition: 'all 0.15s',
+                                }}>{w}</button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Copies */}
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>🖨️ จำนวนสำเนา (slip ครัว/บาร์)</div>
+                        <div style={subStyle}>พิมพ์กี่ใบต่อ 1 รอบส่งครัว</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        {([1, 2] as const).map(n => (
+                            <button key={n} onClick={() => update({ copies: n })}
+                                style={{
+                                    width: 36, height: 36, borderRadius: 8, border: '1.5px solid',
+                                    borderColor: s.copies === n ? 'var(--accent)' : 'var(--border)',
+                                    background: s.copies === n ? 'var(--accent)' : 'transparent',
+                                    color: s.copies === n ? '#fff' : 'var(--text)',
+                                    fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit',
+                                    transition: 'all 0.15s',
+                                }}>{n}</button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Auto-kitchen */}
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>🍳 Auto-Print slip ครัว</div>
+                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งครัว&quot;</div>
+                    </div>
+                    <Toggle val={s.autoKitchen} onChange={v => update({ autoKitchen: v })} />
+                </div>
+
+                {/* Auto-bar */}
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>🍹 Auto-Print slip บาร์</div>
+                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งบาร์&quot;</div>
+                    </div>
+                    <Toggle val={s.autoBar} onChange={v => update({ autoBar: v })} />
+                </div>
+
+                {/* Auto-receipt */}
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>🧾 Auto-Print ใบเสร็จ</div>
+                        <div style={subStyle}>พิมพ์ใบเสร็จอัตโนมัติหลังชำระเงิน</div>
+                    </div>
+                    <Toggle val={s.autoReceipt} onChange={v => update({ autoReceipt: v })} />
+                </div>
+
+            </div>
+
+            {/* Test print */}
+            <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+                <button onClick={testPrint}
+                    style={{ flex: 1, minHeight: 40, borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    🖨️ พิมพ์ทดสอบ
+                </button>
+                <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 10, padding: '4px 12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: '1rem' }}>✅</span>
+                    <span>บันทึกอัตโนมัติ — ทุกครั้งที่เปลี่ยน</span>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // ─── Reset Test Modal ──────────────────────────────────────────────────────
 function ResetTestModal({ onClose }: { onClose: () => void }) {
     const [step, setStep] = useState<'confirm' | 'running' | 'done'>('confirm')
@@ -1063,6 +1218,9 @@ export default function SettingsPage() {
                         >📦 นำเข้า</button>
                     </div>
                 </div>
+
+                {/* ── Printer Settings ── */}
+                <PrinterSettingsCard />
 
                 {/* ── Danger Zone ── */}
                 <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 14, padding: '1.5rem' }}>

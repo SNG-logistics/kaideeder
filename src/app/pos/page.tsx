@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, type CSSProperties } from 're
 import { useStoreBranding } from '@/hooks/useStoreBranding'
 import { useCurrency } from '@/context/TenantContext'
 import NewOrderAlert from '@/components/NewOrderAlert'
+import { getPrinterSettings } from '@/lib/printerSettings'
 
 // ─── Types ───────────────────────────────────────────────────
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
@@ -21,7 +22,7 @@ function formatLAK(n: number): string {
 // ─── Raw category codes to exclude ──────────────────────────
 const RAW_CATEGORY_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'RAW_VEG', 'DRY_GOODS', 'PACKAGING', 'OTHER']
 
-// ─── Print Kitchen / Bar Ticket — Ultra-compact thermal ──────────
+// ─── Print Kitchen / Bar Ticket — reads paper width from printer settings ──
 function printKitchenTicket(opts: {
     station: 'KITCHEN' | 'BAR'
     items: OrderItemData[]
@@ -33,15 +34,18 @@ function printKitchenTicket(opts: {
     const { station, items, tableName, orderNumber } = opts
     const isBar = station === 'BAR'
     const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+    const { paperWidth, copies } = getPrinterSettings()
+    const bodyWidth = paperWidth === '58mm' ? '54mm' : '76mm'
 
-    const w = window.open('', '_blank', 'width=302,height=400,toolbar=0,menubar=0,scrollbars=0')
-    if (!w) return
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    function doPrint() {
+        const w = window.open('', '_blank', 'width=302,height=400,toolbar=0,menubar=0,scrollbars=0')
+        if (!w) return
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  @page{size:80mm auto;margin:3mm 2mm}
+  @page{size:${paperWidth} auto;margin:3mm 2mm}
   html,body{height:fit-content!important;overflow:hidden!important}
-  body{font-family:'Courier New',monospace;font-size:14px;color:#000;width:76mm;line-height:1.35}
+  body{font-family:'Courier New',monospace;font-size:14px;color:#000;width:${bodyWidth};line-height:1.35}
   .top{font-size:18px;font-weight:900;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:baseline}
   .sub{font-size:10px;color:#444;margin-bottom:6px;border-bottom:1px dashed #000;padding-bottom:4px}
   .row{display:flex;gap:6px;padding:3px 0;border-bottom:1px dotted #ccc}
@@ -60,31 +64,26 @@ ${items.map(i => `<div class="row">
 </div>`).join('')}
 <script>
 (function(){
-  // ── Auto-close after print — reliable across Chrome/Edge/Firefox ──
   function doClose(){ try{ window.close(); }catch(e){} }
-
-  // Primary: addEventListener afterprint (spec-compliant)
   window.addEventListener('afterprint', doClose);
-
-  // Fallback: matchMedia 'print' change (fires when dialog closes)
   try {
     var mq = window.matchMedia('print');
     var handler = function(e){ if(!e.matches) doClose(); };
     if(mq.addEventListener){ mq.addEventListener('change', handler); }
     else if(mq.addListener){ mq.addListener(handler); }
   } catch(e){}
-
-  // Trigger print AFTER handlers are registered
-  window.onload = function(){
-    window.focus();
-    window.print();
-  };
-  // If document already loaded (fast machines), fire immediately
+  window.onload = function(){ window.focus(); window.print(); };
   if(document.readyState === 'complete'){ window.focus(); window.print(); }
 })();
 <\/script>
 </body></html>`)
-    w.document.close()
+        w.document.close()
+    }
+
+    // Print requested number of copies
+    for (let i = 0; i < copies; i++) {
+        setTimeout(doPrint, i * 800)   // stagger 800ms between copies
+    }
 }
 
 
