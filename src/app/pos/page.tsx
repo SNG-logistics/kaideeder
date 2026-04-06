@@ -22,7 +22,9 @@ function formatLAK(n: number): string {
 // ─── Raw category codes to exclude ──────────────────────────
 const RAW_CATEGORY_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'RAW_VEG', 'DRY_GOODS', 'PACKAGING', 'OTHER']
 
-// ─── Print Kitchen / Bar Ticket — TCP/ESC/POS first, browser fallback ───────
+// ─── Print Kitchen / Bar Ticket ──────────────────────────────
+// ระบบรองรับหลาย printer: ครัว / บาร์ / ใบเสร็จ แต่ละตัวมี IP เองใน Settings
+// Flow: ลอง TCP direct → ถ้าล้มเหลว → fallback browser print dialog
 function printKitchenTicket(opts: {
     station: 'KITCHEN' | 'BAR'
     items: OrderItemData[]
@@ -32,24 +34,44 @@ function printKitchenTicket(opts: {
 }) {
     if (opts.items.length === 0) return
     const { station, items, tableName, orderNumber } = opts
-    const { paperWidth, copies, printerIp, printerPort, autoCut } = getPrinterSettings()
 
-    // ── 1. Try TCP/ESC/POS direct (auto-cut, no dialog) ─────────────────────
-    const printItems = items.map(i => ({ name: i.product?.name || '', quantity: i.quantity, note: i.note || undefined }))
-    fetch('/api/print/raw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: printerIp, port: printerPort, station, tableName, orderNumber, items: printItems, autoCut, copies }),
-    }).then(r => r.json()).then(d => {
-        if (d.ok) return   // TCP success → done ✓
-        console.warn('[print] TCP failed, falling back to browser:', d.error)
-        doBrowserPrint()
-    }).catch(e => {
-        console.warn('[print] TCP error, falling back to browser:', e.message)
-        doBrowserPrint()
-    })
+    // ── ดึง config ของ station ที่ถูกต้อง ────────────────────
+    const allSettings = getPrinterSettings()
+    const printer = station === 'KITCHEN'
+        ? allSettings.kitchenPrinter
+        : allSettings.barPrinter
 
-    // ── 2. Browser fallback (for copies via TCP, browser handles 1 copy only) ─
+    const { ip, port, paperWidth, autoCut, copies, enabled } = printer
+
+    // ── 1. TCP/ESC/POS direct (ถ้า enabled และมี IP) ─────────
+    const printItems = items.map(i => ({
+        name: i.product?.name || '',
+        quantity: i.quantity,
+        note: i.note || undefined,
+    }))
+
+    if (enabled && ip) {
+        fetch('/api/print/raw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ip, port, station, tableName, orderNumber,
+                items: printItems, autoCut, copies,
+            }),
+        }).then(r => r.json()).then(d => {
+            if (d.ok) return   // ✅ TCP สำเร็จ — จบ
+            console.warn(`[print] TCP ${station} failed (${ip}:${port}):`, d.error)
+            doBrowserPrint()   // fallback
+        }).catch(e => {
+            console.warn(`[print] TCP ${station} error:`, e.message)
+            doBrowserPrint()   // fallback
+        })
+    } else {
+        // TCP ปิดอยู่ → ใช้ browser print ทันที
+        doBrowserPrint()
+    }
+
+    // ── 2. Browser fallback ───────────────────────────────────
     function doBrowserPrint() {
         const isBar = station === 'BAR'
         const time  = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
@@ -157,6 +179,7 @@ export default function POSPage() {
     const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'warning' } | null>(null)
     const [showReceiptPreview, setShowReceiptPreview] = useState(false)
     const [proteinPendingProduct, setProteinPendingProduct] = useState<Product | null>(null)
+    const [proteinComment, setProteinComment] = useState('')      // comment สำหรับ topping modal
     const [sentItems, setSentItems] = useState<{ kitchen: OrderItemData[], bar: OrderItemData[], orderId: string, tableCode: string } | null>(null)
     const [authChecked, setAuthChecked] = useState(false)
     const [selectedZone, setSelectedZone] = useState<string>('ALL')  // Zone tab
@@ -365,29 +388,55 @@ export default function POSPage() {
     }
 
     // ─── Protein / Topping selection ────────────────────────────
+    // รายการโปรตีนที่ให้เลือก — เพิ่ม/ลด option ได้ที่นี่
     const PROTEIN_OPTIONS = [
-        { label: '🐷 หมู', value: 'หมู', color: '#FCA5A5' },
-        { label: '🐔 ไก่', value: 'ไก่', color: '#FCD34D' },
-        { label: '🐄 เนื้อวัว', value: 'เนื้อวัว', color: '#D97706' },
-        { label: '🦐 ทะเล', value: 'ทะเล', color: '#60A5FA' },
+        { label: '🐷 หมู',       value: 'หมู',       color: '#FCA5A5' },
+        { label: '🐔 ไก่',       value: 'ไก่',       color: '#FCD34D' },
+        { label: '🦐 กุ้ง',      value: 'กุ้ง',      color: '#F97316' },
+        { label: '🐄 เนื้อวัว',  value: 'เนื้อวัว',  color: '#B45309' },
+        { label: '🌊 ทะเลรวม',  value: 'ทะเลรวม',  color: '#60A5FA' },
+        { label: '🥗 ผัก',       value: 'ผัก',       color: '#86EFAC' },
     ]
 
-    // Match categories that require protein selection
-    // ← Add more category names/codes here if needed
+    // ─── เงื่อนไข trigger topping modal ──────────────────────────
+    // เพิ่มหมวดหมู่ category name / code เพื่อขยายการใช้งาน
     const requiresProteinSelection = (product: Product): boolean => {
         const catName = (product.category?.name || '').toLowerCase()
         const catCode = (product.category?.code || '').toLowerCase()
-        return catName.includes('ข้าวจานเดียว') ||
-            catCode.includes('rice_single') ||
-            catCode.includes('single_rice') ||
-            catName.includes('จานเดียว')
+        const menuName = (product.name || '').toLowerCase()
+
+        // ── ตรวจ category ──
+        const categoryMatch =
+            catName.includes('ข้าวจานเดียว') ||
+            catName.includes('จานเดียว')      ||
+            catName.includes('กะเพรา')        ||
+            catName.includes('ข้าวผัด')       ||
+            catName.includes('ผัดซีอิ๊ว')    ||
+            catName.includes('ผัดกระเพรา')   ||
+            catCode.includes('rice_single')    ||
+            catCode.includes('single_rice')    ||
+            catCode.includes('stir_fry')       ||
+            catCode.includes('fried_rice')     ||
+            catCode.includes('basil')          ||
+            catCode.includes('kaprao')         ||
+            catCode.includes('krapao')
+
+        // ── ตรวจชื่อเมนู (fallback สำหรับเมนูที่ไม่มี category ชัดเจน) ──
+        const nameMatch =
+            menuName.includes('กะเพรา')   ||
+            menuName.includes('กระเพรา') ||
+            menuName.includes('ข้าวผัด') ||
+            menuName.includes('ผัดซีอิ๊ว')
+
+        return categoryMatch || nameMatch
     }
 
     // ─── Add Item to Order ────────────────────────────────────
     const addItem = (product: Product) => {
-        // Intercept rice-single-dish products for protein selection
+        // ถ้าเมนูนี้ต้องเลือก topping → เปิด modal ก่อน
         if (requiresProteinSelection(product)) {
             setProteinPendingProduct(product)
+            setProteinComment('')   // reset comment ทุกครั้ง
             return
         }
         setOrderItems(prev => {
@@ -411,15 +460,19 @@ export default function POSPage() {
         })
     }
 
-    const addItemWithProtein = (product: Product, protein: string) => {
+    // เพิ่ม item พร้อม topping + comment ลง order
+    const addItemWithProtein = (product: Product, protein: string, comment: string = '') => {
+        // รวม protein และ comment เข้าด้วยกันถ้ามีทั้งคู่
+        const note = [protein, comment.trim()].filter(Boolean).join(' · ')
         setOrderItems(prev => [...prev, {
             productId: product.id,
             product,
             quantity: 1,
             unitPrice: product.salePrice,
-            note: protein,
+            note: note || undefined,
         }])
         setProteinPendingProduct(null)
+        setProteinComment('')
     }
 
     const updateItemQty = (index: number, delta: number) => {
@@ -816,28 +869,88 @@ export default function POSPage() {
             {/* ── New order alert — POS page only ── */}
             <NewOrderAlert />
 
-            {/* ════ PROTEIN MODAL ════ */}
+            {/* ════ PROTEIN / TOPPING MODAL ════ */}
             {proteinPendingProduct && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}
-                    onClick={() => setProteinPendingProduct(null)}>
-                    <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.22)' }}
+                <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '1rem' }}
+                    onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}>
+                    <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', maxHeight: '90vh', overflowY: 'auto' }}
                         onClick={e => e.stopPropagation()}>
+
+                        {/* Header */}
                         <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                             <div style={{ fontSize: '1.6rem', marginBottom: 6 }}>🍽️</div>
                             <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1A1D26' }}>{proteinPendingProduct.name}</div>
-                            <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: 4 }}>เลือกประเภทเนื้อสัตว์</div>
+                            <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: 4 }}>เลือก Topping (เนื้อสัตว์)</div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+
+                        {/* Protein Grid — 3 columns */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
                             {PROTEIN_OPTIONS.map(opt => (
-                                <button key={opt.value} onClick={() => addItemWithProtein(proteinPendingProduct, opt.value)}
-                                    style={{ padding: '1rem 0.5rem', borderRadius: 14, border: `2px solid ${opt.color}`, background: opt.color + '18', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ fontSize: '1.8rem' }}>{opt.label.split(' ')[0]}</span>
-                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1A1D26' }}>{opt.label.split(' ')[1]}</span>
+                                <button key={opt.value}
+                                    onClick={() => addItemWithProtein(proteinPendingProduct, opt.value, proteinComment)}
+                                    style={{
+                                        padding: '0.85rem 0.4rem', borderRadius: 14,
+                                        border: `2px solid ${opt.color}`,
+                                        background: opt.color + '22',
+                                        cursor: 'pointer', fontFamily: 'inherit',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                                        transition: 'transform 0.1s',
+                                    }}
+                                    onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
+                                    onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+                                >
+                                    <span style={{ fontSize: '1.6rem' }}>{opt.label.split(' ')[0]}</span>
+                                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#1A1D26' }}>
+                                        {opt.label.split(' ').slice(1).join(' ')}
+                                    </span>
                                 </button>
                             ))}
                         </div>
-                        <button onClick={() => setProteinPendingProduct(null)}
-                            style={{ width: '100%', padding: '0.55rem', borderRadius: 10, border: '1px solid #E5E7EB', background: '#F9FAFB', cursor: 'pointer', fontFamily: 'inherit', color: '#6B7280', fontSize: '0.85rem', fontWeight: 600 }}>
+
+                        {/* Comment / Note field */}
+                        <div style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: 5 }}>
+                                💬 หมายเหตุ / Comment (ไม่บังคับ)
+                            </label>
+                            <textarea
+                                value={proteinComment}
+                                onChange={e => setProteinComment(e.target.value)}
+                                placeholder="เช่น ไม่เผ็ด, พิเศษ, เพิ่มผัก..."
+                                rows={2}
+                                style={{
+                                    width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid #E5E7EB',
+                                    borderRadius: 10, fontSize: '0.88rem', fontFamily: 'inherit', resize: 'none',
+                                    outline: 'none', color: '#1A1D26', boxSizing: 'border-box',
+                                    transition: 'border-color 0.2s',
+                                }}
+                                onFocus={e => (e.target.style.borderColor = '#E8364E')}
+                                onBlur={e => (e.target.style.borderColor = '#E5E7EB')}
+                            />
+                        </div>
+
+                        {/* Add without protein (comment only) */}
+                        <button
+                            onClick={() => addItemWithProtein(proteinPendingProduct, '', proteinComment)}
+                            style={{
+                                width: '100%', padding: '0.6rem', borderRadius: 10,
+                                border: '1.5px dashed #D1D5DB', background: '#F9FAFB',
+                                cursor: 'pointer', fontFamily: 'inherit', color: '#6B7280',
+                                fontSize: '0.82rem', fontWeight: 600, marginBottom: 8,
+                            }}
+                        >
+                            ➕ เพิ่มโดยไม่ระบุเนื้อ{proteinComment.trim() ? ` · "${proteinComment.trim()}"` : ''}
+                        </button>
+
+                        {/* Cancel */}
+                        <button
+                            onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}
+                            style={{
+                                width: '100%', padding: '0.55rem', borderRadius: 10,
+                                border: '1px solid #E5E7EB', background: 'transparent',
+                                cursor: 'pointer', fontFamily: 'inherit', color: '#9CA3AF',
+                                fontSize: '0.82rem', fontWeight: 600,
+                            }}
+                        >
                             ยกเลิก
                         </button>
                     </div>

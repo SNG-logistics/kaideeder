@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { usePermission } from '@/hooks/usePermission'
 import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBranding'
 import { useTenant } from '@/context/TenantContext'
-import { getPrinterSettings, setPrinterSettings, type PrinterSettings } from '@/lib/printerSettings'
+import { getPrinterSettings, setPrinterSettings, setStationPrinter, type PrinterSettings, type StationPrinterConfig } from '@/lib/printerSettings'
 
 // ─── Store Branding Card ─────────────────────────────────────
 function StoreBrandingCard() {
@@ -617,7 +617,317 @@ function StoreSettingsCard() {
     )
 }
 
+// ─── Toggle button (reusable) ─────────────────────────────────────────────
+function Toggle({ val, onChange }: { val: boolean; onChange: (v: boolean) => void }) {
+    return (
+        <button onClick={() => onChange(!val)} style={{
+            width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+            background: val ? 'var(--accent)' : '#d1d5db', position: 'relative',
+            transition: 'background 0.2s', flexShrink: 0,
+        }}>
+            <span style={{
+                position: 'absolute', top: 2, left: val ? 22 : 2,
+                width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+            }} />
+        </button>
+    )
+}
 
+// ─── Global Auto-Print Card ───────────────────────────────────────────────
+function AutoPrintCard() {
+    const [s, setS] = useState<PrinterSettings | null>(null)
+    useEffect(() => { setS(getPrinterSettings()) }, [])
+    if (!s) return null
+
+    function update(patch: Partial<PrinterSettings>) {
+        setS(setPrinterSettings(patch))
+    }
+
+    const rowStyle: React.CSSProperties = {
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '11px 14px', background: 'var(--white)', borderRadius: 10,
+        border: '1px solid var(--border)',
+    }
+    const labelStyle: React.CSSProperties = { fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }
+    const subStyle: React.CSSProperties = { fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🖨️</span> ตั้งค่าระบบพิมพ์
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 14 }}>
+                บันทึกในเครื่องนี้เท่านั้น (localStorage) — แต่ละเครื่องตั้งค่าได้อิสระ
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>🍳 Auto-Print slip ครัว</div>
+                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งครัว&quot;</div>
+                    </div>
+                    <Toggle val={s.autoKitchen} onChange={v => update({ autoKitchen: v })} />
+                </div>
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>🍹 Auto-Print slip บาร์</div>
+                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งบาร์&quot;</div>
+                    </div>
+                    <Toggle val={s.autoBar} onChange={v => update({ autoBar: v })} />
+                </div>
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>🧾 Auto-Print ใบเสร็จ</div>
+                        <div style={subStyle}>พิมพ์ใบเสร็จอัตโนมัติหลังชำระเงิน</div>
+                    </div>
+                    <Toggle val={s.autoReceipt} onChange={v => update({ autoReceipt: v })} />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Station Printer Card (Kitchen / Bar / Receipt) ──────────────────────
+type StationKey = 'kitchenPrinter' | 'barPrinter' | 'receiptPrinter'
+
+function StationPrinterCard({ stationKey, label, icon, accentColor, stationType }: {
+    stationKey: StationKey
+    label: string
+    icon: string
+    accentColor: string
+    stationType: 'KITCHEN' | 'BAR' | 'RECEIPT'
+}) {
+    const [cfg, setCfg] = useState<StationPrinterConfig | null>(null)
+    const [testing, setTesting] = useState(false)
+
+    useEffect(() => {
+        const s = getPrinterSettings()
+        setCfg(s[stationKey])
+    }, [stationKey])
+
+    // อัปเดต config ของ station นี้
+    function update(patch: Partial<StationPrinterConfig>) {
+        const next = { ...cfg!, ...patch }
+        setStationPrinter(stationType, next)
+        setCfg(next)
+    }
+
+    // ทดสอบพิมพ์ TCP ตรง
+    async function testTCP() {
+        if (!cfg) return
+        setTesting(true)
+        try {
+            const res = await fetch('/api/print/raw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ip: cfg.ip,
+                    port: cfg.port,
+                    station: stationType === 'RECEIPT' ? 'KITCHEN' : stationType,
+                    tableName: 'TEST',
+                    orderNumber: 'T001',
+                    items: [
+                        { name: `${icon} ${label} — TEST PRINT`, quantity: 1 },
+                        { name: `IP: ${cfg.ip}:${cfg.port}`, quantity: 1 },
+                        { name: `Paper: ${cfg.paperWidth}  Cut: ${cfg.autoCut ? 'ON' : 'OFF'}`, quantity: 1 },
+                        { name: 'KAIDEEDER POS', quantity: 1 },
+                    ],
+                    autoCut: cfg.autoCut,
+                    copies: cfg.copies,
+                }),
+            })
+            const d = await res.json()
+            if (d.ok) toast.success(`✅ ${label}: พิมพ์สำเร็จ (${d.bytes} bytes)`)
+            else toast.error(`❌ ${label}: ${d.error}`)
+        } catch (e: any) {
+            toast.error(`TCP failed: ${e.message}`)
+        } finally {
+            setTesting(false)
+        }
+    }
+
+    // ทดสอบ browser print
+    function testBrowser() {
+        if (!cfg) return
+        const mm = cfg.paperWidth
+        const w = window.open('', '_blank', 'width=302,height=300,toolbar=0,menubar=0')
+        if (!w) return
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>*{margin:0;padding:0;box-sizing:border-box}@page{size:${mm} auto;margin:3mm 2mm}body{font-family:'Courier New',monospace;font-size:14px;width:${mm === '58mm' ? '54mm' : '76mm'}}.t{font-weight:900;font-size:16px;text-align:center;margin-bottom:6px}.d{font-size:11px;text-align:center;color:#444}.line{border-top:1px dashed #000;margin:6px 0}</style></head><body>
+<div class="t">${icon} ${label}</div>
+<div class="d">TEST PRINT — Browser</div>
+<div class="line"></div>
+<div class="d">Paper: ${mm} | Copies: ${cfg.copies}</div>
+<div class="d">AutoCut: ${cfg.autoCut ? 'ON' : 'OFF'}</div>
+<div class="line"></div>
+<div class="d">KAIDEEDER POS</div>
+<script>(function(){window.addEventListener('afterprint',function(){window.close()});window.onload=function(){window.focus();window.print()};})()</scr` + `ipt></body></html>`)
+        w.document.close()
+    }
+
+    if (!cfg) return null
+
+    const statusBg = cfg.enabled ? `rgba(${accentColor},0.06)` : 'var(--bg)'
+    const statusBorder = cfg.enabled ? `rgba(${accentColor},0.3)` : 'var(--border)'
+
+    return (
+        <div style={{
+            border: `1.5px solid ${statusBorder}`,
+            borderRadius: 14, padding: '14px 16px',
+            background: statusBg,
+            transition: 'all 0.2s',
+        }}>
+            {/* Header row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: '1.4rem' }}>{icon}</span>
+                    <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>{label}</div>
+                        <div style={{ fontSize: '0.7rem', color: cfg.enabled ? `rgb(${accentColor})` : 'var(--text-muted)', fontWeight: 600 }}>
+                            {cfg.enabled ? `✅ TCP เปิด · ${cfg.ip}:${cfg.port}` : '⚪ ปิด TCP — ใช้ Browser print'}
+                        </div>
+                    </div>
+                </div>
+                <Toggle val={cfg.enabled} onChange={v => update({ enabled: v })} />
+            </div>
+
+            {/* IP + Port */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8, marginBottom: 10 }}>
+                <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>🌐 IP Address (WiFi / LAN)</div>
+                    <input
+                        value={cfg.ip}
+                        onChange={e => update({ ip: e.target.value })}
+                        placeholder="192.168.18.xxx"
+                        className="input"
+                        style={{ fontSize: '0.88rem', fontFamily: 'monospace' }}
+                    />
+                </div>
+                <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>Port</div>
+                    <input
+                        value={cfg.port}
+                        onChange={e => update({ port: Number(e.target.value) || 9100 })}
+                        type="number"
+                        className="input"
+                        style={{ fontSize: '0.88rem', fontFamily: 'monospace' }}
+                    />
+                </div>
+            </div>
+
+            {/* Paper + Copies + AutoCut */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+                {/* Paper width */}
+                <div style={{ display: 'flex', gap: 4 }}>
+                    {(['80mm', '58mm'] as const).map(w => (
+                        <button key={w} onClick={() => update({ paperWidth: w })} style={{
+                            padding: '4px 10px', borderRadius: 7, border: '1.5px solid',
+                            borderColor: cfg.paperWidth === w ? `rgb(${accentColor})` : 'var(--border)',
+                            background: cfg.paperWidth === w ? `rgba(${accentColor},0.12)` : 'transparent',
+                            color: cfg.paperWidth === w ? `rgb(${accentColor})` : 'var(--text)',
+                            fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
+                        }}>{w}</button>
+                    ))}
+                </div>
+                {/* Copies */}
+                <div style={{ display: 'flex', gap: 4 }}>
+                    {([1, 2] as const).map(n => (
+                        <button key={n} onClick={() => update({ copies: n })} style={{
+                            width: 30, height: 30, borderRadius: 7, border: '1.5px solid',
+                            borderColor: cfg.copies === n ? `rgb(${accentColor})` : 'var(--border)',
+                            background: cfg.copies === n ? `rgba(${accentColor},0.12)` : 'transparent',
+                            color: cfg.copies === n ? `rgb(${accentColor})` : 'var(--text)',
+                            fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit',
+                        }}>{n}</button>
+                    ))}
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', alignSelf: 'center' }}>สำเนา</span>
+                </div>
+                {/* Auto-cut */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>✂️ ตัดกระดาษ</span>
+                    <Toggle val={cfg.autoCut} onChange={v => update({ autoCut: v })} />
+                </div>
+            </div>
+
+            {/* Test buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                    onClick={testTCP}
+                    disabled={testing || !cfg.enabled}
+                    style={{
+                        flex: 1, minHeight: 36, borderRadius: 9, border: 'none',
+                        background: !cfg.enabled ? '#E5E7EB' : `rgba(${accentColor},0.9)`,
+                        color: !cfg.enabled ? '#9CA3AF' : '#fff',
+                        fontWeight: 700, fontSize: '0.78rem', cursor: !cfg.enabled ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                    }}
+                >
+                    {testing ? '⏳ กำลังส่ง...' : '🖨️ ทดสอบ TCP'}
+                </button>
+                <button
+                    onClick={testBrowser}
+                    style={{
+                        minHeight: 36, borderRadius: 9, border: '1.5px solid var(--border)',
+                        background: 'var(--bg)', color: 'var(--text)',
+                        fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer',
+                        fontFamily: 'inherit', padding: '0 12px',
+                    }}
+                >
+                    🌐 Browser
+                </button>
+            </div>
+        </div>
+    )
+}
+
+// ─── Printer Settings Card (wrapper รวม 3 stations) ──────────────────────
+function PrinterSettingsCard() {
+    return (
+        <div className="card" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.01)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🖨️</span> ตั้งค่าเครื่องพิมพ์ (Multi-Printer)
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
+                แต่ละ station ตั้ง IP แยกกัน — รองรับ WiFi &amp; LAN ในเครื่องเดียวกัน · บันทึก per-device (localStorage)
+            </p>
+
+            {/* 3 station cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <StationPrinterCard
+                    stationKey="kitchenPrinter"
+                    stationType="KITCHEN"
+                    label="เครื่องปริ้นครัว"
+                    icon="🍳"
+                    accentColor="234,88,12"
+                />
+                <StationPrinterCard
+                    stationKey="barPrinter"
+                    stationType="BAR"
+                    label="เครื่องปริ้นบาร์"
+                    icon="🍹"
+                    accentColor="37,99,235"
+                />
+                <StationPrinterCard
+                    stationKey="receiptPrinter"
+                    stationType="RECEIPT"
+                    label="เครื่องปริ้นใบเสร็จ"
+                    icon="🧾"
+                    accentColor="5,150,105"
+                />
+            </div>
+
+            <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(245,158,11,0.06)', borderRadius: 8, fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                ⚠️ <strong>ต้องอยู่ network เดียวกัน</strong> — เซิร์ฟเวอร์ส่ง TCP ไปที่ IP:Port โดยตรง<br />
+                💡 ถ้า TCP ล้มเหลว ระบบจะ fallback เป็น Browser print อัตโนมัติ
+            </div>
+        </div>
+    )
+}
+
+
+
+// ─── Module-level constants ───────────────────────────────────────────────
 const sysInfo = [
     { label: 'Framework', value: 'Next.js 14', icon: '⚡' },
     { label: 'Database', value: 'MySQL 9', icon: '🗄️' },
@@ -650,231 +960,6 @@ interface PosConfig {
 const defaultConfig: PosConfig = {
     provider: 'none', apiUrl: '', apiKey: '', storeId: '',
     intervalMin: 15, enabled: false, lastSync: null,
-}
-
-
-// ─── Printer Settings Card ───────────────────────────────────────────
-function PrinterSettingsCard() {
-    const [s, setS] = useState<PrinterSettings | null>(null)
-
-    useEffect(() => { setS(getPrinterSettings()) }, [])
-
-    function update(patch: Partial<PrinterSettings>) {
-        const next = setPrinterSettings(patch)
-        setS(next)
-    }
-
-    async function testPrint() {
-        if (!s) return
-        // Try TCP direct first
-        try {
-            const res = await fetch('/api/print/raw', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ip: s.printerIp,
-                    port: s.printerPort,
-                    station: 'KITCHEN',
-                    tableName: 'TEST',
-                    orderNumber: 'T001',
-                    items: [
-                        { name: 'TEST PRINT', quantity: 1 },
-                        { name: `IP: ${s.printerIp}:${s.printerPort}`, quantity: 1 },
-                        { name: `Paper: ${s.paperWidth}  Cut: ${s.autoCut ? 'ON' : 'OFF'}`, quantity: 1 },
-                    ],
-                    autoCut: s.autoCut,
-                    copies: s.copies,
-                }),
-            })
-            const d = await res.json()
-            if (d.ok) { toast.success(`✅ พิมพ์สำเร็จ (TCP ${d.bytes} bytes)`); return }
-            toast.error(`Printer error: ${d.error}`)
-        } catch (e: any) {
-            toast.error(`TCP failed: ${e.message}`)
-        }
-    }
-
-    function testPrintBrowser() {
-        const mm = s?.paperWidth ?? '80mm'
-        const w = window.open('', '_blank', 'width=302,height=300,toolbar=0,menubar=0')
-        if (!w) return
-        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>*{margin:0;padding:0;box-sizing:border-box}@page{size:${mm} auto;margin:3mm 2mm}body{font-family:'Courier New',monospace;font-size:14px;width:${mm === '58mm' ? '54mm' : '76mm'}}.t{font-weight:900;font-size:16px;text-align:center;margin-bottom:6px}.d{font-size:11px;text-align:center;color:#444}.line{border-top:1px dashed #000;margin:6px 0}</style></head><body>
-<div class="t">TEST PRINT</div>
-<div class="d">Paper: ${mm} | Copies: ${s?.copies ?? 1}</div>
-<div class="line"></div>
-<div class="d">Kitchen Auto: ${s?.autoKitchen ? '✅' : '❌'} | Bar Auto: ${s?.autoBar ? '✅' : '❌'}</div>
-<div class="d">Receipt Auto: ${s?.autoReceipt ? '✅' : '❌'} | Cut: ${s?.autoCut ? '✅' : '❌'}</div>
-<div class="line"></div>
-<div class="d">KAIDEEDER POS</div>
-<script>(function(){window.addEventListener('afterprint',function(){window.close()});window.onload=function(){window.focus();window.print()};})()</scr\u200bipt></body></html>`)
-        w.document.close()
-    }
-
-    if (!s) return null  // avoid SSR mismatch
-
-    const rowStyle: React.CSSProperties = {
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 14px', background: 'var(--white)', borderRadius: 10,
-        border: '1px solid var(--border)',
-    }
-    const labelStyle: React.CSSProperties = { fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }
-    const subStyle: React.CSSProperties = { fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }
-
-    // Simple toggle button
-    function Toggle({ val, onChange }: { val: boolean; onChange: (v: boolean) => void }) {
-        return (
-            <button onClick={() => onChange(!val)}
-                style={{
-                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-                    background: val ? 'var(--accent)' : '#d1d5db', position: 'relative',
-                    transition: 'background 0.2s', flexShrink: 0,
-                }}>
-                <span style={{
-                    position: 'absolute', top: 2, left: val ? 22 : 2,
-                    width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                    transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-                }} />
-            </button>
-        )
-    }
-
-    return (
-        <div className="card" style={{ borderColor: 'rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.02)' }}>
-            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>🖨️</span> ตั้งค่าเครื่องพิมพ์
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
-                บันทึกในเครื่องนี้เท่านั้น (localStorage) — แต่ละเครื่องตั้งค่าได้อิสระ
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-                {/* Paper width */}
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>📏 ขนาด Paper</div>
-                        <div style={subStyle}>ใช้กับ slip ครัว / บาร์ / ใบเสร็จ</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        {(['80mm', '58mm'] as const).map(w => (
-                            <button key={w} onClick={() => update({ paperWidth: w })}
-                                style={{
-                                    padding: '6px 14px', borderRadius: 8, border: '1.5px solid',
-                                    borderColor: s.paperWidth === w ? 'var(--accent)' : 'var(--border)',
-                                    background: s.paperWidth === w ? 'var(--accent)' : 'transparent',
-                                    color: s.paperWidth === w ? '#fff' : 'var(--text)',
-                                    fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit',
-                                    transition: 'all 0.15s',
-                                }}>{w}</button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Copies */}
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>🖨️ จำนวนสำเนา (slip ครัว/บาร์)</div>
-                        <div style={subStyle}>พิมพ์กี่ใบต่อ 1 รอบส่งครัว</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        {([1, 2] as const).map(n => (
-                            <button key={n} onClick={() => update({ copies: n })}
-                                style={{
-                                    width: 36, height: 36, borderRadius: 8, border: '1.5px solid',
-                                    borderColor: s.copies === n ? 'var(--accent)' : 'var(--border)',
-                                    background: s.copies === n ? 'var(--accent)' : 'transparent',
-                                    color: s.copies === n ? '#fff' : 'var(--text)',
-                                    fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit',
-                                    transition: 'all 0.15s',
-                                }}>{n}</button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Auto-kitchen */}
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>🍳 Auto-Print slip ครัว</div>
-                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งครัว&quot;</div>
-                    </div>
-                    <Toggle val={s.autoKitchen} onChange={v => update({ autoKitchen: v })} />
-                </div>
-
-                {/* Auto-bar */}
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>🍹 Auto-Print slip บาร์</div>
-                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งบาร์&quot;</div>
-                    </div>
-                    <Toggle val={s.autoBar} onChange={v => update({ autoBar: v })} />
-                </div>
-
-                {/* Auto-receipt */}
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>🧾 Auto-Print ใบเสร็จ</div>
-                        <div style={subStyle}>พิมพ์ใบเสร็จอัตโนมัติหลังชำระเงิน</div>
-                    </div>
-                    <Toggle val={s.autoReceipt} onChange={v => update({ autoReceipt: v })} />
-                </div>
-
-                {/* Auto-cut */}
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>✂️ Auto-Cut (ตัดกระดาษอัตโนมัติ)</div>
-                        <div style={subStyle}>ESC/POS — ใช้ได้เฉพาะ Direct TCP print เท่านั้น</div>
-                    </div>
-                    <Toggle val={s.autoCut} onChange={v => update({ autoCut: v })} />
-                </div>
-
-            </div>
-
-            {/* TCP Printer Connection */}
-            <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--bg)', borderRadius: 10, border: '1px solid rgba(245,158,11,0.3)' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    🌐 Direct TCP/IP Printer (ESC/POS)
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                    <div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Printer IP Address</div>
-                        <input
-                            value={s.printerIp}
-                            onChange={e => update({ printerIp: e.target.value })}
-                            placeholder="192.168.1.101"
-                            className="input"
-                            style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}
-                        />
-                    </div>
-                    <div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Port</div>
-                        <input
-                            value={s.printerPort}
-                            onChange={e => update({ printerPort: Number(e.target.value) || 9100 })}
-                            type="number"
-                            className="input"
-                            style={{ fontSize: '0.85rem', fontFamily: 'monospace', width: 80 }}
-                        />
-                    </div>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 6 }}>
-                    ✅ Auto-cut ทำงานได้เต็มรูปแบบ · ⚠️ ต้องรัน server ใน network เดียวกับ printer
-                </div>
-            </div>
-
-            {/* Test print */}
-            <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-                <button onClick={testPrint}
-                    style={{ flex: 1, minHeight: 40, borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    🖨️ พิมพ์ทดสอบ (TCP)
-                </button>
-                <button onClick={testPrint}
-                    style={{ minHeight: 40, borderRadius: 10, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit', padding: '0 14px' }}>
-                    🌐 Browser
-                </button>
-            </div>
-        </div>
-    )
 }
 
 // ─── Reset Test Modal ──────────────────────────────────────────────────────
