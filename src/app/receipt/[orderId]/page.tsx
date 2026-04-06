@@ -146,13 +146,13 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                         }
                     </div>
 
-                    <div style={{ fontSize:17, fontWeight:800, letterSpacing:0.5 }}>{storeName}</div>
-                    {storeNameLo && <div style={{ fontSize:13, fontWeight:600, color:'#9CA3AF', marginTop:2 }}>{storeNameLo}</div>}
+                    <div style={{ fontSize:19, fontWeight:900, letterSpacing:0.6, textShadow:'0 1px 6px rgba(255,255,255,0.15)' }}>{storeName}</div>
+                    {storeNameLo && <div style={{ fontSize:13, fontWeight:700, color:'#CBD5E1', marginTop:3 }}>{storeNameLo}</div>}
 
                     {receiptHeader ? (
-                        <div style={{ fontSize:11, color:'#9CA3AF', marginTop:6, whiteSpace:'pre-wrap', lineHeight:1.5 }}>{receiptHeader}</div>
+                        <div style={{ fontSize:11.5, color:'#94A3B8', marginTop:7, whiteSpace:'pre-wrap', lineHeight:1.6, fontWeight:500 }}>{receiptHeader}</div>
                     ) : storePhone ? (
-                        <div style={{ fontSize:11, color:'#9CA3AF', marginTop:4 }}>📞 {storePhone}</div>
+                        <div style={{ fontSize:11.5, color:'#94A3B8', marginTop:5, fontWeight:600 }}>📞 {storePhone}</div>
                     ) : null}
 
                     {/* Status badge */}
@@ -172,30 +172,30 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                         ['🧾', 'ເລກບິນ · เลขบิล', order.orderNumber],
                         order.createdBy ? ['👤', 'ພະນັກງານ · พนักงาน', order.createdBy.name] : null,
                     ] as (string[] | null)[]).filter((x): x is string[] => x !== null).map(([icon, label, value], i) => (
-                        <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 0', borderBottom:'1px solid #F3F4F6' }}>
-                            <span style={{ fontSize:11, color:'#9CA3AF', display:'flex', alignItems:'center', gap:4 }}>{icon} {label}</span>
-                            <span style={{ fontSize:12, fontWeight:600, color:'#1A1D26' }}>{value}</span>
+                        <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:'1px solid #EDEEF1' }}>
+                            <span style={{ fontSize:11, color:'#9CA3AF', display:'flex', alignItems:'center', gap:4, fontWeight:500 }}>{icon} {label}</span>
+                            <span style={{ fontSize:12.5, fontWeight:800, color:'#111827', letterSpacing:0.2 }}>{value}</span>
                         </div>
                     ))}
                 </div>
 
                 {/* ── Items ───────────────────────────────────────────── */}
                 <div style={{ padding:'12px 16px 0' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                        <span style={{ fontSize:10, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:0.8 }}>ລາຍການ · รายการ</span>
-                        <span style={{ fontSize:10, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:0.8 }}>ຍອດ · ยอด</span>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10, paddingBottom:6, borderBottom:'1.5px solid #E5E7EB' }}>
+                        <span style={{ fontSize:10, fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:1.2 }}>ລາຍການ · รายการ</span>
+                        <span style={{ fontSize:10, fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:1.2 }}>ຍອດ · ยอด</span>
                     </div>
 
                     {activeItems.map((item, idx) => (
                         <div key={idx} style={{ marginBottom:10, paddingBottom:10, borderBottom: idx < activeItems.length-1 ? '1px dashed #E5E7EB' : 'none' }}>
                             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
                                 <div style={{ flex:1 }}>
-                                    <div style={{ fontSize:13, fontWeight:600, color:'#1A1D26', lineHeight:1.3 }}>{item.product.name}</div>
-                                    {item.note && <div style={{ fontSize:10, color:'#9CA3AF', marginTop:2 }}>📝 {item.note}</div>}
+                                    <div style={{ fontSize:13.5, fontWeight:700, color:'#111827', lineHeight:1.35 }}>{item.product.name}</div>
+                                    {item.note && <div style={{ fontSize:10.5, color:'#9CA3AF', marginTop:3, fontStyle:'italic' }}>📝 {item.note}</div>}
                                 </div>
                                 <div style={{ textAlign:'right', flexShrink:0 }}>
-                                    <div style={{ fontSize:13, fontWeight:700, color:'#1A1D26' }}>{fmt(item.quantity * item.unitPrice)}</div>
-                                    <div style={{ fontSize:10, color:'#9CA3AF' }}>{fmt(item.unitPrice)} × {item.quantity}</div>
+                                    <div style={{ fontSize:13.5, fontWeight:800, color:'#111827' }}>{fmt(item.quantity * item.unitPrice)}</div>
+                                    <div style={{ fontSize:10.5, color:'#9CA3AF', marginTop:1 }}>{fmt(item.unitPrice)} × {item.quantity}</div>
                                 </div>
                             </div>
                         </div>
@@ -210,30 +210,33 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                         order.serviceCharge > 0 ? ['ຄ່າບໍລິການ · ค่าบริการ', fmt(order.serviceCharge), false] : null,
                         order.vat > 0 ? ['VAT', fmt(order.vat), false] : null,
                     ] as (Array<string|boolean> | null)[]).filter((x): x is Array<string|boolean> => x !== null).map(([label, value], i) => (
-                        <div key={i} style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                            <span style={{ fontSize:12, color:'#6B7280' }}>{label as string}</span>
-                            <span style={{ fontSize:12, color:'#6B7280' }}>{value as string}</span>
+                        <div key={i} style={{ display:'flex', justifyContent:'space-between', marginBottom:7 }}>
+                            <span style={{ fontSize:12, color:'#6B7280', fontWeight:500 }}>{label as string}</span>
+                            <span style={{ fontSize:12.5, color:'#374151', fontWeight:700 }}>{value as string}</span>
                         </div>
                     ))}
                 </div>
 
                 {/* Grand total */}
-                <div style={{ margin:'0 16px 14px', background:'linear-gradient(135deg,#1A1D26,#2D3748)', borderRadius:12, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>ຍອດສຸດທ້າຍ · ยอดสุทธิ</span>
-                    <span style={{ fontSize:20, fontWeight:800, color:'#F59E0B' }}>{fmt(order.totalAmount)}</span>
+                <div style={{ margin:'0 16px 14px', background:'linear-gradient(135deg,#0F1117,#1A1D26)', borderRadius:14, padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 4px 18px rgba(0,0,0,0.2)' }}>
+                    <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:1, marginBottom:3 }}>ຍອດສຸດທ້າຍ · ยอดสุทธิ</div>
+                        <div style={{ fontSize:11, color:'#94A3B8', fontWeight:500 }}>{activeItems.length} รายการ</div>
+                    </div>
+                    <span style={{ fontSize:24, fontWeight:900, color:'#FBBF24', letterSpacing:0.5, textShadow:'0 0 20px rgba(251,191,36,0.4)' }}>{fmt(order.totalAmount)}</span>
                 </div>
 
                 {/* ── Payment ─────────────────────────────────────────── */}
                 {payment ? (
                     <div style={{ margin:'0 16px 14px', background:'#F0FDF4', borderRadius:12, padding:'10px 14px', border:'1px solid #BBF7D0' }}>
-                        <div style={{ fontSize:11, fontWeight:700, color:'#059669', marginBottom:6 }}>✅ ຊຳລະດ້ວຍ · ชำระด้วย: {payLabel(payment.method)}</div>
+                        <div style={{ fontSize:11.5, fontWeight:800, color:'#059669', marginBottom:8, letterSpacing:0.2 }}>✅ ຊຳລະດ້ວຍ · ชำระด้วย: {payLabel(payment.method)}</div>
                         {payment.receivedAmount > 0 && (
-                            <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#374151', marginTop:2 }}>
-                                <span>ຮັບມາ · รับมา</span><span>{fmt(payment.receivedAmount)}</span>
+                            <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#374151', marginTop:3, fontWeight:600 }}>
+                                <span style={{ color:'#6B7280' }}>ຮັບມາ · รับมา</span><span style={{ fontWeight:800, color:'#111827' }}>{fmt(payment.receivedAmount)}</span>
                             </div>
                         )}
                         {payment.changeAmount > 0 && (
-                            <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700, color:'#059669', marginTop:2 }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, fontWeight:800, color:'#059669', marginTop:5, padding:'6px 0 0', borderTop:'1px dashed #BBF7D0' }}>
                                 <span>ເງິນທອນ · เงินทอน</span><span>{fmt(payment.changeAmount)}</span>
                             </div>
                         )}
@@ -263,16 +266,16 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                 )}
 
                 {/* ── Footer ──────────────────────────────────────────── */}
-                <div style={{ background:'#F8F9FC', padding:'14px 16px 20px', textAlign:'center', borderTop:'1px dashed #E5E7EB' }}>
+                <div style={{ background:'#F8F9FC', padding:'16px 16px 22px', textAlign:'center', borderTop:'1px dashed #E5E7EB' }}>
                     {receiptFooter ? (
-                        <div style={{ fontSize:12, color:'#6B7280', whiteSpace:'pre-wrap', lineHeight:1.7 }}>{receiptFooter}</div>
+                        <div style={{ fontSize:12, color:'#4B5563', whiteSpace:'pre-wrap', lineHeight:1.8, fontWeight:500 }}>{receiptFooter}</div>
                     ) : (
                         <>
-                            <div style={{ fontSize:14, fontWeight:700, color:'#1A1D26', marginBottom:3 }}>ຂອບໃຈທີ່ໃຊ້ບໍລິການ 🙏</div>
-                            <div style={{ fontSize:12, color:'#6B7280' }}>ขอบคุณที่มาอุดหนุน · Thank you! ♥</div>
+                            <div style={{ fontSize:15, fontWeight:800, color:'#1A1D26', marginBottom:4, letterSpacing:0.3 }}>ຂອບໃຈທີ່ໃຊ້ບໍລິການ 🙏</div>
+                            <div style={{ fontSize:12, color:'#6B7280', fontWeight:500 }}>ขอบคุณที่มาอุดหนุน · Thank you! ♥</div>
                         </>
                     )}
-                    <div style={{ marginTop:12, fontSize:9, color:'#D1D5DB', letterSpacing:0.5 }}>KAIDEEDER POS · {order.orderNumber}</div>
+                    <div style={{ marginTop:14, fontSize:9, color:'#D1D5DB', letterSpacing:0.8, fontWeight:600 }}>KAIDEEDER POS · {order.orderNumber}</div>
                 </div>
 
                 {/* ── Accent bar bottom ───────────────────────────────── */}
