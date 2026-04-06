@@ -22,36 +22,41 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-    { href: '/pos',          icon: '💰', label: 'POS ขายหน้าร้าน',      labelLo: 'POS ຂາຍໜ້າຮ້ານ',       accent: true, permission: 'POS_USE' },
-    { href: '/kitchen',      icon: '🍳', label: 'จอครัว (KDS)',           labelLo: 'ຈໍຄົວ (KDS)',             accent: true, permission: 'KITCHEN_VIEW' },
-    { href: '/waiter',       icon: '🍽️', label: 'หน้าเสิร์ฟ',             labelLo: 'ໜ້າເສີບ',                accent: true, permission: 'KITCHEN_VIEW' },
-    { href: '/dashboard',    icon: '🏠', label: 'Home',                   labelLo: 'Home',                    permission: 'DASHBOARD_VIEW' },
-    { href: '/menu',         icon: '🍽️', label: 'เมนูร้าน',               labelLo: 'ເມນູຮ້ານ',               divider: 'เมนู & สต็อค',   dividerLo: 'ເມນູ & ສະຕ໋ອກ', permission: 'MENU_VIEW' },
-    { href: '/recipes',      icon: '📋', label: 'สูตรอาหาร (BOM)',        labelLo: 'ສູດອາຫານ (BOM)',          permission: 'RECIPE_VIEW' },
-    { href: '/products',     icon: '🥩', label: 'วัตถุดิบ / Stock',       labelLo: 'ວັດຖຸດິບ / Stock',        permission: 'PRODUCT_VIEW' },
-    { href: '/inventory',    icon: '📦', label: 'สต็อคคลัง',             labelLo: 'ສະຕ໋ອກຄັງ',              permission: 'INVENTORY_VIEW' },
-    { href: '/stock-count',  icon: '📋', label: 'นับสต็อคจริง',          labelLo: 'ນັບສະຕ໋ອກຈິງ',           permission: 'INVENTORY_VIEW' },
-    { href: '/purchase',     icon: '🛒', label: 'ซื้อเข้า / GR',          labelLo: 'ຊື້ເຂົ້າ / GR',          permission: 'PURCHASE_VIEW' },
-    { href: '/transfer',     icon: '🔄', label: 'เบิก / โอนคลัง',        labelLo: 'ເບີກ / ໂອນຄັງ',          permission: 'TRANSFER_USE' },
-    { href: '/adjustment',   icon: '⚖️', label: 'ปรับสต็อค',             labelLo: 'ປັບສະຕ໋ອກ',              permission: 'ADJUSTMENT_USE' },
-    { href: '/sales-import', icon: '💾', label: 'นำเข้ายอดขาย',          labelLo: 'ນຳເຂົ້າຍອດຂາຍ',         permission: 'SALES_IMPORT' },
-    { href: '/sku-queue',      icon: '🔍', label: 'SKU Queue',              labelLo: 'SKU Queue',               permission: 'SETTINGS_MANAGE' },
-    { href: '/consume-fail',   icon: '⚠️', label: 'ปัญหาตัดสต็อค',        labelLo: 'ปัญหาตัดสต็อค',          permission: 'SETTINGS_MANAGE' },
-    { href: '/prep-recipes',   icon: '🧪', label: 'สูตรแปรรูป (Prep)',     labelLo: 'ສູດແປຮຮູບ (Prep)',        permission: 'SETTINGS_MANAGE' },
-    { href: '/reports',      icon: '📈', label: 'Reports',                labelLo: 'Reports',                 permission: 'REPORT_VIEW' },
-    { href: '/ai-chat',      icon: '🤖', label: 'AI Assistant',           labelLo: 'AI Assistant',            permission: 'AI_CHAT' },
-    { href: '/settings/categories', icon: '📂', label: 'จัดการหมวดหมู่',      labelLo: 'ຈັດການໝວດໝູ່',           divider: 'จัดการร้าน',      dividerLo: 'ຈັດການຮ້ານ', permission: 'SETTINGS_MANAGE' },
-    { href: '/settings/locations',  icon: '🏭', label: 'จัดการคลัง',           labelLo: 'ຈັດການຄັງ',              permission: 'SETTINGS_MANAGE' },
-    { href: '/settings/uom',         icon: '🔄', label: 'หน่วยแปลง (UOM)',      labelLo: 'ໜ່ວຍແປງ (UOM)',          permission: 'SETTINGS_MANAGE' },
-    { href: '/settings/users',      icon: '👥', label: 'จัดการผู้ใช้',         labelLo: 'ຈັດການຜູ້ໃຊ້',           permission: 'SETTINGS_MANAGE' },
-    { href: '/settings/qr',         icon: '📱', label: 'QR Menu โต๊ะ',         labelLo: 'QR Menu ໂຕ໊ະ',            permission: 'SETTINGS_MANAGE' },
-    { href: '/settings/manual',     icon: '📖', label: 'คู่มือการใช้งาน',      labelLo: 'ຄູ່ມືການໃຊ້ງານ',         permission: 'SETTINGS_MANAGE' },
+    // ── Operations ──────────────────────────────────────────────────────
+    { href: '/pos',     icon: '💰', label: 'POS ขายหน้าร้าน', labelLo: 'POS ຂາຍໜ້າຮ້ານ', accent: true, permission: 'POS_USE' },
+    { href: '/kitchen', icon: '🍳', label: 'จอครัว (KDS)',    labelLo: 'ຈໍຄົວ (KDS)',     accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/waiter',  icon: '🍽️', label: 'หน้าเสิร์ฟ',     labelLo: 'ໜ້າເສີບ',        accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/dashboard', icon: '🏠', label: 'Home', labelLo: 'Home', permission: 'DASHBOARD_VIEW' },
+
+    // ── Catalog & Master ─────────────────────────────────────────────────
+    { href: '/menu',              icon: '🍽️', label: 'เมนูอาหาร',              labelLo: 'ເມນູອາຫານ',             divider: '📋 Catalog & Master', dividerLo: '📋 Catalog & Master', permission: 'MENU_VIEW' },
+    { href: '/inventory-catalog', icon: '🧺', label: 'คลังวัตถุดิบ (Catalog)',  labelLo: 'ຄັງວັດຖຸດິບ (Catalog)', permission: 'PRODUCT_VIEW' },
+
+    // ── Production ───────────────────────────────────────────────────────
+    { href: '/recipes',      icon: '📋', label: 'สูตรเมนู (BOM)',            labelLo: 'ສູດເມນູ (BOM)',          divider: '🍳 Production', dividerLo: '🍳 Production', permission: 'RECIPE_VIEW' },
+    { href: '/prep-recipes', icon: '🧪', label: 'สูตรเตรียมวัตถุดิบ (Prep)', labelLo: 'ສູດຕຽມວັດຖຸດິບ (Prep)', permission: 'SETTINGS_MANAGE' },
+
+    // ── Stock Operations ─────────────────────────────────────────────────
+    { href: '/purchase',    icon: '🛒', label: 'รับสินค้า / GR',           labelLo: 'ຮັບສິນຄ້າ / GR',        divider: '📦 Stock Operations', dividerLo: '📦 Stock Operations', permission: 'PURCHASE_VIEW' },
+    { href: '/stock-count', icon: '📋', label: 'นับสต็อค (Physical Count)', labelLo: 'ນັບສະຕ໋ອກ (Physical)', permission: 'INVENTORY_VIEW' },
+    { href: '/transfer',    icon: '🔄', label: 'เบิก / โอนคลัง',           labelLo: 'ເບີກ / ໂອນຄັງ',         permission: 'TRANSFER_USE' },
+    { href: '/adjustment',  icon: '⚖️', label: 'บันทึกปรับยอดสต็อค',      labelLo: 'ປ່ຽນຍອດສະຕ໋ອກ',         permission: 'ADJUSTMENT_USE' },
+
+    // ── Stock Control (read-only) ────────────────────────────────────────
+    { href: '/inventory', icon: '📦', label: 'ยอดสต็อครายคลัง', labelLo: 'ຍອດສະຕ໋ອກລາຍຄັງ', divider: '📊 Stock Control', dividerLo: '📊 Stock Control', permission: 'INVENTORY_VIEW' },
+
+    // ── AI & Exceptions ──────────────────────────────────────────────────
+    { href: '/inventory-catalog/recommendation-inbox', icon: '📥', label: 'Recommendation Inbox', labelLo: 'Recommendation Inbox', divider: '⚠️ AI & Exceptions', dividerLo: '⚠️ AI & Exceptions', permission: 'PRODUCT_VIEW' },
+    { href: '/consume-fail', icon: '⚠️', label: 'ปัญหาตัดสต็อค', labelLo: 'ບັນຫາຕັດສະຕ໋ອກ', permission: 'SETTINGS_MANAGE' },
+    { href: '/ai-chat',      icon: '🤖', label: 'AI Assistant',   labelLo: 'AI Assistant',    permission: 'AI_CHAT' },
+
+    // ── Reports ──────────────────────────────────────────────────────────
+    { href: '/reports',      icon: '📈', label: 'รายงาน & วิเคราะห์',    labelLo: 'ລາຍງານ & ວິເຄາະ',      divider: '📈 Reports', dividerLo: '📈 Reports', permission: 'REPORT_VIEW' },
+    { href: '/sales-import', icon: '💾', label: 'นำเข้าข้อมูลยอดขาย', labelLo: 'ນຳເຂົ້າຂໍ້ມູນຍອດຂາຍ', permission: 'SALES_IMPORT' },
 ]
 
 const quickItems: NavItem[] = [
-    { href: '/quick-receive', icon: '⚡',  label: 'รับสินค้าด่วน',        labelLo: 'ຮັບສິນຄ້າດ່ວນ',          permission: 'QUICK_RECEIVE' },
-    { href: '/quick-waste',   icon: '🗑️', label: 'บันทึก Waste',         labelLo: 'ບັນທຶກ Waste',            permission: 'WASTE_LOG' },
-    { href: '/qr-sheets',     icon: '🖨️', label: 'พิมพ์ QR Sheet',       labelLo: 'ພິມ QR Sheet',            permission: 'SETTINGS_MANAGE' },
+    { href: '/quick-waste', icon: '🗑️', label: 'บันทึก Waste', labelLo: 'ບັນທຶກ Waste', permission: 'WASTE_LOG' },
 ]
 
 // ─── Role display config ─────────────────────────────────────
@@ -312,6 +317,33 @@ export default function Sidebar() {
                                 <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>🪑</span>
                                 {showLabels && <span style={{ whiteSpace: 'nowrap' }}>{L('จัดการโต๊ะและโซน', 'ຈັດການໂຕ໊ະແລະໂຊນ')}</span>}
                             </button>
+                            {/* QR Order — สั่งอาหารเองที่โต๊ะ */}
+                            {[
+                                { href: '/settings/qr', icon: '📱', label: 'QR Order สั่งอาหาร', labelLo: 'QR Order ສັ່ງອາຫານ' },
+                                { href: '/qr-sheets',   icon: '🖨️', label: 'พิมพ์ QR Sheet',     labelLo: 'ພິມ QR Sheet' },
+                            ].map(item => {
+                                const active = pathname === item.href || pathname.startsWith(item.href + '/')
+                                return (
+                                    <Link key={item.href} href={item.href} onClick={() => isMobile && setMobileOpen(false)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 10,
+                                            padding: collapsed && !isMobile ? '0.6rem' : '0.6rem 0.875rem',
+                                            borderRadius: 10, fontSize: '0.875rem', fontWeight: active ? 600 : 400,
+                                            textDecoration: 'none', transition: 'all 0.15s ease',
+                                            background: active ? '#E8364E' : 'transparent',
+                                            color: active ? '#fff' : '#6B7280',
+                                            boxShadow: active ? '0 2px 8px rgba(232,54,78,0.25)' : 'none',
+                                            justifyContent: collapsed && !isMobile ? 'center' : 'flex-start', minHeight: 40,
+                                        }}
+                                        onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = '#F3F4F6'; (e.currentTarget as HTMLElement).style.color = '#1A1D26' } }}
+                                        onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#6B7280' } }}
+                                        title={collapsed && !isMobile ? L(item.label, item.labelLo) : undefined}
+                                    >
+                                        <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
+                                        {showLabels && <span style={{ whiteSpace: 'nowrap' }}>{L(item.label, item.labelLo)}</span>}
+                                    </Link>
+                                )
+                            })}
                         </>
                     )}
 

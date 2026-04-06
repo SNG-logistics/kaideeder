@@ -12,6 +12,12 @@ interface ScannedItem { name: string; quantity: number; unit: string; unitPrice:
 interface ScanResult { supplier: string | null; billDate: string | null; items: ScannedItem[]; totalAmount: number; notes: string | null }
 interface StockSheetItem { name: string; unit: string; quantityIn: number; costPerUnit: number; totalCost: number; remaining: number | null }
 interface StockSheetResult { sheetDate: string | null; items: StockSheetItem[] }
+interface CatalogItem {
+    inventoryItemId: string; code: string; name: string;
+    itemRole: string; baseUnit: string; status: string;
+    hasProduct: boolean; productId: string | null;
+}
+
 
 // ---- Product Combobox ----
 function ProductCombobox({ products, value, onChange, initialQuery }: {
@@ -76,6 +82,121 @@ function ProductCombobox({ products, value, onChange, initialQuery }: {
                         >
                             <span style={{ fontWeight: p.id === value ? 700 : 400, color: 'var(--text)' }}>{p.name}</span>
                             <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 8 }}>{p.sku} · {p.unit}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ---- Catalog Combobox for GR (BOM Bridge) ----
+function CatalogComboboxGR({ value, onChange, locationId }: {
+    value: string
+    onChange: (productId: string, productName: string, unit: string) => void
+    locationId: string
+}) {
+    const [query, setQuery] = useState('')
+    const [open, setOpen] = useState(false)
+    const [results, setResults] = useState<CatalogItem[]>([])
+    const [loading, setLoading] = useState(false)
+    const [selectedName, setSelectedName] = useState('')
+    const ref = useRef<HTMLDivElement>(null)
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => {
+        function handle(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+        }
+        document.addEventListener('mousedown', handle)
+        return () => document.removeEventListener('mousedown', handle)
+    }, [])
+
+    function doSearch(q: string) {
+        setLoading(true)
+        fetch(`/api/items/search-for-bom?q=${encodeURIComponent(q)}&limit=20`)
+            .then(r => r.json())
+            .then(j => { if (j.success) setResults(j.data) })
+            .catch(() => {})
+            .finally(() => setLoading(false))
+    }
+
+    function handleQueryChange(q: string) {
+        setQuery(q); setOpen(true)
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => doSearch(q), 250)
+    }
+
+    async function handleSelect(item: CatalogItem) {
+        if (item.hasProduct && item.productId) {
+            onChange(item.productId, item.name, item.baseUnit)
+            setSelectedName(item.name); setOpen(false); return
+        }
+        try {
+            const res = await fetch('/api/items/provision-product', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inventoryItemId: item.inventoryItemId, locationId }),
+            })
+            const j = await res.json()
+            if (j.success) {
+                onChange(j.data.id, item.name, j.data.unit)
+                setSelectedName(item.name)
+                const { toast } = await import('react-hot-toast')
+                toast.success(`✅ สร้าง Product "${item.name}" อัตโนมัติแล้ว`)
+            }
+        } catch { /* silent — toast from provision API */ }
+        setOpen(false)
+    }
+
+    const ROLE_COLORS: Record<string,string> = { RAW:'#10B981', PREP:'#8B5CF6', SUPPLY:'#F59E0B', SERVICE:'#6B7280' }
+
+    return (
+        <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+            <input
+                type="text" className="input"
+                placeholder="🧺 ค้นหาจาก Catalog..."
+                value={open ? query : selectedName}
+                style={{ fontSize: '0.83rem', width: '100%', borderColor: '#059669', borderWidth: '1.5px' }}
+                onFocus={() => { setOpen(true); setQuery(''); doSearch('') }}
+                onChange={e => handleQueryChange(e.target.value)}
+            />
+            {open && (
+                <div style={{
+                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 300,
+                    background: 'var(--white)', border: '1.5px solid #059669',
+                    borderRadius: 10, boxShadow: '0 8px 24px rgba(5,150,105,0.15)',
+                    maxHeight: 250, overflowY: 'auto',
+                }}>
+                    {loading ? (
+                        <div style={{ padding:'0.75rem 1rem', color:'#059669', fontSize:'0.82rem' }}>⏳ ค้นหา...</div>
+                    ) : results.length === 0 ? (
+                        <div style={{ padding:'0.75rem 1rem', color:'var(--text-muted)', fontSize:'0.82rem' }}>ไม่พบใน Catalog</div>
+                    ) : results.map(item => (
+                        <div key={item.inventoryItemId}
+                            onMouseDown={() => handleSelect(item)}
+                            style={{
+                                padding:'0.5rem 1rem', cursor:'pointer', fontSize:'0.83rem',
+                                display:'flex', alignItems:'center', justifyContent:'space-between',
+                                borderBottom:'1px solid var(--border-light)',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#F0FDF4')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                                <span style={{
+                                    fontSize:'0.6rem', fontWeight:800, padding:'1px 6px', borderRadius:4,
+                                    background:`${ROLE_COLORS[item.itemRole]||'#6B7280'}18`,
+                                    color: ROLE_COLORS[item.itemRole]||'#6B7280', flexShrink:0,
+                                }}>{item.itemRole}</span>
+                                <span style={{ fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.name}</span>
+                            </div>
+                            <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
+                                {item.hasProduct
+                                    ? <span style={{ fontSize:'0.62rem', fontWeight:600, color:'#059669' }}>✅ มี Product</span>
+                                    : <span style={{ fontSize:'0.62rem', fontWeight:600, color:'#D97706' }}>⚡ สร้างอัตโนมัติ</span>
+                                }
+                                <span style={{ fontFamily:'monospace', fontSize:'0.7rem', color:'var(--text-muted)' }}>{item.baseUnit}</span>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -519,6 +640,7 @@ export default function PurchasePage() {
     const [showScanner, setShowScanner] = useState(false)
     const [showStockSheet, setShowStockSheet] = useState(false)
     const [showStockGrid, setShowStockGrid] = useState(false)
+    const [searchMode, setSearchMode] = useState<'catalog' | 'product'>('catalog')
 
     useEffect(() => {
         setPurchaseDate(new Date().toISOString().split('T')[0])  // client-only: avoids SSR mismatch
@@ -542,6 +664,12 @@ export default function PurchasePage() {
     function selectProduct(i: number, p: Product) {
         const newItems = [...items]
         newItems[i] = { ...newItems[i], productId: p.id, productName: p.name, unit: p.unit, unitCost: p.costPrice }
+        setItems(newItems)
+    }
+
+    function selectCatalogProduct(i: number, productId: string, productName: string, unit: string) {
+        const newItems = [...items]
+        newItems[i] = { ...newItems[i], productId, productName, unit }
         setItems(newItems)
     }
 
@@ -741,11 +869,31 @@ export default function PurchasePage() {
                     </div>
 
                     {/* ── Item list header ── */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <h3 style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>
-                            📦 รายการสินค้า
-                            {items.length > 0 && <span style={{ marginLeft: 8, color: 'var(--accent)', fontWeight: 800 }}>{items.length} รายการ</span>}
-                        </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <h3 style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)', margin: 0 }}>
+                                📦 รายการสินค้า
+                                {items.length > 0 && <span style={{ marginLeft: 8, color: 'var(--accent)', fontWeight: 800 }}>{items.length} รายการ</span>}
+                            </h3>
+                            {/* Search Mode Toggle */}
+                            <div style={{
+                                display: 'flex', borderRadius: 8, overflow: 'hidden',
+                                border: '1.5px solid #E2E8F0', fontSize: '0.72rem', fontWeight: 600,
+                            }}>
+                                <button onClick={() => setSearchMode('catalog')} style={{
+                                    padding: '4px 10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                    background: searchMode === 'catalog' ? '#059669' : 'transparent',
+                                    color: searchMode === 'catalog' ? '#fff' : '#6B7280',
+                                    transition: 'all 0.15s',
+                                }}>🧺 Catalog</button>
+                                <button onClick={() => setSearchMode('product')} style={{
+                                    padding: '4px 10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                    background: searchMode === 'product' ? '#6B7280' : 'transparent',
+                                    color: searchMode === 'product' ? '#fff' : '#6B7280',
+                                    transition: 'all 0.15s',
+                                }}>📦 เดิม</button>
+                            </div>
+                        </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button onClick={() => setShowStockGrid(true)} className="btn btn-ai-green btn-sm">
                                 📋 กรอกใบสต็อค
@@ -798,7 +946,15 @@ export default function PurchasePage() {
                                         background: 'var(--bg)', borderRadius: 10, padding: '0.55rem 0.6rem',
                                         border: item.productId ? '1px solid var(--border)' : '1px solid rgba(232,54,78,0.25)',
                                     }}>
-                                        <ProductCombobox products={products} value={item.productId} onChange={p => selectProduct(i, p)} initialQuery={item.searchText} />
+                                        {searchMode === 'catalog' ? (
+                                            <CatalogComboboxGR
+                                                value={item.productId}
+                                                locationId={item.locationId}
+                                                onChange={(pid, pname, unit) => selectCatalogProduct(i, pid, pname, unit)}
+                                            />
+                                        ) : (
+                                            <ProductCombobox products={products} value={item.productId} onChange={p => selectProduct(i, p)} initialQuery={item.searchText} />
+                                        )}
                                         <select value={item.locationId} onChange={e => updateItem(i, 'locationId', e.target.value)} className="input" style={{ fontSize: '0.82rem' }}>
                                             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                                         </select>

@@ -8,6 +8,11 @@ interface Product { id: string; sku: string; name: string; unit: string }
 interface Location { id: string; code: string; name: string }
 interface BOMItem { productId: string; locationId: string; quantity: number; unit: string; _search?: string }
 interface MissingIng { name: string; quantity: number; unit: string; location: string }
+interface CatalogItem {
+    inventoryItemId: string; code: string; name: string;
+    itemRole: string; baseUnit: string; purchaseUnit?: string; status: string;
+    hasProduct: boolean; productId: string | null; productSku: string | null;
+}
 
 // ---- Ingredient Search Combobox Component ----
 function ProductCombobox({ products, value, onChange, usedIds = [] }: {
@@ -98,6 +103,149 @@ function ProductCombobox({ products, value, onChange, usedIds = [] }: {
                                         }}>ซ้ำแล้ว</span>
                                     )}
                                     <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'var(--text-muted)', marginLeft: 2 }}>{p.unit}</span>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ---- Catalog Search Combobox (BOM Bridge) ----
+function CatalogCombobox({ value, onChange, usedProductIds = [], locationId }: {
+    value: string  // productId currently selected
+    onChange: (productId: string, unit: string) => void
+    usedProductIds?: string[]
+    locationId: string
+}) {
+    const [query, setQuery] = useState('')
+    const [open, setOpen] = useState(false)
+    const [results, setResults] = useState<CatalogItem[]>([])
+    const [loading, setLoading] = useState(false)
+    const [selectedName, setSelectedName] = useState('')
+    const ref = useRef<HTMLDivElement>(null)
+    const debounceRef = useRef<any>(null)
+
+    useEffect(() => {
+        function handleClick(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) {
+                setOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClick)
+        return () => document.removeEventListener('mousedown', handleClick)
+    }, [])
+
+    function doSearch(q: string) {
+        setLoading(true)
+        fetch(`/api/items/search-for-bom?q=${encodeURIComponent(q)}&limit=20`)
+            .then(r => r.json())
+            .then(j => { if (j.success) setResults(j.data) })
+            .catch(() => {})
+            .finally(() => setLoading(false))
+    }
+
+    function handleQueryChange(q: string) {
+        setQuery(q)
+        setOpen(true)
+        clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => doSearch(q), 250)
+    }
+
+    async function handleSelect(item: CatalogItem) {
+        // If already has a Product → use it directly
+        if (item.hasProduct && item.productId) {
+            onChange(item.productId, item.baseUnit)
+            setSelectedName(item.name)
+            setOpen(false)
+            return
+        }
+        // Auto-provision a Product from the Catalog item
+        try {
+            const res = await fetch('/api/items/provision-product', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inventoryItemId: item.inventoryItemId, locationId }),
+            })
+            const j = await res.json()
+            if (j.success) {
+                onChange(j.data.id, j.data.unit)
+                setSelectedName(item.name)
+                toast.success(`✅ สร้าง Product "${item.name}" อัตโนมัติแล้ว`)
+            } else {
+                toast.error(j.error || 'ไม่สามารถสร้าง Product ได้')
+            }
+        } catch {
+            toast.error('เกิดข้อผิดพลาดในการเชื่อม Catalog → Product')
+        }
+        setOpen(false)
+    }
+
+    const displayValue = open ? query : selectedName
+
+    const ROLE_COLORS: Record<string, string> = {
+        RAW: '#10B981', PREP: '#8B5CF6', SUPPLY: '#F59E0B', SERVICE: '#6B7280',
+    }
+
+    return (
+        <div ref={ref} style={{ position: 'relative' }}>
+            <input
+                type="text"
+                className="input"
+                placeholder="🧺 ค้นหาจาก Catalog..."
+                value={displayValue}
+                style={{ fontSize: '0.82rem', width: '100%', borderColor: '#8B5CF6', borderWidth: '1.5px' }}
+                onFocus={() => { setOpen(true); setQuery(''); doSearch('') }}
+                onChange={e => handleQueryChange(e.target.value)}
+            />
+            {open && (
+                <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                    background: 'var(--white)', border: '1.5px solid #8B5CF6',
+                    borderRadius: 10, boxShadow: '0 8px 24px rgba(139,92,246,0.15)',
+                    maxHeight: 260, overflowY: 'auto', marginTop: 4,
+                }}>
+                    {loading ? (
+                        <div style={{ padding: '0.75rem 1rem', color: '#8B5CF6', fontSize: '0.82rem' }}>⏳ กำลังค้นหา...</div>
+                    ) : results.length === 0 ? (
+                        <div style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>ไม่พบรายการใน Catalog</div>
+                    ) : results.map(item => {
+                        const isDup = item.productId ? usedProductIds.includes(item.productId) && item.productId !== value : false
+                        return (
+                            <div
+                                key={item.inventoryItemId}
+                                onMouseDown={() => !isDup && handleSelect(item)}
+                                style={{
+                                    padding: '0.5rem 0.875rem',
+                                    cursor: isDup ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.82rem',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    background: isDup ? '#FFF7ED' : 'transparent',
+                                    borderBottom: '1px solid var(--border-light)',
+                                    opacity: isDup ? 0.6 : 1,
+                                }}
+                                onMouseEnter={e => { if (!isDup) e.currentTarget.style.background = '#F5F3FF' }}
+                                onMouseLeave={e => { if (!isDup) e.currentTarget.style.background = 'transparent' }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                    <span style={{
+                                        fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', borderRadius: 4,
+                                        background: `${ROLE_COLORS[item.itemRole] || '#6B7280'}18`,
+                                        color: ROLE_COLORS[item.itemRole] || '#6B7280',
+                                    }}>{item.itemRole}</span>
+                                    <span style={{ fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {item.name}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                                    {isDup && <span style={{ fontSize: '0.62rem', fontWeight: 800, background: '#FED7AA', color: '#C2410C', borderRadius: 20, padding: '1px 7px' }}>ซ้ำแล้ว</span>}
+                                    {item.hasProduct
+                                        ? <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#059669' }}>✅ มี Product</span>
+                                        : <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#D97706' }}>⚡ สร้างอัตโนมัติ</span>
+                                    }
+                                    <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{item.baseUnit}</span>
                                 </div>
                             </div>
                         )
@@ -213,6 +361,7 @@ export default function RecipesPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [categories, setCategories] = useState<{ id: string; name: string; code: string }[]>([])
     const [showMissingOnly, setShowMissingOnly] = useState(false)
+    const [useCatalog, setUseCatalog] = useState(true)
 
     const refreshProducts = () => fetch('/api/products?limit=500').then(r => r.json()).then(j => j.success && setProducts(j.data.products))
 
@@ -508,13 +657,33 @@ export default function RecipesPage() {
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: bom.length > 0 ? 6 : 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: bom.length > 0 ? 6 : 10, flexWrap: 'wrap', gap: 8 }}>
                         <h4 style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                             🥩 วัตถุดิบ (ต่อ 1 เมนู) — {bom.filter(b => b.productId).length} รายการ
                         </h4>
-                        <button onClick={addBomItem} className="btn-outline" style={{ fontSize: '0.8rem', padding: '0.35rem 0.875rem' }}>
-                            ➕ เพิ่มเอง
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {/* Toggle: Catalog vs Legacy */}
+                            <div style={{
+                                display: 'flex', borderRadius: 8, overflow: 'hidden',
+                                border: '1.5px solid #E2E8F0', fontSize: '0.75rem', fontWeight: 600,
+                            }}>
+                                <button onClick={() => setUseCatalog(true)} style={{
+                                    padding: '5px 12px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                    background: useCatalog ? '#7C3AED' : 'transparent',
+                                    color: useCatalog ? '#fff' : '#6B7280',
+                                    transition: 'all 0.15s',
+                                }}>🧺 Catalog</button>
+                                <button onClick={() => setUseCatalog(false)} style={{
+                                    padding: '5px 12px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                    background: !useCatalog ? '#6B7280' : 'transparent',
+                                    color: !useCatalog ? '#fff' : '#6B7280',
+                                    transition: 'all 0.15s',
+                                }}>📦 Product เดิม</button>
+                            </div>
+                            <button onClick={addBomItem} className="btn-outline" style={{ fontSize: '0.8rem', padding: '0.35rem 0.875rem' }}>
+                                ➕ เพิ่มเอง
+                            </button>
+                        </div>
                     </div>
 
                     {bom.length > 0 && (
@@ -526,24 +695,43 @@ export default function RecipesPage() {
                                     background: 'var(--bg)', borderRadius: 10, padding: '0.625rem',
                                     border: '1px solid var(--border)'
                                 }}>
-                                    {/* ✅ Typeahead search แทน dropdown */}
-                                    <ProductCombobox
-                                        products={products}
-                                        value={item.productId}
-                                        usedIds={bom.map(b => b.productId)}
-                                        onChange={(productId, unit) => {
-                                            const isDup = bom.some((b, idx) => idx !== i && b.productId === productId)
-                                            if (isDup) {
-                                                const dupName = products.find(p => p.id === productId)?.name || productId
-                                                toast.error(`⚠️ "${dupName}" มีใน BOM แล้ว — ไม่สามารถเพิ่มซ้ำได้`, { duration: 3500 })
-                                                return
-                                            }
-                                            const nb = [...bom]
-                                            nb[i].productId = productId
-                                            nb[i].unit = unit
-                                            setBom(nb)
-                                        }}
-                                    />
+                                    {/* ✅ Typeahead search — Catalog mode or Legacy mode */}
+                                    {useCatalog ? (
+                                        <CatalogCombobox
+                                            value={item.productId}
+                                            usedProductIds={bom.map(b => b.productId)}
+                                            locationId={item.locationId}
+                                            onChange={(productId, unit) => {
+                                                const isDup = bom.some((b, idx) => idx !== i && b.productId === productId)
+                                                if (isDup) {
+                                                    toast.error('⚠️ วัตถุดิบนี้มีใน BOM แล้ว', { duration: 3500 })
+                                                    return
+                                                }
+                                                const nb = [...bom]
+                                                nb[i].productId = productId
+                                                nb[i].unit = unit
+                                                setBom(nb)
+                                            }}
+                                        />
+                                    ) : (
+                                        <ProductCombobox
+                                            products={products}
+                                            value={item.productId}
+                                            usedIds={bom.map(b => b.productId)}
+                                            onChange={(productId, unit) => {
+                                                const isDup = bom.some((b, idx) => idx !== i && b.productId === productId)
+                                                if (isDup) {
+                                                    const dupName = products.find(p => p.id === productId)?.name || productId
+                                                    toast.error(`⚠️ "${dupName}" มีใน BOM แล้ว — ไม่สามารถเพิ่มซ้ำได้`, { duration: 3500 })
+                                                    return
+                                                }
+                                                const nb = [...bom]
+                                                nb[i].productId = productId
+                                                nb[i].unit = unit
+                                                setBom(nb)
+                                            }}
+                                        />
+                                    )}
                                     <select value={item.locationId} onChange={e => { const nb = [...bom]; nb[i].locationId = e.target.value; setBom(nb) }}
                                         className="input" style={{ fontSize: '0.82rem' }}>
                                         {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}

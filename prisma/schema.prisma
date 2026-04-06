@@ -74,6 +74,15 @@ model Tenant {
   stockCountItems  StockCountItem[]
   deliveryInfos    DeliveryInfo[]
 
+  // Phase 1 — Inventory Catalog
+  inventoryItems          InventoryItem[]
+  itemUnitConversions     ItemUnitConversion[]
+  itemAliases             ItemAlias[]
+  aiItemClassifications   AiItemClassification[]
+  validationIssues        ValidationIssue[]
+  aiRecommendations       AiRecommendation[]
+  entityUsageSummaries    EntityUsageSummary[]
+
   // SaaS relations
   wallet           Wallet?
   walletLedger     WalletLedger[]
@@ -181,9 +190,12 @@ model Product {
   updatedAt      DateTime        @updatedAt
   imageUrl       String?
   imageBase64    String?         @db.MediumText
+  inventoryItemId String?
+
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id])
   category       Category        @relation(fields: [categoryId], references: [id])
+  inventoryItem  InventoryItem?  @relation(fields: [inventoryItemId], references: [id])
   inventory      Inventory[]
   orderItems     OrderItem[]
   purchaseItems  PurchaseItem[]
@@ -202,6 +214,7 @@ model Product {
   @@unique([tenantId, sku])
   @@index([tenantId])
   @@index([categoryId], map: "products_categoryId_fkey")
+  @@index([inventoryItemId], map: "products_inventoryItemId_fkey")
   @@map("products")
 }
 
@@ -1235,4 +1248,249 @@ enum DeliveryChannel {
   WALKIN
   WEBSITE
   OTHER
+}
+
+// ─────────────────────────────────────────────
+// PHASE 1 — INVENTORY CATALOG ENUMS
+// ─────────────────────────────────────────────
+
+enum ItemRole {
+  RAW
+  PREP
+  SUPPLY
+  SERVICE
+}
+
+enum ItemKind {
+  INGREDIENT
+  SEMI_FINISHED
+  NON_STOCK
+}
+
+enum ItemStatus {
+  DRAFT
+  NEED_REVIEW
+  ACTIVE
+  ARCHIVED
+}
+
+enum AiItemStatus {
+  AI_SUGGESTED
+  USER_CONFIRMED
+}
+
+enum RecType {
+  FIX_METADATA
+  CREATE_ALIAS
+  REVIEW_DUPLICATE
+}
+
+enum RecStatus {
+  OPEN
+  APPROVED
+  REJECTED
+  APPLIED
+}
+
+enum IssueSeverity {
+  INFO
+  WARNING
+  ERROR
+}
+
+enum IssueStatus {
+  OPEN
+  RESOLVED
+  IGNORED
+}
+
+enum AliasSource {
+  USER
+  AI
+  IMPORT
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ─────────────────────────────────────────────
+// PHASE 1 — INVENTORY CATALOG MODELS
+// ─────────────────────────────────────────────
+
+/// วัตถุดิบ / ของเตรียม / วัสดุสิ้นเปลือง master catalog
+model InventoryItem {
+  id               String      @id @default(cuid())
+  tenantId         String
+  code             String      // unique per tenant
+  name             String
+  normalizedName   String      // used for soft-duplicate check
+  itemRole         ItemRole
+  itemKind         ItemKind
+  categoryKey      String?     // MEAT, SEAFOOD, SAUCE, EGG...
+  proteinFamily    String?     // CHICKEN, PORK, SHRIMP, FISH
+  speciesType      String?     // WHITE_SHRIMP, RIVER_SHRIMP, TILAPIA
+  cutPart          String?     // BELLY, BREAST, WING_MID
+  formState        String?     // FRESH, FROZEN, MINCED, MARINATED
+  baseUnit         String      // g, ml, egg, piece, pack
+  purchaseUnit     String?     // kg, tray, bottle, pack
+  trackStock       Boolean     @default(true)
+  isPurchasable    Boolean     @default(true)
+  isSellable       Boolean     @default(false)
+  status           ItemStatus  @default(DRAFT)
+  aiConfidence     Decimal?    @db.Decimal(5, 4)
+  aiStatus         AiItemStatus?
+  createdById      String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  tenant           Tenant      @relation(fields: [tenantId], references: [id])
+  conversions      ItemUnitConversion[]
+  aliases          ItemAlias[]
+  aiClassifications AiItemClassification[]
+  issues           ValidationIssue[]
+  recommendations  AiRecommendation[]
+  products         Product[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, itemRole])
+  @@map("inventory_items")
+}
+
+/// แปลงหน่วยซื้อ → หน่วยใช้งาน
+model ItemUnitConversion {
+  id              String        @id @default(cuid())
+  tenantId        String
+  inventoryItemId String
+  fromUnit        String
+  toUnit          String
+  ratio           Decimal       @db.Decimal(18, 6)
+  isDefault       Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, inventoryItemId, fromUnit, toUnit])
+  @@index([tenantId])
+  @@index([inventoryItemId])
+  @@map("item_unit_conversions")
+}
+
+/// ชื่อเรียกอื่น / ชื่อทางร้าน
+model ItemAlias {
+  id                  String        @id @default(cuid())
+  tenantId            String
+  inventoryItemId     String
+  aliasName           String
+  normalizedAliasName String
+  sourceType          AliasSource   @default(USER)
+  isActive            Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+
+  tenant              Tenant        @relation(fields: [tenantId], references: [id])
+  inventoryItem       InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, aliasName])
+  @@index([tenantId])
+  @@index([inventoryItemId])
+  @@map("item_aliases")
+}
+
+/// ผล AI suggestion — ไม่ write master ตรง ๆ
+model AiItemClassification {
+  id                    String         @id @default(cuid())
+  tenantId              String
+  inventoryItemId       String?        // null = classify แต่ยังไม่ save item
+  inputName             String
+  suggestedRole         String?
+  suggestedKind         String?
+  suggestedCategory     String?
+  suggestedBaseUnit     String?
+  suggestedPurchaseUnit String?
+  suggestedCode         String?
+  suggestedProteinFamily String?
+  suggestedSpeciesType  String?
+  suggestedCutPart      String?
+  suggestedFormState    String?
+  confidenceScore       Decimal        @db.Decimal(5, 4)
+  duplicateCandidateJson Json          @default("[]")
+  warningJson           Json           @default("[]")
+  rawModelResponse      Json?
+  createdAt             DateTime       @default(now())
+
+  tenant                Tenant         @relation(fields: [tenantId], references: [id])
+  inventoryItem         InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+
+  @@index([tenantId])
+  @@index([inventoryItemId])
+  @@map("ai_item_classifications")
+}
+
+/// ปัญหาที่ rule engine ตรวจพบ
+model ValidationIssue {
+  id             String        @id @default(cuid())
+  tenantId       String
+  entityType     String        @default("ITEM") // ITEM
+  entityId       String
+  issueCode      String        // DUPLICATE_NAME, MISSING_CONVERSION ...
+  severity       IssueSeverity
+  message        String        @db.Text
+  detailsJson    Json          @default("{}")
+  status         IssueStatus   @default(OPEN)
+  createdAt      DateTime      @default(now())
+  resolvedAt     DateTime?
+  resolvedBy     String?
+
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  inventoryItem  InventoryItem @relation(fields: [entityId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, entityId])
+  @@index([entityId])
+  @@map("validation_issues")
+}
+
+/// คำแนะนำจาก AI ให้ผู้ใช้กดยืนยัน/ปฏิเสธ
+model AiRecommendation {
+  id                 String        @id @default(cuid())
+  tenantId           String
+  entityType         String        @default("ITEM")
+  entityId           String?
+  recommendationType RecType
+  title              String
+  detailsJson        Json
+  confidenceScore    Decimal       @db.Decimal(5, 4)
+  riskLevel          RiskLevel     @default(LOW)
+  status             RecStatus     @default(OPEN)
+  createdAt          DateTime      @default(now())
+  approvedAt         DateTime?
+  approvedBy         String?
+
+  tenant             Tenant        @relation(fields: [tenantId], references: [id])
+  inventoryItem      InventoryItem? @relation(fields: [entityId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, entityType, status])
+  @@map("ai_recommendations")
+}
+
+/// ติดตามการใช้งาน entity เพื่อป้องกัน delete มั่ว
+model EntityUsageSummary {
+  tenantId         String
+  entityType       String   // ITEM
+  entityId         String
+  purchaseTxnCount Int      @default(0)
+  stockTxnCount    Int      @default(0)
+  lastUsedAt       DateTime?
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@id([tenantId, entityType, entityId])
+  @@index([tenantId])
+  @@map("entity_usage_summary")
 }
