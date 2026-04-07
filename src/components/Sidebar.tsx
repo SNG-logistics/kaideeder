@@ -23,9 +23,10 @@ type NavItem = {
 
 const navItems: NavItem[] = [
     // ── Operations ──────────────────────────────────────────────────────
-    { href: '/pos',     icon: '💰', label: 'POS ขายหน้าร้าน', labelLo: 'POS ຂາຍໜ້າຮ້ານ', accent: true, permission: 'POS_USE' },
-    { href: '/kitchen', icon: '🍳', label: 'จอครัว (KDS)',    labelLo: 'ຈໍຄົວ (KDS)',     accent: true, permission: 'KITCHEN_VIEW' },
-    { href: '/waiter',  icon: '🍽️', label: 'หน้าเสิร์ฟ',     labelLo: 'ໜ້າເສີບ',        accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/pos',      icon: '💰', label: 'POS ขายหน้าร้าน', labelLo: 'POS ຂາຍໜ້າຮ້ານ', accent: true, permission: 'POS_USE' },
+    { href: '/kitchen',  icon: '🍳', label: 'จอครัว (KDS)',    labelLo: 'ຈໍຄົວ (KDS)',     accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/waiter',   icon: '🍽️', label: 'หน้าเสิร์ฟ',     labelLo: 'ໜ້າເສີບ',        accent: true, permission: 'KITCHEN_VIEW' },
+    { href: '/delivery', icon: '🛵', label: 'Delivery Queue',  labelLo: 'Delivery Queue',   accent: true, permission: 'DELIVERY_VIEW' },
     { href: '/dashboard', icon: '🏠', label: 'Home', labelLo: 'Home', permission: 'DASHBOARD_VIEW' },
 
     // ── Catalog & Master ─────────────────────────────────────────────────

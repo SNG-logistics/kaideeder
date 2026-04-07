@@ -16,6 +16,7 @@ export const PERMISSIONS = {
     // POS / Sales
     POS_USE: 'POS_USE',
     KITCHEN_VIEW: 'KITCHEN_VIEW',
+    DELIVERY_VIEW: 'DELIVERY_VIEW',
 
     // Dashboard
     DASHBOARD_VIEW: 'DASHBOARD_VIEW',
@@ -75,7 +76,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     OWNER: ALL,
 
     MANAGER: [
-        'POS_USE', 'KITCHEN_VIEW', 'DASHBOARD_VIEW',
+        'POS_USE', 'KITCHEN_VIEW', 'DELIVERY_VIEW', 'DASHBOARD_VIEW',
         'MENU_VIEW', 'MENU_EDIT',
         'PRODUCT_VIEW', 'PRODUCT_EDIT',
         'INVENTORY_VIEW', 'ADJUSTMENT_USE',
@@ -120,6 +121,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     CASHIER: [
         'POS_USE',
         'KITCHEN_VIEW',
+        'DELIVERY_VIEW',
         'DASHBOARD_VIEW',
         'REPORT_VIEW',
     ],
