@@ -63,7 +63,12 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
 
     useEffect(() => {
         if (order && !printed && !isPreview) {
-            const t = setTimeout(() => { window.print(); setPrinted(true) }, 500)
+            const t = setTimeout(() => {
+                // ปิดหน้าต่างอัตโนมัติหลังพิมพ์เสร็จ (กด Print หรือ Cancel)
+                window.addEventListener('afterprint', () => window.close(), { once: true })
+                window.print()
+                setPrinted(true)
+            }, 500)
             return () => clearTimeout(t)
         }
     }, [order, printed, isPreview])
