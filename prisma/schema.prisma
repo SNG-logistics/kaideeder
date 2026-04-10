@@ -610,11 +610,11 @@ model ConsumeFailLog {
 model PrepRecipe {
   id               String   @id @default(cuid())
   tenantId         String
-  name             String // "น้ำซุปหมู", "หมูหมัก", "ซอสพริก"
-  outputProductId  String // Product (type=PREP) ที่ได้ออกมา
-  outputLocationId String
-  yieldQty         Float // ทำได้กี่หน่วย เช่น 10 (ลิตร)
-  yieldUnit        String // "ลิตร", "กก.", "ชิ้น"
+  name             String                        // "น้ำซุปหมู", "หมูหมัก", "ซอสพริก"
+  outputProductId  String                        // Product (type=PREP) ที่ได้ออกมา
+  outputLocationId String?
+  yieldQty         Float                         // ทำได้กี่หน่วย เช่น 10 (ลิตร)
+  yieldUnit        String                        // "ลิตร", "กก.", "ชิ้น"
   isActive         Boolean  @default(true)
   note             String?  @db.Text
   createdAt        DateTime @default(now())
@@ -622,7 +622,7 @@ model PrepRecipe {
 
   tenant         Tenant           @relation(fields: [tenantId], references: [id])
   outputProduct  Product          @relation("PrepRecipeOutput", fields: [outputProductId], references: [id])
-  outputLocation Location         @relation("PrepRecipeOutputLoc", fields: [outputLocationId], references: [id])
+  outputLocation Location?        @relation("PrepRecipeOutputLoc", fields: [outputLocationId], references: [id])
   lines          PrepRecipeLine[]
   productions    PrepProduction[]
 
@@ -640,12 +640,12 @@ model PrepRecipeLine {
   productId    String // วัตถุดิบดิบที่ใช้ (RAW_MATERIAL)
   quantity     Float // จำนวนต่อ yieldQty หนึ่งชุด
   unit         String // หน่วย
-  locationId   String // คลังที่ตัดวัตถุดิบ
+  locationId   String? // คลังที่ตัดวัตถุดิบ
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id])
   prepRecipe PrepRecipe @relation(fields: [prepRecipeId], references: [id], onDelete: Cascade)
   product    Product    @relation("PrepRecipeIngredient", fields: [productId], references: [id])
-  location   Location   @relation("PrepRecipeLineLoc", fields: [locationId], references: [id])
+  location   Location?  @relation("PrepRecipeLineLoc", fields: [locationId], references: [id])
 
   @@index([tenantId])
   @@index([prepRecipeId])

@@ -209,7 +209,7 @@ export default function PrepRecipePage() {
                                         </table>
                                         {/* Output */}
                                         <div style={{ marginTop: 10, padding: '8px 12px', background: '#ECFDF5', borderRadius: 8, fontSize: '0.82rem' }}>
-                                            ✅ ได้ <b>{r.outputQty} {r.outputUnit}</b> {r.outputProduct.name} → คลัง {r.outputLocation.code}
+                                            ✅ ได้ <b>{r.outputQty} {r.outputUnit}</b> {r.outputProduct.name} → คลัง {r.outputLocation?.code ?? '?'}
                                         </div>
                                     </div>
 
