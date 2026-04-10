@@ -31,6 +31,8 @@ const createOrderSchema = z.object({
         quantity: z.number().positive(),
         unitPrice: z.number().min(0),
         note: z.string().optional(),
+        toppingsJson: z.string().optional(),
+        toppingsTotal: z.number().optional(),
     })).optional(),
     // Delivery order fields
     deliveryInfo: deliveryInfoSchema.optional(),
@@ -123,6 +125,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                             quantity: item.quantity,
                             unitPrice: item.unitPrice,
                             note: item.note || null,
+                            toppingsJson: item.toppingsJson || null,
+                            toppingsTotal: item.toppingsTotal || 0,
                             stationId: data.skipKitchen ? 'SKIP' : (isBar ? 'BAR' : 'KITCHEN'),
                             kitchenStatus: data.skipKitchen ? 'SERVED' : 'PENDING',
                         }

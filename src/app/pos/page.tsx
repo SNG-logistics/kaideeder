@@ -8,9 +8,10 @@ import { getPrinterSettings } from '@/lib/printerSettings'
 
 // ─── Types ───────────────────────────────────────────────────
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
-interface Product { id: string; sku: string; name: string; salePrice: number; unit: string; categoryId: string; category?: Category; productType: string; imageUrl?: string }
+interface Topping { id: string; name: string; price: number; isActive: boolean }
+interface Product { id: string; sku: string; name: string; salePrice: number; unit: string; categoryId: string; category?: Category; productType: string; imageUrl?: string; toppingsJson?: string | null }
 interface DiningTable { id: string; number: number; name: string; zone: string; seats: number; status: string; orders?: Order[] }
-interface OrderItemData { id?: string; productId: string; product?: Product; quantity: number; unitPrice: number; note?: string; isCancelled?: boolean; kitchenStatus?: string }
+interface OrderItemData { id?: string; productId: string; product?: Product; quantity: number; unitPrice: number; note?: string; isCancelled?: boolean; kitchenStatus?: string; toppingsJson?: string; toppingsTotal?: number }
 interface Order { id: string; orderNumber: string; tableId: string; table?: DiningTable; status: string; subtotal: number; discount: number; discountType: string; serviceCharge: number; vat: number; totalAmount: number; note?: string; items: OrderItemData[]; payments?: Payment[] }
 interface Payment { id: string; method: string; amount: number; receivedAmount: number; changeAmount: number }
 
@@ -387,49 +388,19 @@ export default function POSPage() {
         if (isMobile) setMobileTab('order')
     }
 
-    // ─── Protein / Topping selection ────────────────────────────
-    // รายการโปรตีนที่ให้เลือก — เพิ่ม/ลด option ได้ที่นี่
-    const PROTEIN_OPTIONS = [
-        { label: '🐷 หมู',       value: 'หมู',       color: '#FCA5A5' },
-        { label: '🐔 ไก่',       value: 'ไก่',       color: '#FCD34D' },
-        { label: '🦐 กุ้ง',      value: 'กุ้ง',      color: '#F97316' },
-        { label: '🐄 เนื้อวัว',  value: 'เนื้อวัว',  color: '#B45309' },
-        { label: '🌊 ทะเลรวม',  value: 'ทะเลรวม',  color: '#60A5FA' },
-        { label: '🥗 ผัก',       value: 'ผัก',       color: '#86EFAC' },
-    ]
+
+    // ─── Topping (per-product catalog) ────────────────────────────────────────
+    function parseToppings(json?: string | null): Topping[] {
+        try { return json ? JSON.parse(json) : [] } catch { return [] }
+    }
 
     // ─── เงื่อนไข trigger topping modal ──────────────────────────
-    // เพิ่มหมวดหมู่ category name / code เพื่อขยายการใช้งาน
+    // เปิด modal ถ้าเมนูนั้นมี toppings ไว้ (ดึงจาก catalog) หรือ category match
     const requiresProteinSelection = (product: Product): boolean => {
-        const catName = (product.category?.name || '').toLowerCase()
-        const catCode = (product.category?.code || '').toLowerCase()
-        const menuName = (product.name || '').toLowerCase()
-
-        // ── ตรวจ category ──
-        const categoryMatch =
-            catName.includes('ข้าวจานเดียว') ||
-            catName.includes('จานเดียว')      ||
-            catName.includes('กะเพรา')        ||
-            catName.includes('ข้าวผัด')       ||
-            catName.includes('ผัดซีอิ๊ว')    ||
-            catName.includes('ผัดกระเพรา')   ||
-            catCode.includes('rice_single')    ||
-            catCode.includes('single_rice')    ||
-            catCode.includes('stir_fry')       ||
-            catCode.includes('fried_rice')     ||
-            catCode.includes('basil')          ||
-            catCode.includes('kaprao')         ||
-            catCode.includes('krapao')
-
-        // ── ตรวจชื่อเมนู (fallback สำหรับเมนูที่ไม่มี category ชัดเจน) ──
-        const nameMatch =
-            menuName.includes('กะเพรา')   ||
-            menuName.includes('กระเพรา') ||
-            menuName.includes('ข้าวผัด') ||
-            menuName.includes('ผัดซีอิ๊ว')
-
-        return categoryMatch || nameMatch
+        const toppings = parseToppings(product.toppingsJson)
+        return toppings.filter(t => t.isActive).length > 0
     }
+
 
     // ─── Add Item to Order ────────────────────────────────────
     const addItem = (product: Product) => {
@@ -460,16 +431,19 @@ export default function POSPage() {
         })
     }
 
-    // เพิ่ม item พร้อม topping + comment ลง order
-    const addItemWithProtein = (product: Product, protein: string, comment: string = '') => {
-        // รวม protein และ comment เข้าด้วยกันถ้ามีทั้งคู่
-        const note = [protein, comment.trim()].filter(Boolean).join(' · ')
+    // เพิ่ม item พร้อม toppings + comment ลง order
+    const addItemWithProtein = (product: Product, selectedToppings: Topping[], comment: string = '') => {
+        const toppingsTotal = selectedToppings.reduce((sum, t) => sum + t.price, 0)
+        const toppingNames = selectedToppings.map(t => t.name).join(', ')
+        const note = [toppingNames, comment.trim()].filter(Boolean).join(' · ')
         setOrderItems(prev => [...prev, {
             productId: product.id,
             product,
             quantity: 1,
-            unitPrice: product.salePrice,
+            unitPrice: product.salePrice + toppingsTotal,
             note: note || undefined,
+            toppingsJson: selectedToppings.length > 0 ? JSON.stringify(selectedToppings) : undefined,
+            toppingsTotal: toppingsTotal > 0 ? toppingsTotal : undefined,
         }])
         setProteinPendingProduct(null)
         setProteinComment('')
@@ -518,6 +492,8 @@ export default function POSPage() {
                                 quantity: i.quantity,
                                 unitPrice: i.unitPrice,
                                 note: i.note,
+                                toppingsJson: i.toppingsJson || undefined,
+                                toppingsTotal: i.toppingsTotal || undefined,
                             })),
                             discount,
                             discountType,
@@ -548,6 +524,8 @@ export default function POSPage() {
                             quantity: i.quantity,
                             unitPrice: i.unitPrice,
                             note: i.note,
+                            toppingsJson: i.toppingsJson || undefined,
+                            toppingsTotal: i.toppingsTotal || undefined,
                         })),
                         skipKitchen,
                     }),
@@ -869,93 +847,118 @@ export default function POSPage() {
             {/* ── New order alert — POS page only ── */}
             <NewOrderAlert />
 
-            {/* ════ PROTEIN / TOPPING MODAL ════ */}
-            {proteinPendingProduct && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '1rem' }}
-                    onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}>
-                    <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', maxHeight: '90vh', overflowY: 'auto' }}
-                        onClick={e => e.stopPropagation()}>
 
-                        {/* Header */}
-                        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                            <div style={{ fontSize: '1.6rem', marginBottom: 6 }}>🍽️</div>
-                            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1A1D26' }}>{proteinPendingProduct.name}</div>
-                            <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: 4 }}>เลือก Topping (เนื้อสัตว์)</div>
+            {/* ════ TOPPING MODAL (Dynamic — catalog-driven) ════ */}
+            {proteinPendingProduct && (() => {
+                const availableToppings = parseToppings(proteinPendingProduct.toppingsJson).filter(t => t.isActive)
+                const hasCatalogToppings = availableToppings.length > 0
+                return (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '1rem' }}
+                        onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}>
+                        <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', maxHeight: '88vh', overflowY: 'auto' }}
+                            onClick={e => e.stopPropagation()}>
+
+                            {/* Header */}
+                            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                                <div style={{ fontSize: '1.6rem', marginBottom: 6 }}>🌶️</div>
+                                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1A1D26' }}>{proteinPendingProduct.name}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700, marginTop: 4 }}>
+                                    {formatLAK(proteinPendingProduct.salePrice)}
+                                </div>
+                            </div>
+
+                            {/* ── Dynamic Topping Picker ────────────────────────────────────────── */}
+                            {/* ใช้ state จาก proteinComment เป็น JSON ชั่วคราวเก็บ selectedIds */}
+                            {(() => {
+                                let selected: string[] = []
+                                try { selected = proteinComment ? JSON.parse(proteinComment) : [] } catch { selected = [] }
+                                const selectedToppings = availableToppings.filter(t => selected.includes(t.id))
+                                const toppingsTotal = selectedToppings.reduce((s, t) => s + t.price, 0)
+
+                                function toggleToppingId(id: string) {
+                                    const next = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]
+                                    setProteinComment(JSON.stringify(next))
+                                }
+
+                                return (
+                                    <div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151', marginBottom: 8 }}>
+                                            🌶️ เลือกท็อปปิ้ดพิเศษ (ราคาจะบวกเพิ่มอัตโนมัติ)
+                                        </div>
+
+                                        {/* Topping checkboxes */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 14 }}>
+                                            {availableToppings.map(t => {
+                                                const isSel = selected.includes(t.id)
+                                                return (
+                                                    <button key={t.id} onClick={() => toggleToppingId(t.id)}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                                                            borderRadius: 14, border: `2px solid ${isSel ? '#F59E0B' : '#E5E7EB'}`,
+                                                            background: isSel ? '#FFFBEB' : '#FAFAFA',
+                                                            cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                                                        }}>
+                                                        <span style={{
+                                                            width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                                                            border: `2px solid ${isSel ? '#F59E0B' : '#D1D5DB'}`,
+                                                            background: isSel ? '#F59E0B' : '#fff',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            fontSize: '0.75rem', color: '#fff', fontWeight: 800,
+                                                        }}>{isSel ? '✓' : ''}</span>
+                                                        <span style={{ flex: 1, fontWeight: 700, fontSize: '0.9rem', color: '#1A1D26', textAlign: 'left' }}>
+                                                            {t.name}
+                                                        </span>
+                                                        <span style={{
+                                                            fontWeight: 800, fontSize: '0.88rem',
+                                                            color: isSel ? '#D97706' : '#9CA3AF',
+                                                        }}>+{formatLAK(t.price)}</span>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+
+                                        {/* Price summary strip */}
+                                        {toppingsTotal > 0 && (
+                                            <div style={{
+                                                background: '#FFF7ED', border: '1.5px solid #FDE68A', borderRadius: 12,
+                                                padding: '8px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            }}>
+                                                <span style={{ fontSize: '0.82rem', color: '#92400E', fontWeight: 600 }}>รวมท็อปปิ้ง</span>
+                                                <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#D97706' }}>+{formatLAK(toppingsTotal)}</span>
+                                            </div>
+                                        )}
+                                        <div style={{
+                                            background: '#F0FDF4', border: '1.5px solid #A7F3D0', borderRadius: 12,
+                                            padding: '8px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        }}>
+                                            <span style={{ fontSize: '0.82rem', color: '#065F46', fontWeight: 600 }}>รวมทั้งสิ้น</span>
+                                            <span style={{ fontWeight: 900, fontSize: '1rem', color: '#059669' }}>{formatLAK(proteinPendingProduct.salePrice + toppingsTotal)}</span>
+                                        </div>
+
+                                        {/* Confirm button */}
+                                        <button
+                                            onClick={() => addItemWithProtein(proteinPendingProduct, selectedToppings)}
+                                            style={{
+                                                width: '100%', padding: '0.75rem', borderRadius: 12, border: 'none',
+                                                background: 'linear-gradient(135deg, #059669, #10B981)',
+                                                color: '#fff', fontWeight: 800, fontSize: '0.95rem',
+                                                cursor: 'pointer', fontFamily: 'inherit', marginBottom: 8,
+                                                boxShadow: '0 4px 14px rgba(5,150,105,0.4)',
+                                            }}>
+                                            ✅ เพิ่มลงออเดอร์ {toppingsTotal > 0 ? `(${formatLAK(proteinPendingProduct.salePrice + toppingsTotal)})` : ''}
+                                        </button>
+                                        <button onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}
+                                            style={{ width: '100%', padding: '0.55rem', borderRadius: 10, border: '1px solid #E5E7EB', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', color: '#9CA3AF', fontSize: '0.82rem', fontWeight: 600 }}>
+                                            ยกเลิก
+                                        </button>
+                                    </div>
+                                )
+                            })()}
                         </div>
-
-                        {/* Protein Grid — 3 columns */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
-                            {PROTEIN_OPTIONS.map(opt => (
-                                <button key={opt.value}
-                                    onClick={() => addItemWithProtein(proteinPendingProduct, opt.value, proteinComment)}
-                                    style={{
-                                        padding: '0.85rem 0.4rem', borderRadius: 14,
-                                        border: `2px solid ${opt.color}`,
-                                        background: opt.color + '22',
-                                        cursor: 'pointer', fontFamily: 'inherit',
-                                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                                        transition: 'transform 0.1s',
-                                    }}
-                                    onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
-                                    onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
-                                >
-                                    <span style={{ fontSize: '1.6rem' }}>{opt.label.split(' ')[0]}</span>
-                                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#1A1D26' }}>
-                                        {opt.label.split(' ').slice(1).join(' ')}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Comment / Note field */}
-                        <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: 5 }}>
-                                💬 หมายเหตุ / Comment (ไม่บังคับ)
-                            </label>
-                            <textarea
-                                value={proteinComment}
-                                onChange={e => setProteinComment(e.target.value)}
-                                placeholder="เช่น ไม่เผ็ด, พิเศษ, เพิ่มผัก..."
-                                rows={2}
-                                style={{
-                                    width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid #E5E7EB',
-                                    borderRadius: 10, fontSize: '0.88rem', fontFamily: 'inherit', resize: 'none',
-                                    outline: 'none', color: '#1A1D26', boxSizing: 'border-box',
-                                    transition: 'border-color 0.2s',
-                                }}
-                                onFocus={e => (e.target.style.borderColor = '#E8364E')}
-                                onBlur={e => (e.target.style.borderColor = '#E5E7EB')}
-                            />
-                        </div>
-
-                        {/* Add without protein (comment only) */}
-                        <button
-                            onClick={() => addItemWithProtein(proteinPendingProduct, '', proteinComment)}
-                            style={{
-                                width: '100%', padding: '0.6rem', borderRadius: 10,
-                                border: '1.5px dashed #D1D5DB', background: '#F9FAFB',
-                                cursor: 'pointer', fontFamily: 'inherit', color: '#6B7280',
-                                fontSize: '0.82rem', fontWeight: 600, marginBottom: 8,
-                            }}
-                        >
-                            ➕ เพิ่มโดยไม่ระบุเนื้อ{proteinComment.trim() ? ` · "${proteinComment.trim()}"` : ''}
-                        </button>
-
-                        {/* Cancel */}
-                        <button
-                            onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}
-                            style={{
-                                width: '100%', padding: '0.55rem', borderRadius: 10,
-                                border: '1px solid #E5E7EB', background: 'transparent',
-                                cursor: 'pointer', fontFamily: 'inherit', color: '#9CA3AF',
-                                fontSize: '0.82rem', fontWeight: 600,
-                            }}
-                        >
-                            ยกเลิก
-                        </button>
                     </div>
-                </div>
-            )}
+                )
+            })()}
+
 
             {/* ════ LEFT PANEL — Table Grid ════ */}
             <div style={{ flex: isMobile ? '0 0 100%' : '0 0 56%', display: isMobile && mobileTab !== 'tables' ? 'none' : 'flex', flexDirection: 'column', borderRight: '1px solid #E5E7EB', background: '#fff', overflow: 'hidden', paddingBottom: isMobile ? 60 : 0 }}>

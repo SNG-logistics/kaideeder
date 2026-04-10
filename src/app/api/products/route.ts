@@ -69,7 +69,9 @@ const productSchema = z.object({
     reorderPoint: z.number().default(0),
     minQty: z.number().default(0),
     note: z.string().optional(),
+    toppingsJson: z.string().nullable().optional(),  // ✅ JSON string: [{id,name,price,isActive}]
 })
+
 
 // GET /api/products — รายการสินค้า
 export const GET = withAuth<any>(async (req: NextRequest, context: any) => {

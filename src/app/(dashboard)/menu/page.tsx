@@ -10,6 +10,7 @@ interface Product {
     costPrice: number; salePrice: number
     productType: string; note?: string; imageUrl?: string
     isFeatured?: boolean
+    toppingsJson?: string | null
     category: { id: string; code: string; name: string; icon: string; color: string }
 }
 interface Category { id: string; code: string; name: string; icon: string; color: string; _count: { products: number } }
@@ -477,6 +478,34 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
     })
     const [saving, setSaving] = useState(false)
     const [skuLoading, setSkuLoading] = useState(false)
+    const [activeModalTab, setActiveModalTab] = useState<'basic' | 'topping'>('basic')
+
+    // ── Topping state ────────────────────────────────────────────────
+    type Topping = { id: string; name: string; price: number; isActive: boolean }
+    const parseToppings = (json?: string | null): Topping[] => {
+        try { return json ? JSON.parse(json) : [] } catch { return [] }
+    }
+    const [toppings, setToppings] = useState<Topping[]>(() => parseToppings(product?.toppingsJson))
+    const [newToppingName, setNewToppingName] = useState('')
+    const [newToppingPrice, setNewToppingPrice] = useState('')
+
+    function addTopping() {
+        const name = newToppingName.trim()
+        const price = parseFloat(newToppingPrice) || 0
+        if (!name) return
+        setToppings(prev => [...prev, { id: Date.now().toString(36), name, price, isActive: true }])
+        setNewToppingName('')
+        setNewToppingPrice('')
+    }
+    function removeTopping(id: string) {
+        setToppings(prev => prev.filter(t => t.id !== id))
+    }
+    function toggleTopping(id: string) {
+        setToppings(prev => prev.map(t => t.id === id ? { ...t, isActive: !t.isActive } : t))
+    }
+    function updateToppingPrice(id: string, price: number) {
+        setToppings(prev => prev.map(t => t.id === id ? { ...t, price } : t))
+    }
 
     // ── Combobox state for category ──────────────────────────────────
     const [catSearch, setCatSearch] = useState(
@@ -576,7 +605,12 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
             const method = (isEdit || form.id) ? 'PATCH' : 'POST'
             const res = await fetch(url, {
                 method, headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...form, costPrice: Number(form.costPrice), salePrice: Number(form.salePrice) }),
+                body: JSON.stringify({
+                    ...form,
+                    costPrice: Number(form.costPrice),
+                    salePrice: Number(form.salePrice),
+                    toppingsJson: toppings.length > 0 ? JSON.stringify(toppings) : null,
+                }),
             })
             const json = await res.json()
             if (json.success) { toast.success(isEdit ? '✅ แก้ไขเรียบร้อย' : '✅ เพิ่มเมนูเรียบร้อย'); onSaved() }
@@ -799,6 +833,91 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
                             className="input" style={{ minHeight: 40 }} />
                     </div>
                 </div>
+
+                {/* ── Topping Tab Toggle ── */}
+                <div style={{ display: 'flex', gap: 4, margin: '14px 0 0', background: '#F3F4F6', borderRadius: 10, padding: 4 }}>
+                    {([{ key: 'basic', label: '⚙️ ข้อมูลเมนู' }, { key: 'topping', label: `🌶️ ท็อปปิ้ง${toppings.length > 0 ? ` (${toppings.length})` : ''}` }] as const).map(t => (
+                        <button key={t.key} onClick={() => setActiveModalTab(t.key)}
+                            style={{
+                                flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', fontFamily: 'inherit',
+                                fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
+                                background: activeModalTab === t.key ? '#fff' : 'transparent',
+                                color: activeModalTab === t.key ? '#D97706' : '#6B7280',
+                                boxShadow: activeModalTab === t.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                                transition: 'all 0.15s',
+                            }}>
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* ── Topping Editor ── */}
+                {activeModalTab === 'topping' && (
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '8px 12px', fontSize: '0.77rem', color: '#92400E' }}>
+                            🌶️ ท็อปปิ้งคือตัวเลือกพิเศษที่มีราคาเพิ่มจากเมนูปกติ เช่น ทะเล ปลาหมึก — พนักงานจะติ๊กให้ลูกค้าที่ POS
+                        </div>
+
+                        {toppings.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {toppings.map(t => (
+                                    <div key={t.id} style={{
+                                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                                        borderRadius: 10, background: t.isActive ? '#FFFBEB' : '#F9FAFB',
+                                        border: `1px solid ${t.isActive ? '#FDE68A' : '#E5E7EB'}`,
+                                    }}>
+                                        <button onClick={() => toggleTopping(t.id)} title={t.isActive ? 'ปิดชั่วคราว' : 'เปิดใช้งาน'}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0, flexShrink: 0 }}>
+                                            {t.isActive ? '🟡' : '⚫'}
+                                        </button>
+                                        <span style={{ flex: 1, fontWeight: 600, fontSize: '0.88rem', color: t.isActive ? '#92400E' : '#9CA3AF' }}>
+                                            {t.name}
+                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>+</span>
+                                            <input type="number" value={t.price}
+                                                onChange={e => updateToppingPrice(t.id, parseFloat(e.target.value) || 0)}
+                                                style={{
+                                                    width: 90, padding: '4px 8px', borderRadius: 6,
+                                                    border: '1px solid #FDE68A', fontFamily: 'inherit',
+                                                    fontSize: '0.85rem', fontWeight: 700, color: '#D97706',
+                                                    background: '#FFFBEB', outline: 'none', textAlign: 'right',
+                                                }} />
+                                            <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>₭</span>
+                                        </div>
+                                        <button onClick={() => removeTopping(t.id)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '1rem', padding: 0, flexShrink: 0 }}>✕</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <input value={newToppingName} onChange={e => setNewToppingName(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addTopping()}
+                                placeholder="ชื่อท็อปปิ้ง เช่น ทะเล"
+                                className="input" style={{ flex: 2, minHeight: 38, fontSize: '0.85rem' }} />
+                            <input type="number" value={newToppingPrice} onChange={e => setNewToppingPrice(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addTopping()}
+                                placeholder="ราคา+"
+                                className="input" style={{ width: 80, minHeight: 38, fontSize: '0.85rem', textAlign: 'right' }} />
+                            <button onClick={addTopping} disabled={!newToppingName.trim()}
+                                style={{
+                                    minHeight: 38, padding: '0 14px', borderRadius: 8, border: 'none',
+                                    background: newToppingName.trim() ? '#F59E0B' : '#E5E7EB',
+                                    color: newToppingName.trim() ? '#fff' : '#9CA3AF',
+                                    fontWeight: 700, fontSize: '0.85rem', cursor: newToppingName.trim() ? 'pointer' : 'default',
+                                    fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+                                }}>+ เพิ่ม</button>
+                        </div>
+
+                        {toppings.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9CA3AF', fontSize: '0.82rem', border: '1.5px dashed #FDE68A', borderRadius: 10 }}>
+                                🌶️ ยังไม่มีท็อปปิ้ง — กรอกชื่อและราคาด้านบนแล้วกด Enter
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
                     {isEdit && (

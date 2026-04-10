@@ -186,6 +186,7 @@ model Product {
   isActive       Boolean         @default(true)
   isFeatured     Boolean         @default(false)
   note           String?
+  toppingsJson   String?         @db.Text  // JSON: [{id,name,price,isActive}]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   imageUrl       String?
@@ -853,6 +854,8 @@ model OrderItem {
   productId         String
   quantity          Float         @default(1)
   unitPrice         Float         @default(0)
+  toppingsJson      String?       @db.Text  // JSON: [{id,name,price}] ท็อปปิ้งที่เลือก
+  toppingsTotal     Float         @default(0)  // ยอดรวมท็อปปิ้ง
   note              String?
   isCancelled       Boolean       @default(false)
   cancelReason      String?

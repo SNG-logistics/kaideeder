@@ -1,0 +1,76 @@
+[Home](https://cometapi.com/)
+[Models](https://cometapi.com/models/)
+[Google](https://cometapi.com/models/google/)
+[Schema](https://apidoc.cometapi.com/gemini-generating-content.md)
+
+## What is Gemini 3 flash
+“Gemini 3 Flash” is the Flas h/fast member of the Gemini-3 family: a lighter, lower-latency, cost-efficient variant of Google’s Gemini-3 models intended for high-throughput, real-time and scale-sensitive applications. A variant of the Gemini API model family that lets developers call a low-latency, cost-optimized Gemini 3 style model over CometAPI's API (same API surface as other Gemini models). It exposes the same multimodal inputs and structured output tools but prioritizes inference speed and throughput.
+
+## Main features :
+- Low latency / high throughput: tuned for fast responses and cost efficiency (Flash design point). 
+- Multimodal input support: text, images, video snippets and audio in many Flash variants (API model entries list supported input types per variant). 
+- Function calling & structured outputs: JSON/structured output enforcement for integration with tools and agents. 
+- Agent/Tooling support: integrates with Google Search grounding, function/tool calling, and agent frameworks in the Gemini ecosystem.
+
+## How Gemini 3 Flash compares to other models
+- Versus Gemini-3 Pro (same family): Flash = speed/cost optimized; Pro = higher reasoning, multimodal fidelity, and Deep Think. Choose Flash for real-time UIs; Pro for accuracy-sensitive tasks. 
+- Versus previous Gemini (2.5 Flash): Gemini-3 family improves reasoning and multimodal performance; Flash design point continues to target price/performance. If you currently use 2.5 Flash, Gemini-3 Fast/Flash is intended to give better quality at similar latency/cost.
+
+## Practical use cases (where Flash wins)
+- Realtime chatbots & voice agents: low latency for conversational UIs and streaming audio applications.
+- Customer support & high-volume summarization: cost-efficient summarization of long transcripts at scale.
+- Edge or embedded inference where response time matters: use flash/lite style variants for tight SLAs.
+- Mass document parsing / ingestion pipelines: Flash for indexing and pre-processing; escalate to Pro for high-value extraction/analysis.
+- Realtime code assistants / IDE plugins: fast code completions with lower billing cost (validate with Pro for complex refactors).
+
+### Step 1: Sign Up for API Key
+Log in to [cometapi.com](http://cometapi.com/). If you are not our user yet, please register first. Sign into your [CometAPI console](https://api.cometapi.com/console/token). Get the access credential API key of the interface. Click “Add Token” at the API token in the personal center, get the token key: sk-xxxxx and submit.
+Step 2: Send Requests to Gemini 3 flash API
+Select the “gemini-3-flash” endpoint to send the API request and set the request body. The request method and request body are obtained from our website API doc. Our website also provides Apifox test for your convenience. Replace <YOUR_API_KEY> with your actual CometAPI key from your account. base url is [Gemini Generating Content](https://apidoc.cometapi.com/gemini-generating-content) and [Chat](https://apidoc.cometapi.com/chat).
+
+```
+gemini-3-flash
+```
+
+Insert your question or request into the content field—this is what the model will respond to . Process the API response to get the generated answer.
+
+### Step 3: Retrieve and Verify Results
+Process the API response to get the generated answer. After processing, the API responds with the task status and output data.
+See also [Gemini 3 Pro Preview API](https://www.cometapi.com/gemini-3-pro-api/)
+
+### How does Gemini 3 Flash deliver Pro-level intelligence at Flash pricing?
+Gemini 3 Flash is Google's most balanced model, offering frontier-level reasoning capabilities at $0.50/$3 per million tokens—approximately 4x cheaper than Gemini 3 Pro while maintaining comparable intelligence for most tasks.
+
+### What thinking levels does Gemini 3 Flash support?
+Gemini 3 Flash supports four thinking levels: minimal (near-zero latency), low, medium, and high—giving developers granular control over the reasoning depth vs. speed tradeoff that Gemini 3 Pro doesn't offer.
+
+### Does Gemini 3 Flash have a free tier in the API?
+Yes, Gemini 3 Flash (gemini-3-flash-preview) has a free tier in the Gemini API, unlike Gemini 3 Pro which currently requires paid usage for API access.
+
+### What are Thought Signatures and why are they required for Gemini 3 Flash?
+Thought Signatures are encrypted representations of the model's internal reasoning that must be circulated back in multi-turn conversations—required even at minimal thinking level for Gemini 3 Flash to maintain reasoning context and enable function calling.
+
+### Can Gemini 3 Flash combine structured outputs with Google Search grounding?
+Yes, Gemini 3 Flash uniquely supports combining structured outputs (JSON schema) with built-in tools like Google Search, URL Context, and Code Execution in the same request—enabling grounded, type-safe responses.
+
+### How does media_resolution affect Gemini 3 Flash performance?
+The media_resolution parameter controls token usage per image/video frame: low (280 tokens), medium (560), high (1120), or ultra_high for images. For video, low and medium are both capped at 70 tokens per frame to optimize context usage.
+
+### What tools does Gemini 3 Flash support?
+Gemini 3 Flash supports Google Search, File Search, Code Execution, URL Context, and standard function calling. However, Google Maps grounding and Computer Use are not yet supported in Gemini 3 models.
+
+## Sample code and API for Gemini 3 Flash
+```
+from google import genai import os # Get your CometAPI key from https://api.cometapi.com/console/token, and paste it here COMETAPI_KEY = os.environ.get("COMETAPI_KEY") or "<YOUR_COMETAPI_KEY>" BASE_URL = "https://api.cometapi.com" client = genai.Client( http_options={"api_version": "v1beta", "base_url": BASE_URL}, api_key=COMETAPI_KEY, ) response = client.models.generate_content( model="gemini-3-flash", contents="Explain how AI works in a few words", ) print(response.text)
+```
+
+
+```
+from google import genai import os # Get your CometAPI key from https://api.cometapi.com/console/token, and paste it here COMETAPI_KEY = os.environ.get("COMETAPI_KEY") or "<YOUR_COMETAPI_KEY>" BASE_URL = "https://api.cometapi.com" client = genai.Client( http_options={"api_version": "v1beta", "base_url": BASE_URL}, api_key=COMETAPI_KEY, ) response = client.models.generate_content( model="gemini-3-flash", contents="Explain how AI works in a few words", ) print(response.text)
+```
+
+## Versions of Gemini 3 Flash
+[Chat](https://apidoc.cometapi.com/chat)
+[Chat](https://apidoc.cometapi.com/chat)
+[Gemini Generating Content](https://apidoc.cometapi.com/gemini-generating-content)
+[Gemini Generating Content](https://apidoc.cometapi.com/gemini-generating-content)

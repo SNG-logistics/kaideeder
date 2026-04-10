@@ -8,6 +8,8 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withAuth(async (_req: NextRequest, ctx) => {
     const tenant = await prisma.tenant.findUnique({
         where: { id: ctx.tenantId },
@@ -19,7 +21,17 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
             logoUrl: true,
         },
     })
-    if (!tenant) return err('Tenant not found', 404)
+    
+    if (!tenant) {
+        return ok({
+            id: ctx.tenantId,
+            code: '',
+            name: 'KAIDEEDER',
+            displayName: 'KAIDEEDER',
+            logoUrl: null,
+        })
+    }
+    
     return ok(tenant)
 })
 
