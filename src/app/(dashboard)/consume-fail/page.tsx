@@ -1,8 +1,124 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recipe Suggestion Panel (inside DetailModal for NO_BOM / BOM_INCOMPLETE)
+// ─────────────────────────────────────────────────────────────────────────────
+interface RecipeSuggestion {
+    menuName: string
+    menuId: string | null
+    posMenuCode: string | null
+    hasRecipe: boolean
+    recipeId: string | null
+    openFailCount: number
+    catalogItems: { id: string; name: string; code: string; baseUnit: string; itemRole: string; hasProduct: boolean; productId: string | null }[]
+}
+
+function RecipeSuggestionPanel({ logId, failReason }: { logId: string; failReason: string }) {
+    const [data, setData] = useState<RecipeSuggestion | null>(null)
+    const [loading, setLoading] = useState(true)
+    const fetchedRef = useRef(false)
+
+    useEffect(() => {
+        if (fetchedRef.current) return
+        fetchedRef.current = true
+        fetch(`/api/consume-fail/recipe-suggestion?logId=${logId}`)
+            .then(r => r.json())
+            .then(j => { if (j.success) setData(j.data) })
+            .catch(() => {})
+            .finally(() => setLoading(false))
+    }, [logId])
+
+    if (loading) return (
+        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '0.85rem 1rem', fontSize: '0.8rem', color: '#92400E' }}>
+            ⏳ กำลังวิเคราะห์...
+        </div>
+    )
+    if (!data) return null
+
+    // Build deep-link to recipes page with pre-filled menu name
+    const recipesUrl = data.hasRecipe && data.recipeId
+        ? `/recipes?edit=${data.recipeId}`
+        : `/recipes?new=1&menuName=${encodeURIComponent(data.menuName)}${
+            data.posMenuCode ? `&posMenuCode=${encodeURIComponent(data.posMenuCode)}` : ''
+        }`
+
+    const ROLE_COLORS: Record<string, string> = {
+        RAW: '#10B981', PREP: '#8B5CF6', SUPPLY: '#F59E0B',
+    }
+
+    return (
+        <div style={{ border: '1.5px solid #FDE68A', borderRadius: 12, overflow: 'hidden' }}>
+            {/* Banner */}
+            <div style={{ background: data.hasRecipe ? '#ECFDF5' : '#FFFBEB', padding: '0.75rem 1rem', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>{data.hasRecipe ? '🔧' : '📋'}</span>
+                <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: data.hasRecipe ? '#059669' : '#D97706', marginBottom: 2 }}>
+                        {data.hasRecipe ? `พบสูตรอาหาร "${data.menuName}" — ต้องอัปเดต!` : `ยังไม่มีสูตร "${data.menuName}"`}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {data.openFailCount > 1
+                            ? `⚠️ เมนูนี้ล้มเหลว ${data.openFailCount} ครั้งแล้วในสัปดาห์นี้`
+                            : 'ล้มเหลวครั้งแรก — สร้างสูตรเพื่อป้องกันปัญหาซ้ำ'
+                        }
+                    </div>
+                </div>
+                {data.openFailCount > 1 && (
+                    <span style={{ background: '#DC2626', color: '#fff', borderRadius: 20, padding: '2px 10px', fontSize: '0.7rem', fontWeight: 800, flexShrink: 0 }}>
+                        ×{data.openFailCount}
+                    </span>
+                )}
+            </div>
+
+            {/* CTA Button */}
+            <div style={{ padding: '0.65rem 1rem', borderTop: '1px solid #FDE68A', background: 'rgba(255,251,235,0.5)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Link
+                    href={recipesUrl}
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '0.5rem 1rem', borderRadius: 8,
+                        background: data.hasRecipe ? 'linear-gradient(135deg,#059669,#10B981)' : 'linear-gradient(135deg,#D97706,#F59E0B)',
+                        color: '#fff', fontWeight: 700, fontSize: '0.82rem',
+                        textDecoration: 'none', flexShrink: 0,
+                    }}
+                >
+                    {data.hasRecipe ? '✏️ แก้ไขสูตรที่มีอยู่ →' : '📋 สร้างสูตรอาหารเลย →'}
+                </Link>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    {data.hasRecipe ? 'ระบบพบสูตรแต่อาจไม่ครบ' : `จะเปิดหน้าสูตรพร้อม pre-fill "${data.menuName}"`}
+                </span>
+            </div>
+
+            {/* Catalog suggestions */}
+            {!data.hasRecipe && data.catalogItems.length > 0 && (
+                <div style={{ padding: '0.65rem 1rem', borderTop: '1px solid #FDE68A' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#92400E', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        🧺 วัตถุดิบใน Catalog ที่อาจใช้ในสูตรนี้
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {data.catalogItems.slice(0, 12).map(item => (
+                            <span key={item.id} style={{
+                                fontSize: '0.68rem', padding: '2px 8px', borderRadius: 20,
+                                background: `${ROLE_COLORS[item.itemRole] || '#6B7280'}15`,
+                                color: ROLE_COLORS[item.itemRole] || '#6B7280',
+                                border: `1px solid ${ROLE_COLORS[item.itemRole] || '#6B7280'}30`,
+                                fontWeight: 600,
+                            }}>
+                                {item.name} ({item.baseUnit})
+                            </span>
+                        ))}
+                        {data.catalogItems.length > 12 && (
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', padding: '2px 6px' }}>+{data.catalogItems.length - 12} รายการ</span>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -153,7 +269,7 @@ function DetailModal({ log, onClose, onResolve }: {
                             บิลเลขที่ <strong style={{ fontFamily: 'monospace' }}>#{log.orderNumber || log.orderId.slice(-6)}</strong>
                         </div>
                     </div>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>✕</button>
+                    <button onClick={onClose} className="btn-close">✕</button>
                 </div>
 
                 {/* Body */}
@@ -186,8 +302,13 @@ function DetailModal({ log, onClose, onResolve }: {
                         <div style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.6 }}>{cfg.fix}</div>
                     </div>
 
-                    {/* ปุ่มไปแก้ */}
-                    {cfg.actionHref && (
+                    {/* 🧪 Recipe Suggestion Panel — for NO_BOM / BOM_INCOMPLETE */}
+                    {(log.failReason === 'NO_BOM' || log.failReason === 'BOM_INCOMPLETE') && (
+                        <RecipeSuggestionPanel logId={log.id} failReason={log.failReason} />
+                    )}
+
+                    {/* ปุ่มไปแก้ — for other fail reasons only */}
+                    {cfg.actionHref && log.failReason !== 'NO_BOM' && log.failReason !== 'BOM_INCOMPLETE' && (
                         <Link href={cfg.actionHref} onClick={onClose} style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '0.65rem 1rem', borderRadius: 10,
@@ -211,13 +332,11 @@ function DetailModal({ log, onClose, onResolve }: {
                 </div>
 
                 {/* Footer */}
-                <div style={{ padding: '0.9rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-                    <button onClick={() => handle('IGNORED')} disabled={saving}
-                        style={{ flex: 1, padding: '0.6rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.82rem' }}>
+                <div className="modal-footer">
+                    <button onClick={() => handle('IGNORED')} disabled={saving} className="btn btn-secondary" style={{ flex: 1 }}>
                         ⏭️ ข้ามไปก่อน
                     </button>
-                    <button onClick={() => handle('RESOLVED')} disabled={saving}
-                        style={{ flex: 2, padding: '0.6rem', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#059669,#10B981)', color: '#fff', fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', opacity: saving ? 0.7 : 1 }}>
+                    <button onClick={() => handle('RESOLVED')} disabled={saving} className="btn btn-ai-green" style={{ flex: 2 }}>
                         {saving ? '⏳ กำลังบันทึก...' : '✅ แก้ไขเรียบร้อยแล้ว'}
                     </button>
                 </div>
@@ -357,16 +476,12 @@ export default function ConsumeFailPage() {
             )}
 
             {/* Status tabs */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="filter-bar" style={{ marginBottom: 16 }}>
                 {STATUS_TABS.map(t => (
-                    <button key={t.key} onClick={() => { setStatusTab(t.key); setPage(1); setFilterReason('ALL') }}
-                        style={{
-                            padding: '0.4rem 0.9rem', borderRadius: 20, fontFamily: 'inherit',
-                            fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', border: 'none',
-                            background: statusTab === t.key ? t.color : 'var(--bg)',
-                            color: statusTab === t.key ? '#fff' : 'var(--text)',
-                            transition: 'all 0.15s',
-                        }}>
+                    <button key={t.key}
+                        onClick={() => { setStatusTab(t.key); setPage(1); setFilterReason('ALL') }}
+                        className={`btn-tab ${statusTab === t.key ? 'active' : ''}`}
+                        style={statusTab === t.key ? { background: t.color } : {}}>
                         {t.icon} {t.label}
                     </button>
                 ))}
@@ -377,24 +492,15 @@ export default function ConsumeFailPage() {
 
             {/* Bulk actions */}
             {statusTab === 'OPEN' && selectedIds.size > 0 && (
-                <div style={{
-                    display: 'flex', gap: 8, alignItems: 'center',
-                    padding: '0.65rem 1rem', borderRadius: 12, marginBottom: 12,
-                    background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.2)',
-                }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#2563EB' }}>
-                        เลือก {selectedIds.size} รายการ
-                    </span>
-                    <button onClick={() => handleBulk('RESOLVED')} disabled={bulkSaving}
-                        style={{ padding: '0.35rem 0.85rem', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#059669,#10B981)', color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                <div className="info-banner info-banner--blue" style={{ marginBottom: 12 }}>
+                    <span style={{ fontWeight: 700, color: '#2563EB' }}>เลือก {selectedIds.size} รายการ</span>
+                    <button onClick={() => handleBulk('RESOLVED')} disabled={bulkSaving} className="btn btn-ai-green btn-sm">
                         ✅ แก้ไขทั้งหมดแล้ว
                     </button>
-                    <button onClick={() => handleBulk('IGNORED')} disabled={bulkSaving}
-                        style={{ padding: '0.35rem 0.85rem', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--white)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <button onClick={() => handleBulk('IGNORED')} disabled={bulkSaving} className="btn btn-secondary btn-sm">
                         ⏭️ ข้ามไปก่อน
                     </button>
-                    <button onClick={() => setSelectedIds(new Set())}
-                        style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                    <button onClick={() => setSelectedIds(new Set())} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
                         ยกเลิก
                     </button>
                 </div>
@@ -403,17 +509,17 @@ export default function ConsumeFailPage() {
             {/* Table */}
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 {loading ? (
-                    <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                        <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-                        กำลังโหลด...
+                    <div className="empty-state">
+                        <div className="spinner" />
+                        <div className="empty-state__desc">กำลังโหลด...</div>
                     </div>
                 ) : filteredItems.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-                        <div style={{ fontSize: '3rem', marginBottom: 12 }}>{statusTab === 'OPEN' ? '🎉' : '📋'}</div>
-                        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 6 }}>
+                    <div className="empty-state">
+                        <div className="empty-state__icon">{statusTab === 'OPEN' ? '🎉' : '📋'}</div>
+                        <div className="empty-state__title">
                             {statusTab === 'OPEN' ? 'ไม่มีปัญหาค้างอยู่ เยี่ยมมาก!' : 'ไม่มีรายการ'}
                         </div>
-                        <div style={{ fontSize: '0.82rem' }}>
+                        <div className="empty-state__desc">
                             {statusTab === 'OPEN' ? 'ระบบตัดสต็อคให้อัตโนมัติทุกรายการปกติดี ✅' : 'ยังไม่มีรายการในหมวดนี้'}
                         </div>
                     </div>
@@ -496,11 +602,27 @@ export default function ConsumeFailPage() {
                                             </td>
                                             {/* จัดการ */}
                                             <td style={{ padding: '0.6rem 0.85rem' }}>
-                                                <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
+                                                <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', alignItems: 'center' }}>
                                                     <button onClick={() => setSelected(log)}
                                                         style={{ padding: '0.3rem 0.75rem', borderRadius: 8, border: `1px solid ${cfg.color}40`, background: cfg.bg, color: cfg.color, fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                                                         {cfg.btnIcon} ดูรายละเอียด
                                                     </button>
+                                                    {/* Quick-fix: NO_BOM → direct link to create recipe */}
+                                                    {statusTab === 'OPEN' && log.failReason === 'NO_BOM' && log.menuName && (
+                                                        <Link
+                                                            href={`/recipes?new=1&menuName=${encodeURIComponent(log.menuName)}`}
+                                                            style={{
+                                                                padding: '0.3rem 0.75rem', borderRadius: 8,
+                                                                border: '1px solid #FDE68A',
+                                                                background: '#FFFBEB', color: '#D97706',
+                                                                fontWeight: 700, fontSize: '0.72rem',
+                                                                textDecoration: 'none', whiteSpace: 'nowrap',
+                                                                display: 'inline-flex', alignItems: 'center', gap: 3,
+                                                            }}
+                                                        >
+                                                            📋 สร้างสูตร
+                                                        </Link>
+                                                    )}
                                                     {statusTab === 'OPEN' && (
                                                         <button onClick={() => handleResolve([log.id], 'RESOLVED')}
                                                             style={{ padding: '0.3rem 0.65rem', borderRadius: 8, border: 'none', background: 'rgba(5,150,105,0.1)', color: '#059669', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>

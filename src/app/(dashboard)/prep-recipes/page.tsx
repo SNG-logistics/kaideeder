@@ -1,6 +1,7 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useCurrency } from '@/context/TenantContext'
+import toast from 'react-hot-toast'
 
 // ─── Types ─────────────────────────────────────────────────────
 type Product = { id: string; name: string; sku: string; unit: string }
@@ -17,85 +18,240 @@ type PrepRecipe = {
     currentStock: StockEntry[]
 }
 
+// ─── Catalog Item shape (from /api/items/search-for-bom) ────────
+interface CatalogItem {
+    inventoryItemId: string; code: string; name: string
+    itemRole: string; baseUnit: string; purchaseUnit: string
+    hasProduct: boolean; productId: string | null; productSku: string | null
+}
+
+const ROLE_COLORS: Record<string, string> = {
+    RAW: '#10B981', PREP: '#8B5CF6', SUPPLY: '#F59E0B', SERVICE: '#6B7280',
+}
+
+// ─── Catalog Combobox ────────────────────────────────────────────
+// Generic combobox that searches Catalog and auto-provisions product
+function CatalogCombobox({
+    value, onChange, placeholder, roleFilter, style, disabled,
+}: {
+    value: { productId: string; productName: string; unit: string } | null
+    onChange: (v: { productId: string; productName: string; unit: string } | null) => void
+    placeholder?: string
+    roleFilter?: string[]   // ['RAW','PREP'] etc.
+    style?: React.CSSProperties
+    disabled?: boolean
+}) {
+    const [q, setQ] = useState('')
+    const [results, setResults] = useState<CatalogItem[]>([])
+    const [open, setOpen] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [provisioning, setProvisioning] = useState(false)
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
+
+    function doSearch(query: string) {
+        setLoading(true)
+        fetch(`/api/items/search-for-bom?q=${encodeURIComponent(query)}&limit=30`)
+            .then(r => r.json())
+            .then(j => {
+                if (j.success) {
+                    const items: CatalogItem[] = j.data
+                    setResults(roleFilter ? items.filter(i => roleFilter.includes(i.itemRole)) : items)
+                }
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false))
+    }
+
+    function handleQ(val: string) {
+        setQ(val)
+        setOpen(true)
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => doSearch(val), 230)
+    }
+
+    // Open → load results
+    function handleFocus() {
+        setOpen(true)
+        if (results.length === 0) doSearch(q)
+    }
+
+    // Click outside closes
+    useEffect(() => {
+        function handler(e: MouseEvent) {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    async function selectItem(item: CatalogItem) {
+        setOpen(false)
+        setQ(item.name)
+        if (item.hasProduct && item.productId) {
+            onChange({ productId: item.productId, productName: item.name, unit: item.baseUnit })
+            return
+        }
+        // Auto-provision
+        setProvisioning(true)
+        try {
+            const res = await fetch('/api/items/provision-product', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inventoryItemId: item.inventoryItemId }),
+            })
+            const j = await res.json()
+            if (j.success) {
+                onChange({ productId: j.data.id, productName: j.data.name, unit: j.data.unit })
+            }
+        } catch { /* silent */ }
+        finally { setProvisioning(false) }
+    }
+
+    function clear() {
+        setQ('')
+        onChange(null)
+        setOpen(false)
+    }
+
+    const displayVal = value ? value.productName : q
+
+    return (
+        <div ref={containerRef} style={{ position: 'relative', ...style }}>
+            <div style={{ position: 'relative' }}>
+                <input
+                    type="text"
+                    className="input"
+                    placeholder={placeholder || '🧺 ค้นหาจาก Catalog...'}
+                    value={provisioning ? '⏳ กำลังสร้าง product...' : displayVal}
+                    onChange={e => { handleQ(e.target.value); if (value) onChange(null) }}
+                    onFocus={handleFocus}
+                    disabled={disabled || provisioning}
+                    style={{
+                        fontSize: '0.82rem', paddingRight: value ? 28 : undefined,
+                        border: value ? '1.5px solid #059669' : undefined,
+                        background: value ? 'rgba(5,150,105,0.03)' : undefined,
+                    }}
+                    autoComplete="off"
+                />
+                {value && (
+                    <button
+                        type="button"
+                        onClick={clear}
+                        style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '0.9rem', padding: 2 }}
+                    >✕</button>
+                )}
+            </div>
+
+            {open && (
+                <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 500,
+                    background: 'var(--white)', border: '1.5px solid #059669',
+                    borderRadius: '0 0 10px 10px', boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                    maxHeight: 280, overflowY: 'auto',
+                }}>
+                    {loading ? (
+                        <div style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>⏳ กำลังค้นหา...</div>
+                    ) : results.length === 0 ? (
+                        <div style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>ไม่พบรายการ</div>
+                    ) : results.map(item => (
+                        <div
+                            key={item.inventoryItemId}
+                            onMouseDown={() => selectItem(item)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.85rem', cursor: 'pointer', borderBottom: '1px solid var(--border-light)' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                            onMouseLeave={e => (e.currentTarget.style.background = '')}
+                        >
+                            <span style={{
+                                fontSize: '0.55rem', fontWeight: 800, padding: '1px 5px', borderRadius: 4,
+                                background: `${ROLE_COLORS[item.itemRole] || '#6B7280'}18`,
+                                color: ROLE_COLORS[item.itemRole] || '#6B7280', flexShrink: 0,
+                            }}>{item.itemRole}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'flex', gap: 6 }}>
+                                    <span style={{ fontFamily: 'monospace' }}>{item.baseUnit}</span>
+                                    {item.hasProduct
+                                        ? <span style={{ color: '#059669' }}>✅ พร้อมใช้</span>
+                                        : <span style={{ color: '#D97706' }}>⚡ สร้างอัตโนมัติ</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 const EMPTY_LINE: RecipeLine = { productId: '', quantity: 1, unit: 'กรัม' }
 
 // ─── Main Page ──────────────────────────────────────────────────
 export default function PrepRecipesPage() {
     const { fmt } = useCurrency()
     const [recipes, setRecipes] = useState<PrepRecipe[]>([])
-    const [products, setProducts] = useState<Product[]>([])
     const [locations, setLocations] = useState<Location[]>([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [editRecipe, setEditRecipe] = useState<PrepRecipe | null>(null)
     const [produceModal, setProduceModal] = useState<PrepRecipe | null>(null)
     const [expandedId, setExpandedId] = useState<string | null>(null)
-    const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' | 'warn' } | null>(null)
 
     const fetchAll = useCallback(async () => {
         setLoading(true)
         try {
-            const [rRes, pRes, lRes] = await Promise.all([
+            const [rRes, lRes] = await Promise.all([
                 fetch('/api/prep-recipes'),
-                fetch('/api/products'),
                 fetch('/api/locations'),
             ])
-            const [rJ, pJ, lJ] = await Promise.all([rRes.json(), pRes.json(), lRes.json()])
+            const [rJ, lJ] = await Promise.all([rRes.json(), lRes.json()])
             if (rJ.success) setRecipes(rJ.data)
-            if (pJ.success) setProducts(Array.isArray(pJ.data) ? pJ.data : (pJ.data.products ?? []))
             if (lJ.success) setLocations(lJ.data)
-        } catch { showToast('โหลดข้อมูลไม่ได้', 'err') }
+        } catch { toast.error('โหลดข้อมูลไม่ได้') }
         finally { setLoading(false) }
     }, [])
 
     useEffect(() => { fetchAll() }, [fetchAll])
 
-    function showToast(msg: string, type: 'ok' | 'err' | 'warn') {
-        setToast({ msg, type })
-        setTimeout(() => setToast(null), 5000)
-    }
-
     async function deleteRecipe(r: PrepRecipe) {
         if (!confirm(`ลบสูตร "${r.name}" ใช่ไหม?`)) return
         const res = await fetch(`/api/prep-recipes/${r.id}`, { method: 'DELETE' })
         const j = await res.json()
-        if (j.success) { showToast('ลบสูตรแล้ว', 'ok'); fetchAll() }
-        else showToast(j.error, 'err')
+        if (j.success) { toast.success('ลบสูตรแล้ว'); fetchAll() }
+        else toast.error(j.error)
     }
+
+    const showToast = (m: string, t: 'ok' | 'err' | 'warn') =>
+        t === 'ok' ? toast.success(m) : t === 'warn' ? toast(m, { icon: '⚠️' }) : toast.error(m)
 
     return (
         <div className="page-container">
-
-            {/* Toast */}
-            {toast && (
-                <div style={{
-                    position: 'fixed', top: 16, right: 16, zIndex: 9999,
-                    background: toast.type === 'ok' ? '#ECFDF5' : toast.type === 'warn' ? '#FFFBEB' : '#FEF2F2',
-                    border: `1px solid ${toast.type === 'ok' ? '#A7F3D0' : toast.type === 'warn' ? '#FDE68A' : '#FECACA'}`,
-                    color: toast.type === 'ok' ? '#059669' : toast.type === 'warn' ? '#D97706' : '#DC2626',
-                    borderRadius: 12, padding: '12px 20px', fontWeight: 500, fontSize: '0.85rem',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)', maxWidth: 420, whiteSpace: 'pre-line',
-                }}>
-                    {toast.type === 'ok' ? '✅' : toast.type === 'warn' ? '⚠️' : '❌'} {toast.msg}
-                </div>
-            )}
-
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, borderBottom: '2px solid var(--border)', paddingBottom: 16 }}>
+            <div className="page-header">
                 <div>
                     <h1 className="page-title">🧪 สูตรแปรรูป</h1>
-                    <p className="page-subtitle">Prep Recipe — วัตถุดิบดิบ → สินค้ากึ่งสำเร็จ (PREP)</p>
+                    <p className="page-subtitle">Prep Recipe — วัตถุดิบ → สินค้ากึ่งสำเร็จ (PREP) · ค้นหาจาก Catalog อัตโนมัติ</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => { setEditRecipe(null); setShowForm(true) }}>
-                    + สร้างสูตรใหม่
-                </button>
+                <div className="page-actions">
+                    <button className="btn btn-primary" onClick={() => { setEditRecipe(null); setShowForm(true) }}>
+                        + สร้างสูตรใหม่
+                    </button>
+                </div>
+            </div>
+
+            {/* Catalog Bridge Banner */}
+            <div className="info-banner info-banner--purple">
+                <span style={{ fontSize: '1.1rem' }}>🧺</span>
+                <div><strong>Catalog Bridge:</strong> ค้นหาวัตถุดิบและสินค้า PREP จาก Catalog ได้โดยตรง — ถ้ายังไม่มี Product ระบบจะสร้างให้อัตโนมัติ</div>
             </div>
 
             {/* Form Modal */}
             {showForm && (
                 <RecipeFormModal
                     recipe={editRecipe}
-                    products={products}
                     onClose={() => setShowForm(false)}
                     onSaved={() => { setShowForm(false); fetchAll() }}
                     showToast={showToast}
@@ -115,11 +271,15 @@ export default function PrepRecipesPage() {
 
             {/* Recipe List */}
             {loading ? (
-                <div style={{ textAlign: 'center', paddingTop: 64, color: 'var(--text-secondary)' }}>โหลด...</div>
+                <div className="empty-state">
+                    <div className="spinner" />
+                    <div className="empty-state__desc">กำลังโหลด...</div>
+                </div>
             ) : recipes.length === 0 ? (
-                <div style={{ textAlign: 'center', paddingTop: 64, color: 'var(--text-secondary)' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: 12 }}>🧪</div>
-                    <p>ยังไม่มีสูตรแปรรูป — กด <b>+ สร้างสูตรใหม่</b> ได้เลย</p>
+                <div className="empty-state">
+                    <div className="empty-state__icon">🧪</div>
+                    <div className="empty-state__title">ยังไม่มีสูตรแปรรูป</div>
+                    <div className="empty-state__desc">กด <strong>+ สร้างสูตรใหม่</strong> ได้เลย</div>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -136,11 +296,9 @@ export default function PrepRecipesPage() {
                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>→ {r.outputProduct.name}</span>
                                         <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{r.lines.length} วัตถุดิบ</span>
                                     </div>
-                                    {/* Ingredient preview */}
                                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 3 }}>
                                         {r.lines.map(l => l.product?.name || '').filter(Boolean).join(' + ')}
                                     </p>
-                                    {/* Stock badges */}
                                     {r.currentStock.length > 0 && (
                                         <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
                                             {r.currentStock.map((s, i) => (
@@ -152,16 +310,10 @@ export default function PrepRecipesPage() {
                                     )}
                                 </div>
                                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                                    <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 14px' }}
-                                        onClick={() => setProduceModal(r)}>
-                                        + บันทึกการผลิต
-                                    </button>
-                                    <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-                                        onClick={() => { setEditRecipe(r); setShowForm(true) }}>✏️</button>
-                                    <button className="btn" style={{ fontSize: '0.75rem', padding: '6px 12px', background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}
-                                        onClick={() => deleteRecipe(r)}>🗑️</button>
-                                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.8rem' }}
-                                        onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                                    <button className="btn btn-primary btn-sm" onClick={() => setProduceModal(r)}>+ บันทึกการผลิต</button>
+                                    <button className="btn btn-secondary btn-icon" onClick={() => { setEditRecipe(r); setShowForm(true) }}>✏️</button>
+                                    <button className="btn btn-danger btn-icon" onClick={() => deleteRecipe(r)}>🗑️</button>
+                                    <button className="btn btn-ghost btn-icon" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
                                         {expandedId === r.id ? '▲' : '▼'}
                                     </button>
                                 </div>
@@ -170,7 +322,6 @@ export default function PrepRecipesPage() {
                             {/* ── Expanded Detail ── */}
                             {expandedId === r.id && (
                                 <div style={{ borderTop: '1px solid var(--border)', padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                                    {/* Ingredients table */}
                                     <div>
                                         <h4 style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.88rem' }}>🧂 ส่วนผสม (ต่อ {r.yieldQty} {r.yieldUnit})</h4>
                                         <table style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
@@ -193,8 +344,6 @@ export default function PrepRecipesPage() {
                                         </table>
                                         {r.note && <p style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>📝 {r.note}</p>}
                                     </div>
-
-                                    {/* Production history */}
                                     <div>
                                         <h4 style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.88rem' }}>📋 ประวัติการผลิต</h4>
                                         {r.productions.length === 0 ? (
@@ -202,7 +351,7 @@ export default function PrepRecipesPage() {
                                         ) : (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                                 {r.productions.map(p => (
-                                                    <div key={p.id} style={{ display: 'flex', gap: 10, fontSize: '0.75rem', padding: '5px 10px', background: 'var(--surface)', borderRadius: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                                    <div key={p.id} style={{ display: 'flex', gap: 10, fontSize: '0.75rem', padding: '5px 10px', background: 'var(--bg)', borderRadius: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                                                         <span style={{ color: 'var(--text-secondary)', minWidth: 90 }}>
                                                             {new Date(p.producedAt).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                                         </span>
@@ -224,35 +373,82 @@ export default function PrepRecipesPage() {
     )
 }
 
-// ─── Recipe Form Modal ───────────────────────────────────────────
-function RecipeFormModal({ recipe, products, onClose, onSaved, showToast }: {
-    recipe: PrepRecipe | null; products: Product[]
+// ─── Recipe Form Modal (Catalog-powered) ────────────────────────
+function RecipeFormModal({ recipe, onClose, onSaved, showToast }: {
+    recipe: PrepRecipe | null
     onClose: () => void; onSaved: () => void
     showToast: (m: string, t: 'ok' | 'err' | 'warn') => void
 }) {
     const [name, setName] = useState(recipe?.name || '')
-    const [outputProductId, setOutputProductId] = useState(recipe?.outputProduct.id || '')
     const [yieldQty, setYieldQty] = useState(recipe?.yieldQty || 1)
     const [yieldUnit, setYieldUnit] = useState(recipe?.yieldUnit || 'กรัม')
     const [note, setNote] = useState(recipe?.note || '')
-    const [lines, setLines] = useState<RecipeLine[]>(
-        recipe?.lines.map(l => ({ productId: l.productId || l.product?.id || '', quantity: l.quantity, unit: l.unit }))
-        || [{ ...EMPTY_LINE }]
-    )
     const [saving, setSaving] = useState(false)
 
-    function addLine() { setLines(p => [...p, { ...EMPTY_LINE }]) }
+    // Output Product — backed by CatalogCombobox
+    const [outputVal, setOutputVal] = useState<{ productId: string; productName: string; unit: string } | null>(
+        recipe ? { productId: recipe.outputProduct.id, productName: recipe.outputProduct.name, unit: recipe.outputProduct.unit } : null
+    )
+
+    // Ingredient lines — each line has a catalog-resolved productId
+    type LineState = {
+        productId: string
+        productName: string
+        unit: string
+        quantity: number
+        catalogVal: { productId: string; productName: string; unit: string } | null
+    }
+
+    const initLines = (): LineState[] => {
+        if (recipe && recipe.lines.length > 0) {
+            return recipe.lines.map(l => ({
+                productId: l.productId || l.product?.id || '',
+                productName: l.product?.name || '',
+                unit: l.unit,
+                quantity: l.quantity,
+                catalogVal: l.product ? { productId: l.productId || l.product.id, productName: l.product.name, unit: l.unit } : null,
+            }))
+        }
+        return [{ productId: '', productName: '', unit: 'กรัม', quantity: 1, catalogVal: null }]
+    }
+
+    const [lines, setLines] = useState<LineState[]>(initLines)
+
+    function addLine() {
+        setLines(p => [...p, { productId: '', productName: '', unit: 'กรัม', quantity: 1, catalogVal: null }])
+    }
     function removeLine(i: number) { setLines(p => p.filter((_, idx) => idx !== i)) }
-    function updateLine(i: number, field: keyof RecipeLine, val: any) {
-        setLines(p => p.map((l, idx) => idx === i ? { ...l, [field]: val } : l))
+    function updateLineQty(i: number, qty: number) {
+        setLines(p => p.map((l, idx) => idx === i ? { ...l, quantity: qty } : l))
+    }
+    function updateLineUnit(i: number, unit: string) {
+        setLines(p => p.map((l, idx) => idx === i ? { ...l, unit } : l))
+    }
+    function updateLineCatalog(i: number, val: { productId: string; productName: string; unit: string } | null) {
+        setLines(p => p.map((l, idx) => idx === i ? {
+            ...l,
+            catalogVal: val,
+            productId: val?.productId ?? '',
+            productName: val?.productName ?? '',
+            unit: val?.unit ?? l.unit,
+        } : l))
     }
 
     async function save() {
-        if (!name || !outputProductId || lines.length === 0) { showToast('กรอกข้อมูลให้ครบ', 'err'); return }
-        if (lines.some(l => !l.productId || l.quantity <= 0)) { showToast('ส่วนผสมไม่ครบ', 'err'); return }
+        if (!name.trim()) { showToast('กรุณาระบุชื่อสูตร', 'err'); return }
+        if (!outputVal?.productId) { showToast('กรุณาเลือกสินค้าผลผลิต', 'err'); return }
+        if (lines.some(l => !l.productId || l.quantity <= 0)) { showToast('ส่วนผสมยังไม่ครบ กรุณาเลือกวัตถุดิบทุกรายการ', 'err'); return }
+
         setSaving(true)
         try {
-            const payload = { name, outputProductId, yieldQty, yieldUnit, note: note || undefined, lines }
+            const payload = {
+                name: name.trim(),
+                outputProductId: outputVal.productId,
+                yieldQty,
+                yieldUnit,
+                note: note || undefined,
+                lines: lines.map(l => ({ productId: l.productId, quantity: l.quantity, unit: l.unit })),
+            }
             const url = recipe ? `/api/prep-recipes/${recipe.id}` : '/api/prep-recipes'
             const method = recipe ? 'PATCH' : 'POST'
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -263,9 +459,6 @@ function RecipeFormModal({ recipe, products, onClose, onSaved, showToast }: {
         finally { setSaving(false) }
     }
 
-    // Filter PREP products for output
-    const prepProducts = products.filter(p => (p as any).productType === 'PREP' || true) // show all, server validates
-
     return (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <div style={{ background: 'var(--card)', borderRadius: 18, padding: '1.5rem', width: '100%', maxWidth: 700, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.35)' }}>
@@ -274,18 +467,35 @@ function RecipeFormModal({ recipe, products, onClose, onSaved, showToast }: {
                     <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}>✕</button>
                 </div>
 
+                {/* Catalog badge */}
+                <div style={{ background: 'rgba(139,92,246,0.07)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: '6px 12px', marginBottom: 16, fontSize: '0.72rem', color: '#7C3AED', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🧺 <strong>Catalog Bridge</strong> — ค้นหาวัตถุดิบและสินค้า PREP จาก Catalog ได้โดยตรง Product จะถูกสร้างอัตโนมัติถ้ายังไม่มี
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                     <div style={{ gridColumn: '1 / -1' }}>
                         <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>ชื่อสูตร *</label>
                         <input value={name} onChange={e => setName(e.target.value)} className="input" placeholder="เช่น น้ำซุปหมู, หมูหมัก, ซอสพริก" />
                     </div>
-                    <div>
-                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>สินค้าผลผลิต (PREP) *</label>
-                        <select value={outputProductId} onChange={e => setOutputProductId(e.target.value)} className="input">
-                            <option value="">-- เลือกสินค้า --</option>
-                            {prepProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
-                        </select>
+
+                    {/* Output Product via Catalog */}
+                    <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                            🧺 สินค้าผลผลิต (PREP) * — ค้นหาจาก Catalog
+                        </label>
+                        <CatalogCombobox
+                            value={outputVal}
+                            onChange={v => { setOutputVal(v); if (v && !yieldUnit) setYieldUnit(v.unit) }}
+                            placeholder="🔍 ค้นหาสินค้า PREP จาก Catalog..."
+                            roleFilter={['PREP']}
+                        />
+                        {outputVal && (
+                            <div style={{ fontSize: '0.68rem', color: '#059669', marginTop: 3 }}>
+                                ✅ Product ID: <code style={{ fontFamily: 'monospace' }}>{outputVal.productId.slice(-8)}</code> · หน่วย: {outputVal.unit}
+                            </div>
+                        )}
                     </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 8 }}>
                         <div>
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Yield qty *</label>
@@ -296,31 +506,44 @@ function RecipeFormModal({ recipe, products, onClose, onSaved, showToast }: {
                             <input value={yieldUnit} onChange={e => setYieldUnit(e.target.value)} className="input" placeholder="ลิตร, กก., ชิ้น" />
                         </div>
                     </div>
-                    <div style={{ gridColumn: '1 / -1' }}>
+                    <div>
                         <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>หมายเหตุ</label>
                         <textarea value={note} onChange={e => setNote(e.target.value)} className="input" rows={2} placeholder="วิธีทำ, ข้อควรระวัง..." style={{ resize: 'vertical' }} />
                     </div>
                 </div>
 
-                {/* Lines */}
+                {/* Ingredient Lines */}
                 <div style={{ borderTop: '2px solid var(--border)', paddingTop: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                         <h3 style={{ fontWeight: 700, fontSize: '0.9rem' }}>🧂 ส่วนผสม (ต่อ {yieldQty} {yieldUnit})</h3>
                         <button onClick={addLine} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '4px 12px' }}>+ เพิ่ม</button>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {lines.map((l, i) => (
-                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 32px', gap: 8, alignItems: 'center' }}>
-                                <select value={l.productId} onChange={e => updateLine(i, 'productId', e.target.value)} className="input" style={{ fontSize: '0.8rem' }}>
-                                    <option value="">-- วัตถุดิบ --</option>
-                                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
-                                <input type="number" min={0.01} step={0.01} value={l.quantity}
-                                    onChange={e => updateLine(i, 'quantity', +e.target.value)}
-                                    className="input" style={{ textAlign: 'center', fontSize: '0.8rem' }} />
-                                <input value={l.unit} onChange={e => updateLine(i, 'unit', e.target.value)}
-                                    className="input" style={{ fontSize: '0.8rem' }} placeholder="หน่วย" />
-                                <button onClick={() => removeLine(i)} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 8, cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '4px 0' }}>✕</button>
+                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 32px', gap: 8, alignItems: 'start' }}>
+                                {/* Catalog search per line */}
+                                <div>
+                                    <CatalogCombobox
+                                        value={l.catalogVal}
+                                        onChange={v => updateLineCatalog(i, v)}
+                                        placeholder="🧺 ค้นหาวัตถุดิบ..."
+                                        roleFilter={['RAW', 'PREP', 'SUPPLY']}
+                                    />
+                                    {l.productId && (
+                                        <div style={{ fontSize: '0.6rem', color: '#6B7280', marginTop: 2 }}>ID: {l.productId.slice(-8)}</div>
+                                    )}
+                                </div>
+                                <input
+                                    type="number" min={0.01} step={0.01} value={l.quantity}
+                                    onChange={e => updateLineQty(i, +e.target.value)}
+                                    className="input" style={{ textAlign: 'center', fontSize: '0.8rem' }}
+                                    placeholder="qty"
+                                />
+                                <input
+                                    value={l.unit} onChange={e => updateLineUnit(i, e.target.value)}
+                                    className="input" style={{ fontSize: '0.8rem' }} placeholder="หน่วย"
+                                />
+                                <button onClick={() => removeLine(i)} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 8, cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '6px 0' }}>✕</button>
                             </div>
                         ))}
                     </div>

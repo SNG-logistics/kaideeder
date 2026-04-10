@@ -2,6 +2,185 @@
 import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
+// ── Catalog item shape from /api/items/search-for-bom ──────────────────────
+interface CatalogItem {
+    inventoryItemId: string; code: string; name: string;
+    itemRole: string; baseUnit: string; hasProduct: boolean; productId: string | null;
+}
+
+// ── Slide-in panel: search Catalog → add to count sheet ────────────────────
+function CatalogAddPanel({ countId, locationId, locations, onAdded, onClose }: {
+    countId: string
+    locationId: string   // pre-selected from count; user can override
+    locations: { id: string; code: string; name: string }[]
+    onAdded: () => void  // refresh parent
+    onClose: () => void
+}) {
+    const [q, setQ] = useState('')
+    const [results, setResults] = useState<CatalogItem[]>([])
+    const [loading, setLoading] = useState(false)
+    const [adding, setAdding] = useState<string | null>(null)  // inventoryItemId being added
+    const [locId, setLocId] = useState(locationId)
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+
+    const showToast = (msg: string, ok: boolean) => {
+        setToast({ msg, ok })
+        setTimeout(() => setToast(null), 3500)
+    }
+
+    function doSearch(query: string) {
+        setLoading(true)
+        fetch(`/api/items/search-for-bom?q=${encodeURIComponent(query)}&limit=25`)
+            .then(r => r.json())
+            .then(j => { if (j.success) setResults(j.data) })
+            .catch(() => {})
+            .finally(() => setLoading(false))
+    }
+
+    function handleQ(val: string) {
+        setQ(val)
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => doSearch(val), 250)
+    }
+
+    // load all on mount
+    useEffect(() => { doSearch('') }, [])
+
+    async function addItem(item: CatalogItem) {
+        if (!locId) { showToast('กรุณาเลือกคลังก่อน', false); return }
+        setAdding(item.inventoryItemId)
+        try {
+            const res = await fetch(`/api/stock-count/${countId}/add-item`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inventoryItemId: item.inventoryItemId, locationId: locId }),
+            })
+            const j = await res.json()
+            if (j.success) {
+                showToast(`✅ เพิ่ม "${item.name}" แล้ว`, true)
+                onAdded()
+                // refresh results so duplicates are visually gone
+                doSearch(q)
+            } else {
+                showToast(j.error || 'เกิดข้อผิดพลาด', false)
+            }
+        } catch {
+            showToast('เกิดข้อผิดพลาด', false)
+        } finally {
+            setAdding(null)
+        }
+    }
+
+    const ROLE_COLORS: Record<string, string> = {
+        RAW: '#10B981', PREP: '#8B5CF6', SUPPLY: '#F59E0B', SERVICE: '#6B7280',
+    }
+
+    return (
+        // Backdrop
+        <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}
+            onClick={e => { if (e.target === e.currentTarget) onClose() }}
+        >
+            {/* Panel */}
+            <div style={{
+                width: '100%', maxWidth: 420, height: '100%', background: 'var(--white)',
+                display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 32px rgba(0,0,0,0.18)',
+                animation: 'slideInRight 0.22s ease',
+            }}>
+                {/* Header */}
+                <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <div>
+                            <div style={{ fontWeight: 800, fontSize: '1rem' }}>🧺 เพิ่มจาก Catalog</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>ค้นหารายการ → กด ➕ เพื่อเพิ่มเข้านับสต็อค</div>
+                        </div>
+                        <button onClick={onClose} style={{ background: 'var(--bg)', border: 'none', borderRadius: 8, width: 34, height: 34, cursor: 'pointer', fontSize: '1rem', color: 'var(--text-muted)' }}>✕</button>
+                    </div>
+                    {/* Location selector */}
+                    <div style={{ marginBottom: 8 }}>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>คลังที่นับ</label>
+                        <select value={locId} onChange={e => setLocId(e.target.value)} className="input" style={{ fontSize: '0.82rem' }}>
+                            {locations.map(l => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                        </select>
+                    </div>
+                    {/* Search */}
+                    <input
+                        type="text"
+                        className="input"
+                        placeholder="🔍 ค้นหารายการ Catalog..."
+                        value={q}
+                        onChange={e => handleQ(e.target.value)}
+                        style={{ fontSize: '0.83rem' }}
+                        autoFocus
+                    />
+                </div>
+
+                {/* Toast */}
+                {toast && (
+                    <div style={{
+                        margin: '8px 12px 0', padding: '8px 14px', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600,
+                        background: toast.ok ? '#ECFDF5' : '#FEF2F2',
+                        color: toast.ok ? '#059669' : '#DC2626',
+                        border: `1px solid ${toast.ok ? '#A7F3D0' : '#FECACA'}`,
+                    }}>{toast.msg}</div>
+                )}
+
+                {/* Results */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
+                    {loading ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>⏳ กำลังค้นหา...</div>
+                    ) : results.length === 0 ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>ไม่พบรายการใน Catalog</div>
+                    ) : results.map(item => (
+                        <div key={item.inventoryItemId} style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '0.6rem 1.25rem',
+                            borderBottom: '1px solid var(--border-light)',
+                        }}>
+                            <span style={{
+                                fontSize: '0.58rem', fontWeight: 800, padding: '1px 6px', borderRadius: 4, flexShrink: 0,
+                                background: `${ROLE_COLORS[item.itemRole] || '#6B7280'}18`,
+                                color: ROLE_COLORS[item.itemRole] || '#6B7280',
+                            }}>{item.itemRole}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', gap: 8, marginTop: 1 }}>
+                                    <span style={{ fontFamily: 'monospace' }}>{item.baseUnit}</span>
+                                    {item.hasProduct
+                                        ? <span style={{ color: '#059669' }}>✅ มี Product</span>
+                                        : <span style={{ color: '#D97706' }}>⚡ สร้างอัตโนมัติ</span>
+                                    }
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => addItem(item)}
+                                disabled={adding === item.inventoryItemId}
+                                style={{
+                                    background: adding === item.inventoryItemId ? '#e5e7eb' : '#059669',
+                                    border: 'none', borderRadius: 8, padding: '5px 12px',
+                                    color: adding === item.inventoryItemId ? '#9ca3af' : '#fff',
+                                    fontWeight: 700, fontSize: '0.78rem', cursor: adding === item.inventoryItemId ? 'not-allowed' : 'pointer',
+                                    flexShrink: 0, fontFamily: 'inherit',
+                                }}
+                            >
+                                {adding === item.inventoryItemId ? '⏳' : '➕'}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <style>{`
+                @keyframes slideInRight {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to   { transform: translateX(0);    opacity: 1; }
+                }
+            `}</style>
+        </div>
+    )
+}
+
 type StockCountStatus = 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED' | 'ADJUSTED' | 'CANCELLED'
 
 interface CountItem {
@@ -34,6 +213,8 @@ export default function StockCountDetailPage({ params }: { params: Promise<{ id:
     const [saving, setSaving] = useState(false)
     const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' | 'warn' } | null>(null)
     const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+    const [showCatalogPanel, setShowCatalogPanel] = useState(false)
+    const [locations, setLocations] = useState<{ id: string; code: string; name: string }[]>([])
 
     const showToast = (msg: string, type: 'ok' | 'err' | 'warn' = 'ok') => {
         setToast({ msg, type })
@@ -47,7 +228,10 @@ export default function StockCountDetailPage({ params }: { params: Promise<{ id:
         setLoading(false)
     }, [id])
 
-    useEffect(() => { fetchCount() }, [fetchCount])
+    useEffect(() => {
+        fetchCount()
+        fetch('/api/locations').then(r => r.json()).then(j => j.success && setLocations(j.data))
+    }, [fetchCount])
 
     const canEdit = count?.status === 'IN_PROGRESS'
 
@@ -120,8 +304,23 @@ export default function StockCountDetailPage({ params }: { params: Promise<{ id:
 
     const hasPending = Object.keys(pendingEdits).length > 0
 
+    // Default location for catalog panel (first location of the count, or first available)
+    const defaultLocId = count?.location
+        ? (locations.find(l => l.code === count.location!.code)?.id ?? locations[0]?.id ?? '')
+        : locations[0]?.id ?? ''
+
     return (
         <div className="page-container">
+            {/* Catalog Add Panel */}
+            {showCatalogPanel && (
+                <CatalogAddPanel
+                    countId={id}
+                    locationId={defaultLocId}
+                    locations={locations}
+                    onAdded={fetchCount}
+                    onClose={() => setShowCatalogPanel(false)}
+                />
+            )}
             {/* Toast */}
             {toast && (
                 <div style={{
@@ -154,10 +353,24 @@ export default function StockCountDetailPage({ params }: { params: Promise<{ id:
                     </div>
 
                     {/* Action Buttons */}
-                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                         {hasPending && canEdit && (
                             <button onClick={saveEdits} disabled={saving} className="btn btn-primary" style={{ fontSize: '0.8rem' }}>
                                 {saving ? '⏳ บันทึก...' : `💾 บันทึก (${Object.keys(pendingEdits).length})`}
+                            </button>
+                        )}
+                        {/* ➕ Add from Catalog — available in DRAFT and IN_PROGRESS */}
+                        {['DRAFT', 'IN_PROGRESS'].includes(count.status) && (
+                            <button
+                                onClick={() => setShowCatalogPanel(true)}
+                                style={{
+                                    background: 'rgba(5,150,105,0.1)', border: '1.5px solid #059669',
+                                    borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
+                                    fontWeight: 700, fontSize: '0.8rem', color: '#059669', fontFamily: 'inherit',
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                }}
+                            >
+                                🧺 เพิ่มจาก Catalog
                             </button>
                         )}
                         {count.status === 'DRAFT' && (

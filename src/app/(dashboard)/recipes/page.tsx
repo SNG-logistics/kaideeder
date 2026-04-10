@@ -528,7 +528,7 @@ export default function RecipesPage() {
                     </p>
                 </div>
                 <button onClick={() => showForm ? closeForm() : setShowForm(true)}
-                    className={showForm ? 'btn-secondary' : 'btn-primary'}>
+                    className={`btn ${showForm ? 'btn-secondary' : 'btn-primary'}`}>
                     {showForm ? '✕ ปิด' : '➕ เพิ่มสูตรใหม่'}
                 </button>
             </div>
@@ -552,13 +552,7 @@ export default function RecipesPage() {
                     </div>
                     <button
                         onClick={() => setShowMissingOnly(v => !v)}
-                        style={{
-                            padding: '5px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
-                            border: showMissingOnly ? 'none' : '1.5px solid #d97706',
-                            background: showMissingOnly ? '#d97706' : 'transparent',
-                            color: showMissingOnly ? '#fff' : '#d97706',
-                            fontFamily: 'inherit',
-                        }}
+                        className={`btn-tab ${showMissingOnly ? 'active' : ''}`}
                     >
                         {showMissingOnly ? '✕ ดูทั้งหมด' : '🔍 แสดงเฉพาะที่ขาด'}
                     </button>
@@ -576,14 +570,8 @@ export default function RecipesPage() {
                         <button
                             onClick={() => handleAiSuggest()}
                             disabled={aiLoading || !menuName.trim()}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 6,
-                                padding: '0.5rem 1rem', borderRadius: 8, border: 'none',
-                                background: aiLoading ? '#e5e7eb' : 'linear-gradient(135deg, #7C3AED, #A855F7)',
-                                color: aiLoading ? '#9ca3af' : 'white',
-                                fontWeight: 600, fontSize: '0.85rem', cursor: aiLoading ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.2s', boxShadow: aiLoading ? 'none' : '0 2px 8px rgba(124,58,237,0.3)'
-                            }}
+                            className={`btn btn-ai-purple ${aiLoading ? '' : ''}`}
+                            style={{ opacity: aiLoading ? 0.6 : 1 }}
                         >
                             {aiLoading ? '⏳ กำลังคิด...' : '✨ AI แนะนำ BOM'}
                         </button>

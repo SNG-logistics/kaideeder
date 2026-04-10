@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 
 type StockCountStatus = 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED' | 'ADJUSTED' | 'CANCELLED'
 
@@ -37,12 +38,6 @@ export default function StockCountListPage() {
     const [locationId, setLocationId] = useState('')
     const [note, setNote] = useState('')
     const [creating, setCreating] = useState(false)
-    const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
-
-    const showToast = (msg: string, type: 'ok' | 'err') => {
-        setToast({ msg, type })
-        setTimeout(() => setToast(null), 4000)
-    }
 
     const fetchCounts = useCallback(async () => {
         setLoading(true)
@@ -66,7 +61,7 @@ export default function StockCountListPage() {
     }, [showCreate]) // eslint-disable-line
 
     async function create() {
-        if (!name.trim()) { showToast('กรุณาระบุชื่อ', 'err'); return }
+        if (!name.trim()) { toast.error('กรุณาระบุชื่อ'); return }
         setCreating(true)
         try {
             const res = await fetch('/api/stock-count', {
@@ -76,11 +71,11 @@ export default function StockCountListPage() {
             })
             const j = await res.json()
             if (j.success) {
-                showToast('✅ สร้าง Sheet แล้ว', 'ok')
+                toast.success('✅ สร้าง Sheet แล้ว')
                 setShowCreate(false); setName(''); setLocationId(''); setNote('')
                 fetchCounts()
-            } else showToast(j.error || 'เกิดข้อผิดพลาด', 'err')
-        } catch { showToast('เกิดข้อผิดพลาด', 'err') }
+            } else toast.error(j.error || 'เกิดข้อผิดพลาด')
+        } catch { toast.error('เกิดข้อผิดพลาด') }
         finally { setCreating(false) }
     }
 
@@ -88,34 +83,24 @@ export default function StockCountListPage() {
         if (!confirm(`ยกเลิก "${count.name}" ใช่ไหม?`)) return
         const res = await fetch(`/api/stock-count/${count.id}`, { method: 'DELETE' })
         const j = await res.json()
-        if (j.success) { showToast('ยกเลิกแล้ว', 'ok'); fetchCounts() }
-        else showToast(j.error, 'err')
+        if (j.success) { toast.success('ยกเลิกแล้ว'); fetchCounts() }
+        else toast.error(j.error)
     }
 
     return (
         <div className="page-container">
-            {toast && (
-                <div style={{
-                    position: 'fixed', top: 16, right: 16, zIndex: 9999,
-                    background: toast.type === 'ok' ? '#ECFDF5' : '#FEF2F2',
-                    border: `1px solid ${toast.type === 'ok' ? '#A7F3D0' : '#FECACA'}`,
-                    color: toast.type === 'ok' ? '#059669' : '#DC2626',
-                    borderRadius: 12, padding: '10px 18px', fontWeight: 600, fontSize: '0.85rem',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                }}>
-                    {toast.msg}
-                </div>
-            )}
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, borderBottom: '2px solid var(--border)', paddingBottom: 16 }}>
+            <div className="page-header">
                 <div>
                     <h1 className="page-title">📋 นับสต็อคจริง</h1>
                     <p className="page-subtitle">Stock Count Sheet — เปรียบเทียบสต็อคจริงกับระบบ แล้ว apply adjustment</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowCreate(v => !v)}>
-                    {showCreate ? '✕ ปิด' : '+ สร้าง Sheet ใหม่'}
-                </button>
+                <div className="page-actions">
+                    <button className="btn btn-primary" onClick={() => setShowCreate(v => !v)}>
+                        {showCreate ? '✕ ปิด' : '+ สร้าง Sheet ใหม่'}
+                    </button>
+                </div>
             </div>
 
             {/* Create Form */}
@@ -153,11 +138,15 @@ export default function StockCountListPage() {
 
             {/* List */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-secondary)' }}>โหลด...</div>
+                <div className="empty-state">
+                    <div className="spinner" />
+                    <div className="empty-state__desc">กำลังโหลด...</div>
+                </div>
             ) : counts.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 64 }}>
-                    <div style={{ fontSize: '3rem', marginBottom: 12 }}>📋</div>
-                    <p style={{ color: 'var(--text-secondary)' }}>ยังไม่มี Sheet — กด <b>+ สร้าง Sheet ใหม่</b></p>
+                <div className="empty-state">
+                    <div className="empty-state__icon">📋</div>
+                    <div className="empty-state__title">ยังไม่มี Sheet</div>
+                    <div className="empty-state__desc">กด <strong>+ สร้าง Sheet ใหม่</strong> ได้เลย</div>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -196,7 +185,7 @@ export default function StockCountListPage() {
                                         </Link>
                                     )}
                                     {['DRAFT', 'IN_PROGRESS'].includes(c.status) && (
-                                        <button onClick={() => cancel(c)} style={{ fontSize: '0.75rem', padding: '6px 12px', background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 8, cursor: 'pointer' }}>
+                                        <button onClick={() => cancel(c)} className="btn btn-danger btn-sm">
                                             ยกเลิก
                                         </button>
                                     )}
