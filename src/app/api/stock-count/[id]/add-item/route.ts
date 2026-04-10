@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma'
  */
 export const POST = withAuth(async (
   req: NextRequest,
-  ctx: any
+  ctx: AuthContext
 ) => {
   const tenantId = ctx.tenantId
   const params = await ctx.params
