@@ -7,22 +7,26 @@ const lineSchema = z.object({
     productId: z.string().min(1),
     quantity: z.number().positive(),
     unit: z.string().min(1),
+    locationId: z.string().min(1),
 })
 
 const createSchema = z.object({
     name: z.string().min(1, 'ต้องระบุชื่อสูตร'),
     outputProductId: z.string().min(1, 'ต้องเลือกสินค้าผลผลิต'),
-    yieldQty: z.number().positive('yieldQty ต้องมากกว่า 0'),
-    yieldUnit: z.string().min(1, 'ต้องระบุหน่วย'),
+    outputLocationId: z.string().min(1, 'ต้องเลือกคลังผลผลิต'),
+    outputQty: z.number().positive('outputQty ต้องมากกว่า 0'),
+    outputUnit: z.string().min(1, 'ต้องระบุหน่วย'),
     note: z.string().optional(),
-    lines: z.array(lineSchema).min(1, 'ต้องมีวัตถุดิบอย่างน้อย 1 รายการ'),
+    ingredients: z.array(lineSchema).min(1, 'ต้องมีวัตถุดิบอย่างน้อย 1 รายการ'),
 })
 
 const include = {
     outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
+    outputLocation: { select: { id: true, code: true, name: true } },
     lines: {
         include: {
             product: { select: { id: true, name: true, sku: true, unit: true } },
+            location: { select: { id: true, code: true, name: true } },
         },
     },
     productions: {
@@ -57,6 +61,9 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
 
     const result = recipes.map(r => ({
         ...r,
+        outputQty: r.yieldQty,
+        outputUnit: r.yieldUnit,
+        ingredients: r.lines,
         currentStock: stockMap[r.outputProductId] || [],
     }))
 
@@ -78,15 +85,17 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
                 tenantId,
                 name: data.name,
                 outputProductId: data.outputProductId,
-                yieldQty: data.yieldQty,
-                yieldUnit: data.yieldUnit,
+                outputLocationId: data.outputLocationId,
+                yieldQty: data.outputQty,
+                yieldUnit: data.outputUnit,
                 note: data.note,
                 lines: {
-                    create: data.lines.map(l => ({
+                    create: data.ingredients.map(l => ({
                         tenantId,
                         productId: l.productId,
                         quantity: l.quantity,
                         unit: l.unit,
+                        locationId: l.locationId,
                     })),
                 },
             },

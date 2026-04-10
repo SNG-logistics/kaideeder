@@ -4,9 +4,7 @@ import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
 const executeSchema = z.object({
-    producedQty:     z.number().positive('จำนวนที่ผลิตต้องมากกว่า 0'),
-    sourceLocationId: z.string().min(1, 'กรุณาเลือกคลังวัตถุดิบ'),  // ตัดวัตถุดิบจากคลังนี้
-    outputLocationId: z.string().min(1, 'กรุณาเลือกคลังผลผลิต'),    // เก็บผลผลิตที่คลังนี้
+    batchQty: z.number().positive('จำนวน batch ต้องมากกว่า 0'),
     note: z.string().optional(),
 })
 
@@ -45,8 +43,9 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
     })
     if (!recipe) return err('ไม่พบสูตร', 404)
 
-    // Calculate ratio: producedQty / yieldQty per batch
-    const ratio = data.producedQty / recipe.yieldQty
+    // Calculate producedQty based on batchQty
+    const ratio = data.batchQty
+    const producedQty = data.batchQty * recipe.yieldQty
     const warnings: string[] = []
 
     await prisma.$transaction(async tx => {
@@ -56,14 +55,14 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
 
             // Upsert inventory record
             let inv = await tx.inventory.findFirst({
-                where: { tenantId, productId: line.productId, locationId: data.sourceLocationId },
+                where: { tenantId, productId: line.productId, locationId: line.locationId },
             })
             if (!inv) {
                 inv = await tx.inventory.create({
                     data: {
                         tenantId,
                         productId: line.productId,
-                        locationId: data.sourceLocationId,
+                        locationId: line.locationId,
                         quantity: 0,
                         avgCost: line.product.costPrice ?? 0,
                     },
@@ -83,14 +82,14 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
                 data: {
                     tenantId,
                     productId: line.productId,
-                    fromLocationId: data.sourceLocationId,
+                    fromLocationId: line.locationId,
                     quantity: deductQty,
                     unitCost: line.product.costPrice ?? 0,
                     totalCost: deductQty * (line.product.costPrice ?? 0),
                     type: 'PRODUCTION_OUT',
                     referenceId: id,
                     referenceType: 'PREP_RECIPE',
-                    note: `แปรรูป: ${recipe.name} → ผลิต ${data.producedQty} ${recipe.yieldUnit}`,
+                    note: `แปรรูป: ${recipe.name} → ผลิต ${producedQty} ${recipe.yieldUnit}`,
                     createdById: ctx.user?.userId || null,
                 },
             })
@@ -98,14 +97,14 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
 
         // 2. Add output product to stock
         let outInv = await tx.inventory.findFirst({
-            where: { tenantId, productId: recipe.outputProductId, locationId: data.outputLocationId },
+            where: { tenantId, productId: recipe.outputProductId, locationId: recipe.outputLocationId },
         })
         if (!outInv) {
             outInv = await tx.inventory.create({
                 data: {
                     tenantId,
                     productId: recipe.outputProductId,
-                    locationId: data.outputLocationId,
+                    locationId: recipe.outputLocationId,
                     quantity: 0,
                     avgCost: recipe.outputProduct.costPrice ?? 0,
                 },
@@ -114,17 +113,17 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
 
         await tx.inventory.update({
             where: { id: outInv.id },
-            data: { quantity: { increment: data.producedQty } },
+            data: { quantity: { increment: producedQty } },
         })
 
         await tx.stockMovement.create({
             data: {
                 tenantId,
                 productId: recipe.outputProductId,
-                toLocationId: data.outputLocationId,
-                quantity: data.producedQty,
+                toLocationId: recipe.outputLocationId,
+                quantity: producedQty,
                 unitCost: recipe.outputProduct.costPrice ?? 0,
-                totalCost: data.producedQty * (recipe.outputProduct.costPrice ?? 0),
+                totalCost: producedQty * (recipe.outputProduct.costPrice ?? 0),
                 type: 'PRODUCTION_IN',
                 referenceId: id,
                 referenceType: 'PREP_RECIPE',
@@ -138,8 +137,8 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
             data: {
                 tenantId,
                 prepRecipeId: id,
-                producedQty: data.producedQty,
-                locationId: data.outputLocationId,
+                producedQty: producedQty,
+                locationId: recipe.outputLocationId,
                 note: data.note,
                 preparedById: ctx.user?.userId || null,
             },
@@ -147,7 +146,7 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
     })
 
     return ok({
-        message: `✅ แปรรูปสำเร็จ → ได้ ${data.producedQty} ${recipe.yieldUnit} (${recipe.name})`,
+        message: `✅ แปรรูปสำเร็จ → ได้ ${producedQty} ${recipe.yieldUnit} (${recipe.name})`,
         warnings: warnings.length > 0 ? warnings : undefined,
     })
 }, ['OWNER', 'MANAGER'])

@@ -16,29 +16,29 @@ datasource db {
 // ─────────────────────────────────────────────
 
 model Tenant {
-  id          String       @id @default(cuid())
-  code        String       @unique
-  name        String
-  displayName String?      // ชื่อร้านที่แสดงใน UI (ถ้าไม่ตั้ง จะใช้ name)
-  storeNameLao String?     // ชื่อร้านภาษาลาว
-  logoUrl          String?      // URL รูปโลโก้ — ชี้ไป /api/public/logo/<code> (served from DB)
-  logoBase64       String?      @db.LongText  // รูปโลโก้ (Base64, เก็บใน DB เพื่อคงไว้หลัง deploy)
-  menuBannerBase64 String?      @db.LongText  // Banner รูป header หน้าสแกน QR menu (Base64)
-  status      TenantStatus @default(ACTIVE)
-  subEndsAt   DateTime?
-  graceEndsAt DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id               String       @id @default(cuid())
+  code             String       @unique
+  name             String
+  displayName      String? // ชื่อร้านที่แสดงใน UI (ถ้าไม่ตั้ง จะใช้ name)
+  storeNameLao     String? // ชื่อร้านภาษาลาว
+  logoUrl          String? // URL รูปโลโก้ — ชี้ไป /api/public/logo/<code> (served from DB)
+  logoBase64       String?      @db.LongText // รูปโลโก้ (Base64, เก็บใน DB เพื่อคงไว้หลัง deploy)
+  menuBannerBase64 String?      @db.LongText // Banner รูป header หน้าสแกน QR menu (Base64)
+  status           TenantStatus @default(ACTIVE)
+  subEndsAt        DateTime?
+  graceEndsAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   // ── Store settings ──────────────────────────────
-  currency      String   @default("LAK")  // "LAK" | "THB"
-  language      String   @default("th")   // "th" | "lo" | "both"
-  phone         String?                   // เบอร์โทรร้าน
-  address       String?  @db.Text         // ที่อยู่ร้าน
-  taxId         String?                   // เลขประจำตัวผู้เสียภาษี / ທຸລະກິດ
-  receiptHeader    String?  @db.Text         // หัวใบบิล (custom text / HTML)
-  qrBankingBase64  String?  @db.LongText     // QR โอนเงิน สำหรับพิมพ์บนใบเสร็จ (Base64)
-  timezone         String   @default("Asia/Vientiane")
+  currency        String  @default("LAK") // "LAK" | "THB"
+  language        String  @default("th") // "th" | "lo" | "both"
+  phone           String? // เบอร์โทรร้าน
+  address         String? @db.Text // ที่อยู่ร้าน
+  taxId           String? // เลขประจำตัวผู้เสียภาษี / ທຸລະກິດ
+  receiptHeader   String? @db.Text // หัวใบบิล (custom text / HTML)
+  qrBankingBase64 String? @db.LongText // QR โอนเงิน สำหรับพิมพ์บนใบเสร็จ (Base64)
+  timezone        String  @default("Asia/Vientiane")
 
   // Store data relations
   users            User[]
@@ -75,20 +75,20 @@ model Tenant {
   deliveryInfos    DeliveryInfo[]
 
   // Phase 1 — Inventory Catalog
-  inventoryItems          InventoryItem[]
-  itemUnitConversions     ItemUnitConversion[]
-  itemAliases             ItemAlias[]
-  aiItemClassifications   AiItemClassification[]
-  validationIssues        ValidationIssue[]
-  aiRecommendations       AiRecommendation[]
-  entityUsageSummaries    EntityUsageSummary[]
+  inventoryItems        InventoryItem[]
+  itemUnitConversions   ItemUnitConversion[]
+  itemAliases           ItemAlias[]
+  aiItemClassifications AiItemClassification[]
+  validationIssues      ValidationIssue[]
+  aiRecommendations     AiRecommendation[]
+  entityUsageSummaries  EntityUsageSummary[]
 
   // SaaS relations
-  wallet           Wallet?
-  walletLedger     WalletLedger[]
-  subs             Subscription[]
-  topups           TopupRequest[]
-  auditLogs        AuditLog[]
+  wallet       Wallet?
+  walletLedger WalletLedger[]
+  subs         Subscription[]
+  topups       TopupRequest[]
+  auditLogs    AuditLog[]
 
   @@map("tenants")
 }
@@ -98,14 +98,14 @@ model Tenant {
 // ─────────────────────────────────────────────
 
 model AdminUser {
-  id           String         @id @default(cuid())
-  email        String         @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   passwordHash String
   name         String
   role         AdminRole
-  isActive     Boolean        @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   auditLogs         AuditLog[]
   walletLedgerEntry WalletLedger[]
@@ -119,26 +119,26 @@ model AdminUser {
 // ─────────────────────────────────────────────
 
 model User {
-  id                String            @id @default(cuid())
-  tenantId          String
-  username          String
-  passwordHash      String
-  name              String
-  role              Role              @default(VIEWER)
-  isActive          Boolean           @default(true)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  id           String   @id @default(cuid())
+  tenantId     String
+  username     String
+  passwordHash String
+  name         String
+  role         Role     @default(VIEWER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  tenant            Tenant            @relation(fields: [tenantId], references: [id])
-  itemStatusChanges OrderItem[]       @relation("ItemStatusChangedBy")
-  orders            Order[]
-  purchaseOrders    PurchaseOrder[]
-  adjustments       StockAdjustment[]
-  stockMovements    StockMovement[]
-  transfers         StockTransfer[]
-  topupRequests     TopupRequest[]
-  auditLogs         AuditLog[]
-  stockCountsCreated StockCount[] @relation("StockCountCreator")
+  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+  itemStatusChanges  OrderItem[]       @relation("ItemStatusChangedBy")
+  orders             Order[]
+  purchaseOrders     PurchaseOrder[]
+  adjustments        StockAdjustment[]
+  stockMovements     StockMovement[]
+  transfers          StockTransfer[]
+  topupRequests      TopupRequest[]
+  auditLogs          AuditLog[]
+  stockCountsCreated StockCount[]      @relation("StockCountCreator")
 
   @@unique([tenantId, username])
   @@index([tenantId])
@@ -150,14 +150,14 @@ model User {
 // ─────────────────────────────────────────────
 
 model Category {
-  id       String    @id @default(cuid())
+  id       String  @id @default(cuid())
   tenantId String
   code     String
   name     String
   nameEn   String?
   color    String?
   icon     String?
-  isActive Boolean   @default(true)
+  isActive Boolean @default(true)
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id])
   products Product[]
@@ -168,49 +168,48 @@ model Category {
 }
 
 model Product {
-  id             String          @id @default(cuid())
-  tenantId       String
-  sku            String
-  name           String
-  nameTh         String?
-  nameLao        String?
-  categoryId     String
-  productType    ProductType     @default(SALE_ITEM)
-  unit           String
-  unitAlt        String?
-  convFactor     Float?
-  costPrice      Float           @default(0)
-  salePrice      Float           @default(0)
-  reorderPoint   Float           @default(0)
-  minQty         Float           @default(0)
-  isActive       Boolean         @default(true)
-  isFeatured     Boolean         @default(false)
-  note           String?
-  toppingsJson   String?         @db.Text  // JSON: [{id,name,price,isActive}]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  imageUrl       String?
-  imageBase64    String?         @db.MediumText
+  id              String      @id @default(cuid())
+  tenantId        String
+  sku             String
+  name            String
+  nameTh          String?
+  nameLao         String?
+  categoryId      String
+  productType     ProductType @default(SALE_ITEM)
+  unit            String
+  unitAlt         String?
+  convFactor      Float?
+  costPrice       Float       @default(0)
+  salePrice       Float       @default(0)
+  reorderPoint    Float       @default(0)
+  minQty          Float       @default(0)
+  isActive        Boolean     @default(true)
+  isFeatured      Boolean     @default(false)
+  note            String?
+  toppingsJson    String?     @db.Text // JSON: [{id,name,price,isActive}]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  imageUrl        String?
+  imageBase64     String?     @db.MediumText
   inventoryItemId String?
 
-
-  tenant         Tenant          @relation(fields: [tenantId], references: [id])
-  category       Category        @relation(fields: [categoryId], references: [id])
-  inventoryItem  InventoryItem?  @relation(fields: [inventoryItemId], references: [id])
-  inventory      Inventory[]
-  orderItems     OrderItem[]
-  purchaseItems  PurchaseItem[]
-  recipes        RecipeBOM[]     @relation("RecipeProduct")
-  bom            RecipeBOM[]
-  stockMovements StockMovement[]
-  aliases        ProductAlias[]
-  suggestions    SkuSuggestion[] @relation("MatchedProduct")
-  uomConversions        UomConversion[]
-  consumeFailLogs       ConsumeFailLog[]      @relation("FailIngredient")
-  menuFailLogs          ConsumeFailLog[]      @relation("FailMenu")
-  prepOutputRecipes     PrepRecipe[]          @relation("PrepRecipeOutput")
-  prepRecipeLines       PrepRecipeLine[]      @relation("PrepRecipeIngredient")
-  stockCountItems       StockCountItem[]      @relation("CountProduct")
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  category          Category         @relation(fields: [categoryId], references: [id])
+  inventoryItem     InventoryItem?   @relation(fields: [inventoryItemId], references: [id])
+  inventory         Inventory[]
+  orderItems        OrderItem[]
+  purchaseItems     PurchaseItem[]
+  recipes           RecipeBOM[]      @relation("RecipeProduct")
+  bom               RecipeBOM[]
+  stockMovements    StockMovement[]
+  aliases           ProductAlias[]
+  suggestions       SkuSuggestion[]  @relation("MatchedProduct")
+  uomConversions    UomConversion[]
+  consumeFailLogs   ConsumeFailLog[] @relation("FailIngredient")
+  menuFailLogs      ConsumeFailLog[] @relation("FailMenu")
+  prepOutputRecipes PrepRecipe[]     @relation("PrepRecipeOutput")
+  prepRecipeLines   PrepRecipeLine[] @relation("PrepRecipeIngredient")
+  stockCountItems   StockCountItem[] @relation("CountProduct")
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -220,24 +219,26 @@ model Product {
 }
 
 model Location {
-  id            String          @id @default(cuid())
-  tenantId      String
-  code          String
-  name          String
-  nameLao       String?
-  type          LocationType
-  sortOrder     Int             @default(0)
-  isActive      Boolean         @default(true)
+  id        String       @id @default(cuid())
+  tenantId  String
+  code      String
+  name      String
+  nameLao   String?
+  type      LocationType
+  sortOrder Int          @default(0)
+  isActive  Boolean      @default(true)
 
-  tenant        Tenant          @relation(fields: [tenantId], references: [id])
-  inventory     Inventory[]
-  fromMovements StockMovement[] @relation("FromLocation")
-  toMovements   StockMovement[] @relation("ToLocation")
-  transferFrom  StockTransfer[] @relation("TransferFrom")
-  transferTo    StockTransfer[] @relation("TransferTo")
-  prepProductions PrepProduction[]
-  stockCounts   StockCount[]    @relation("CountLocation")
-  stockCountItems StockCountItem[] @relation("CountItemLocation")
+  tenant                      Tenant           @relation(fields: [tenantId], references: [id])
+  inventory                   Inventory[]
+  fromMovements               StockMovement[]  @relation("FromLocation")
+  toMovements                 StockMovement[]  @relation("ToLocation")
+  transferFrom                StockTransfer[]  @relation("TransferFrom")
+  transferTo                  StockTransfer[]  @relation("TransferTo")
+  prepProductions             PrepProduction[]
+  stockCounts                 StockCount[]     @relation("CountLocation")
+  stockCountItems             StockCountItem[] @relation("CountItemLocation")
+  prepRecipesAsOutput         PrepRecipe[]     @relation("PrepRecipeOutputLoc")
+  prepRecipeLinesAsIngredient PrepRecipeLine[] @relation("PrepRecipeLineLoc")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -258,9 +259,9 @@ model Inventory {
   avgCost     Float    @default(0)
   updatedAt   DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  location    Location @relation(fields: [locationId], references: [id])
-  product     Product  @relation(fields: [productId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
 
   @@unique([tenantId, productId, locationId])
   @@index([tenantId])
@@ -274,22 +275,22 @@ model Inventory {
 
 /// Session นับสต็อค: สร้าง → เริ่มนับ → เสร็จ → Approve (apply adjustment)
 model StockCount {
-  id           String           @id @default(cuid())
-  tenantId     String
-  name         String           // "นับสต็อค มี.ค. 67", "สิ้นเดือน Q1"
-  locationId   String?          // null = ทุกคลัง
-  status       StockCountStatus @default(DRAFT)
-  startedAt    DateTime?        // เวลา snapshot systemQty
-  completedAt  DateTime?        // นับครบทุก item
-  approvedAt   DateTime?        // apply adjustment แล้ว
-  note         String?
-  createdById  String?
-  createdAt    DateTime         @default(now())
+  id          String           @id @default(cuid())
+  tenantId    String
+  name        String // "นับสต็อค มี.ค. 67", "สิ้นเดือน Q1"
+  locationId  String? // null = ทุกคลัง
+  status      StockCountStatus @default(DRAFT)
+  startedAt   DateTime? // เวลา snapshot systemQty
+  completedAt DateTime? // นับครบทุก item
+  approvedAt  DateTime? // apply adjustment แล้ว
+  note        String?
+  createdById String?
+  createdAt   DateTime         @default(now())
 
-  tenant       Tenant           @relation(fields: [tenantId], references: [id])
-  location     Location?        @relation("CountLocation", fields: [locationId], references: [id])
-  createdBy    User?            @relation("StockCountCreator", fields: [createdById], references: [id])
-  items        StockCountItem[]
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  location  Location?        @relation("CountLocation", fields: [locationId], references: [id])
+  createdBy User?            @relation("StockCountCreator", fields: [createdById], references: [id])
+  items     StockCountItem[]
 
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
@@ -298,20 +299,20 @@ model StockCount {
 
 /// รายการสินค้าในแต่ละ session
 model StockCountItem {
-  id          String  @id @default(cuid())
-  tenantId    String
-  countId     String
-  productId   String
-  locationId  String
-  systemQty   Float   // snapshot ณ ตอน start
-  countedQty  Float?  // null = ยังไม่ได้นับ
-  difference  Float?  // countedQty - systemQty (คำนวณตอน complete)
-  unit        String
+  id         String @id @default(cuid())
+  tenantId   String
+  countId    String
+  productId  String
+  locationId String
+  systemQty  Float // snapshot ณ ตอน start
+  countedQty Float? // null = ยังไม่ได้นับ
+  difference Float? // countedQty - systemQty (คำนวณตอน complete)
+  unit       String
 
-  tenant      Tenant     @relation(fields: [tenantId], references: [id])
-  count       StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
-  product     Product    @relation("CountProduct", fields: [productId], references: [id])
-  location    Location   @relation("CountItemLocation", fields: [locationId], references: [id])
+  tenant   Tenant     @relation(fields: [tenantId], references: [id])
+  count    StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  product  Product    @relation("CountProduct", fields: [productId], references: [id])
+  location Location   @relation("CountItemLocation", fields: [locationId], references: [id])
 
   @@unique([countId, productId, locationId])
   @@index([tenantId])
@@ -335,11 +336,11 @@ model StockMovement {
   createdById    String?
   createdAt      DateTime     @default(now())
 
-  tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  createdBy      User?        @relation(fields: [createdById], references: [id])
-  fromLocation   Location?    @relation("FromLocation", fields: [fromLocationId], references: [id])
-  product        Product      @relation(fields: [productId], references: [id])
-  toLocation     Location?    @relation("ToLocation", fields: [toLocationId], references: [id])
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  createdBy    User?     @relation(fields: [createdById], references: [id])
+  fromLocation Location? @relation("FromLocation", fields: [fromLocationId], references: [id])
+  product      Product   @relation(fields: [productId], references: [id])
+  toLocation   Location? @relation("ToLocation", fields: [toLocationId], references: [id])
 
   @@index([tenantId])
   @@index([productId])
@@ -356,23 +357,23 @@ model StockMovement {
 // ─────────────────────────────────────────────
 
 model PurchaseOrder {
-  id           String         @id @default(cuid())
+  id           String   @id @default(cuid())
   tenantId     String
   poNumber     String
   supplierId   String?
-  status       POStatus       @default(DRAFT)
-  totalAmount  Float          @default(0)
+  status       POStatus @default(DRAFT)
+  totalAmount  Float    @default(0)
   note         String?
   billImageUrl String?
-  purchaseDate DateTime       @default(now())
+  purchaseDate DateTime @default(now())
   createdById  String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  tenant       Tenant         @relation(fields: [tenantId], references: [id])
-  items        PurchaseItem[]
-  createdBy    User?          @relation(fields: [createdById], references: [id])
-  supplier     Supplier?      @relation(fields: [supplierId], references: [id])
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  items     PurchaseItem[]
+  createdBy User?          @relation(fields: [createdById], references: [id])
+  supplier  Supplier?      @relation(fields: [supplierId], references: [id])
 
   @@unique([tenantId, poNumber])
   @@index([tenantId])
@@ -382,7 +383,7 @@ model PurchaseOrder {
 }
 
 model PurchaseItem {
-  id              String        @id @default(cuid())
+  id              String @id @default(cuid())
   tenantId        String
   purchaseOrderId String
   productId       String
@@ -391,9 +392,9 @@ model PurchaseItem {
   unitCost        Float
   totalCost       Float
 
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
-  product         Product       @relation(fields: [productId], references: [id])
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
 
   @@index([tenantId])
   @@index([productId], map: "purchase_items_productId_fkey")
@@ -402,15 +403,15 @@ model PurchaseItem {
 }
 
 model Supplier {
-  id       String          @id @default(cuid())
+  id       String  @id @default(cuid())
   tenantId String
   name     String
   phone    String?
   note     String?
-  isActive Boolean         @default(true)
+  isActive Boolean @default(true)
 
-  tenant   Tenant          @relation(fields: [tenantId], references: [id])
-  orders   PurchaseOrder[]
+  tenant Tenant          @relation(fields: [tenantId], references: [id])
+  orders PurchaseOrder[]
 
   @@index([tenantId])
   @@map("suppliers")
@@ -431,11 +432,11 @@ model StockTransfer {
   transferDate   DateTime       @default(now())
   createdAt      DateTime       @default(now())
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  fromLocation   Location       @relation("TransferFrom", fields: [fromLocationId], references: [id])
-  requestedBy    User?          @relation(fields: [requestedById], references: [id])
-  toLocation     Location       @relation("TransferTo", fields: [toLocationId], references: [id])
-  items          TransferItem[]
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  fromLocation Location       @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  requestedBy  User?          @relation(fields: [requestedById], references: [id])
+  toLocation   Location       @relation("TransferTo", fields: [toLocationId], references: [id])
+  items        TransferItem[]
 
   @@index([tenantId])
   @@index([fromLocationId], map: "stock_transfers_fromLocationId_fkey")
@@ -445,14 +446,14 @@ model StockTransfer {
 }
 
 model TransferItem {
-  id         String        @id @default(cuid())
+  id         String @id @default(cuid())
   tenantId   String
   transferId String
   productId  String
   quantity   Float
 
-  tenant     Tenant        @relation(fields: [tenantId], references: [id])
-  transfer   StockTransfer @relation(fields: [transferId], references: [id])
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  transfer StockTransfer @relation(fields: [transferId], references: [id])
 
   @@index([tenantId])
   @@index([transferId], map: "transfer_items_transferId_fkey")
@@ -470,9 +471,9 @@ model StockAdjustment {
   adjustedAt   DateTime         @default(now())
   createdAt    DateTime         @default(now())
 
-  tenant       Tenant           @relation(fields: [tenantId], references: [id])
-  items        AdjustmentItem[]
-  adjustedBy   User?            @relation(fields: [adjustedById], references: [id])
+  tenant     Tenant           @relation(fields: [tenantId], references: [id])
+  items      AdjustmentItem[]
+  adjustedBy User?            @relation(fields: [adjustedById], references: [id])
 
   @@index([tenantId])
   @@index([adjustedById], map: "stock_adjustments_adjustedById_fkey")
@@ -480,7 +481,7 @@ model StockAdjustment {
 }
 
 model AdjustmentItem {
-  id           String          @id @default(cuid())
+  id           String @id @default(cuid())
   tenantId     String
   adjustmentId String
   productId    String
@@ -488,10 +489,10 @@ model AdjustmentItem {
   systemQty    Float
   actualQty    Float
   diffQty      Float
-  unitCost     Float           @default(0)
+  unitCost     Float  @default(0)
 
-  tenant       Tenant          @relation(fields: [tenantId], references: [id])
-  adjustment   StockAdjustment @relation(fields: [adjustmentId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  adjustment StockAdjustment @relation(fields: [adjustmentId], references: [id])
 
   @@index([tenantId])
   @@index([adjustmentId], map: "adjustment_items_adjustmentId_fkey")
@@ -503,22 +504,22 @@ model AdjustmentItem {
 // ─────────────────────────────────────────────
 
 model Recipe {
-  id          String      @id @default(cuid())
+  id          String  @id @default(cuid())
   tenantId    String
   menuName    String
   posMenuCode String?
-  isActive    Boolean     @default(true)
+  isActive    Boolean @default(true)
   note        String?
 
-  tenant      Tenant      @relation(fields: [tenantId], references: [id])
-  bom         RecipeBOM[]
+  tenant Tenant      @relation(fields: [tenantId], references: [id])
+  bom    RecipeBOM[]
 
   @@index([tenantId])
   @@map("recipes")
 }
 
 model RecipeBOM {
-  id         String   @id @default(cuid())
+  id         String  @id @default(cuid())
   tenantId   String
   recipeId   String
   productId  String
@@ -527,10 +528,10 @@ model RecipeBOM {
   quantity   Float
   unit       String
 
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  menu       Product? @relation("RecipeProduct", fields: [menuId], references: [id])
-  product    Product  @relation(fields: [productId], references: [id])
-  recipe     Recipe   @relation(fields: [recipeId], references: [id])
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  menu    Product? @relation("RecipeProduct", fields: [menuId], references: [id])
+  product Product  @relation(fields: [productId], references: [id])
+  recipe  Recipe   @relation(fields: [recipeId], references: [id])
 
   @@index([tenantId])
   @@index([menuId], map: "recipe_bom_menuId_fkey")
@@ -545,19 +546,19 @@ model RecipeBOM {
 
 /// แปลงหน่วยซื้อ → หน่วยใช้งาน เช่น 1 ถุง = 1000 กรัม
 model UomConversion {
-  id          String   @id @default(cuid())
-  tenantId    String
-  productId   String
-  fromUnit    String   // หน่วยซื้อ เช่น "ถุง", "โหล", "ขวด"
-  toUnit      String   // หน่วยใช้ใน BOM เช่น "กรัม", "มล.", "ชิ้น"
-  factor      Float    // 1 fromUnit = factor toUnit
-  isDefault   Boolean  @default(false)
-  note        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  tenantId  String
+  productId String
+  fromUnit  String // หน่วยซื้อ เช่น "ถุง", "โหล", "ขวด"
+  toUnit    String // หน่วยใช้ใน BOM เช่น "กรัม", "มล.", "ชิ้น"
+  factor    Float // 1 fromUnit = factor toUnit
+  isDefault Boolean  @default(false)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  product     Product  @relation(fields: [productId], references: [id])
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 
   @@unique([tenantId, productId, fromUnit, toUnit])
   @@index([tenantId])
@@ -571,28 +572,28 @@ model UomConversion {
 
 /// บันทึกทุกครั้งที่ตัดสต็อคจาก BOM ไม่สำเร็จ เพื่อให้ผู้จัดการเคลียร์
 model ConsumeFailLog {
-  id            String          @id @default(cuid())
-  tenantId      String
-  orderId       String          // Order ที่ trigger
-  orderNumber   String?         // เลข Order อ่านง่าย
-  menuId        String?         // productId ของเมนู
-  menuName      String?         // ชื่อเมนู (snapshot)
-  ingredientId  String?         // productId ของวัตถุดิบที่ fail
-  ingredientName String?        // ชื่อวัตถุดิบ (snapshot)
-  locationId    String?         // คลังที่ตรวจสอบ
-  failReason    ConsumeFailType
-  requiredQty   Float           @default(0)
-  requiredUnit  String?         // หน่วยที่ BOM ต้องการ
-  availableQty  Float           @default(0)
-  detail        String?         // ข้อความอธิบายเพิ่มเติม
-  status        FailLogStatus   @default(OPEN)
-  resolvedAt    DateTime?
-  resolvedNote  String?
-  createdAt     DateTime        @default(now())
+  id             String          @id @default(cuid())
+  tenantId       String
+  orderId        String // Order ที่ trigger
+  orderNumber    String? // เลข Order อ่านง่าย
+  menuId         String? // productId ของเมนู
+  menuName       String? // ชื่อเมนู (snapshot)
+  ingredientId   String? // productId ของวัตถุดิบที่ fail
+  ingredientName String? // ชื่อวัตถุดิบ (snapshot)
+  locationId     String? // คลังที่ตรวจสอบ
+  failReason     ConsumeFailType
+  requiredQty    Float           @default(0)
+  requiredUnit   String? // หน่วยที่ BOM ต้องการ
+  availableQty   Float           @default(0)
+  detail         String? // ข้อความอธิบายเพิ่มเติม
+  status         FailLogStatus   @default(OPEN)
+  resolvedAt     DateTime?
+  resolvedNote   String?
+  createdAt      DateTime        @default(now())
 
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  menu          Product? @relation("FailMenu", fields: [menuId], references: [id])
-  ingredient    Product? @relation("FailIngredient", fields: [ingredientId], references: [id])
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  menu       Product? @relation("FailMenu", fields: [menuId], references: [id])
+  ingredient Product? @relation("FailIngredient", fields: [ingredientId], references: [id])
 
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
@@ -607,59 +608,65 @@ model ConsumeFailLog {
 /// สูตรแปรรูป: วัตถุดิบดิบ → สินค้ากึ่งสำเร็จ (PREP)
 /// เช่น น้ำซุปหมู 10 ลิตร, หมูหมัก 1 กช.
 model PrepRecipe {
-  id              String   @id @default(cuid())
-  tenantId        String
-  name            String                        // "น้ำซุปหมู", "หมูหมัก", "ซอสพริก"
-  outputProductId String                        // Product (type=PREP) ที่ได้ออกมา
-  yieldQty        Float                         // ทำได้กี่หน่วย เช่น 10 (ลิตร)
-  yieldUnit       String                        // "ลิตร", "กก.", "ชิ้น"
-  isActive        Boolean  @default(true)
-  note            String?  @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(cuid())
+  tenantId         String
+  name             String // "น้ำซุปหมู", "หมูหมัก", "ซอสพริก"
+  outputProductId  String // Product (type=PREP) ที่ได้ออกมา
+  outputLocationId String
+  yieldQty         Float // ทำได้กี่หน่วย เช่น 10 (ลิตร)
+  yieldUnit        String // "ลิตร", "กก.", "ชิ้น"
+  isActive         Boolean  @default(true)
+  note             String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   tenant         Tenant           @relation(fields: [tenantId], references: [id])
   outputProduct  Product          @relation("PrepRecipeOutput", fields: [outputProductId], references: [id])
+  outputLocation Location         @relation("PrepRecipeOutputLoc", fields: [outputLocationId], references: [id])
   lines          PrepRecipeLine[]
   productions    PrepProduction[]
 
   @@index([tenantId])
   @@index([outputProductId])
+  @@index([outputLocationId])
   @@map("prep_recipes")
 }
 
 /// รายการวัตถุดิบสำหรับสูตร — ไม่ผูกถึงคลัง ตัดสต็อคเวลาผลิตจริง
 model PrepRecipeLine {
-  id           String     @id @default(cuid())
+  id           String @id @default(cuid())
   tenantId     String
   prepRecipeId String
-  productId    String     // วัตถุดิบดิบที่ใช้ (RAW_MATERIAL)
-  quantity     Float      // จำนวนต่อ yieldQty หนึ่งชุด
-  unit         String     // หน่วย
+  productId    String // วัตถุดิบดิบที่ใช้ (RAW_MATERIAL)
+  quantity     Float // จำนวนต่อ yieldQty หนึ่งชุด
+  unit         String // หน่วย
+  locationId   String // คลังที่ตัดวัตถุดิบ
 
-  tenant       Tenant     @relation(fields: [tenantId], references: [id])
-  prepRecipe   PrepRecipe @relation(fields: [prepRecipeId], references: [id], onDelete: Cascade)
-  product      Product    @relation("PrepRecipeIngredient", fields: [productId], references: [id])
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  prepRecipe PrepRecipe @relation(fields: [prepRecipeId], references: [id], onDelete: Cascade)
+  product    Product    @relation("PrepRecipeIngredient", fields: [productId], references: [id])
+  location   Location   @relation("PrepRecipeLineLoc", fields: [locationId], references: [id])
 
   @@index([tenantId])
   @@index([prepRecipeId])
+  @@index([locationId])
   @@map("prep_recipe_lines")
 }
 
 /// บันทึกการผลิตจริง — ตัดวัตถุดิบดิบ เพิ่ม PREP stock
 model PrepProduction {
-  id            String    @id @default(cuid())
-  tenantId      String
-  prepRecipeId  String
-  producedQty   Float                         // ผลิตได้จริงกี่หน่วย
-  locationId    String                        // เก็บไว้คลังไหน
-  preparedById  String?                       // userId ที่ทำ
-  producedAt    DateTime  @default(now())
-  note          String?
+  id           String   @id @default(cuid())
+  tenantId     String
+  prepRecipeId String
+  producedQty  Float // ผลิตได้จริงกี่หน่วย
+  locationId   String // เก็บไว้คลังไหน
+  preparedById String? // userId ที่ทำ
+  producedAt   DateTime @default(now())
+  note         String?
 
-  tenant        Tenant     @relation(fields: [tenantId], references: [id])
-  prepRecipe    PrepRecipe @relation(fields: [prepRecipeId], references: [id])
-  location      Location   @relation(fields: [locationId], references: [id])
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  prepRecipe PrepRecipe @relation(fields: [prepRecipeId], references: [id])
+  location   Location   @relation(fields: [locationId], references: [id])
 
   @@index([tenantId])
   @@index([prepRecipeId])
@@ -676,12 +683,12 @@ model ProductAlias {
   id        String   @id @default(cuid())
   tenantId  String
   productId String
-  alias     String   // ชื่อเรียกอื่น / คำในบิล
-  source    String?  // "manual" | "import" | "bill"
+  alias     String // ชื่อเรียกอื่น / คำในบิล
+  source    String? // "manual" | "import" | "bill"
   createdAt DateTime @default(now())
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  product   Product  @relation(fields: [productId], references: [id])
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 
   @@unique([tenantId, alias])
   @@index([tenantId])
@@ -693,17 +700,17 @@ model ProductAlias {
 model SkuSuggestion {
   id               String              @id @default(cuid())
   tenantId         String
-  importSource     String?             // ชื่อไฟล์ที่มาจาก import
-  rawName          String              // ชื่อดิบจาก import/bill
+  importSource     String? // ชื่อไฟล์ที่มาจาก import
+  rawName          String // ชื่อดิบจาก import/bill
   rawUnit          String?
   rawCategory      String?
   rawCostPrice     Float?
   rawSalePrice     Float?
-  suggestedSku     String?             // SKU ที่ระบบเสนอ (ยังไม่สร้างจริง)
-  matchedProductId String?             // productId ที่ match ได้ (score 0.60–0.84)
-  matchScore       Float?              // คะแนน similarity
+  suggestedSku     String? // SKU ที่ระบบเสนอ (ยังไม่สร้างจริง)
+  matchedProductId String? // productId ที่ match ได้ (score 0.60–0.84)
+  matchScore       Float? // คะแนน similarity
   status           SkuSuggestionStatus @default(PENDING)
-  resolvedById     String?             // userId ที่ approve/reject
+  resolvedById     String? // userId ที่ approve/reject
   resolvedAt       DateTime?
   note             String?
   createdAt        DateTime            @default(now())
@@ -733,15 +740,15 @@ model SalesImport {
   importedById String?
   importedAt   DateTime          @default(now())
 
-  tenant       Tenant            @relation(fields: [tenantId], references: [id])
-  items        SalesImportItem[]
+  tenant Tenant            @relation(fields: [tenantId], references: [id])
+  items  SalesImportItem[]
 
   @@index([tenantId])
   @@map("sales_imports")
 }
 
 model SalesImportItem {
-  id            String      @id @default(cuid())
+  id            String  @id @default(cuid())
   tenantId      String
   importId      String
   rowNumber     Int
@@ -750,11 +757,11 @@ model SalesImportItem {
   quantity      Float
   totalAmount   Float
   category      String?
-  stockDeducted Boolean     @default(false)
+  stockDeducted Boolean @default(false)
   matchedRecipe String?
 
-  tenant        Tenant      @relation(fields: [tenantId], references: [id])
-  import        SalesImport @relation(fields: [importId], references: [id])
+  tenant Tenant      @relation(fields: [tenantId], references: [id])
+  import SalesImport @relation(fields: [importId], references: [id])
 
   @@index([tenantId])
   @@index([importId], map: "sales_import_items_importId_fkey")
@@ -775,8 +782,8 @@ model DiningTable {
   status   TableStatus @default(AVAILABLE)
   isActive Boolean     @default(true)
 
-  tenant   Tenant      @relation(fields: [tenantId], references: [id])
-  orders   Order[]
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  orders Order[]
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -801,13 +808,13 @@ model Order {
   openedAt      DateTime     @default(now())
   closedAt      DateTime?
 
-  tenant        Tenant       @relation(fields: [tenantId], references: [id])
-  items         OrderItem[]
-  createdBy     User?        @relation(fields: [createdById], references: [id])
-  table         DiningTable? @relation(fields: [tableId], references: [id])
-  payments      Payment[]
-  salesEvents   SalesEvent[]
-  deliveryInfo  DeliveryInfo?
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  items        OrderItem[]
+  createdBy    User?         @relation(fields: [createdById], references: [id])
+  table        DiningTable?  @relation(fields: [tableId], references: [id])
+  payments     Payment[]
+  salesEvents  SalesEvent[]
+  deliveryInfo DeliveryInfo?
 
   @@unique([tenantId, orderNumber])
   @@index([tenantId])
@@ -821,26 +828,26 @@ model Order {
 
 // ─────────────────────────────────────────────
 model DeliveryInfo {
-  id              String          @id @default(cuid())
-  tenantId        String
-  orderId         String          @unique
-  customerName    String
-  customerPhone   String
-  addressText     String
-  channel         DeliveryChannel @default(PHONE)
-  deliveryStatus  DeliveryStatus  @default(RECEIVED)
-  deliveryFee     Float           @default(0)
-  isPrepaid       Boolean         @default(false)
-  paymentRef      String?
-  riderId         String?
-  driverNote      String?
-  estimatedAt     DateTime?
-  deliveredAt     DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id             String          @id @default(cuid())
+  tenantId       String
+  orderId        String          @unique
+  customerName   String
+  customerPhone  String
+  addressText    String
+  channel        DeliveryChannel @default(PHONE)
+  deliveryStatus DeliveryStatus  @default(RECEIVED)
+  deliveryFee    Float           @default(0)
+  isPrepaid      Boolean         @default(false)
+  paymentRef     String?
+  riderId        String?
+  driverNote     String?
+  estimatedAt    DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  tenant  Tenant @relation(fields: [tenantId], references: [id])
-  order   Order  @relation(fields: [orderId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
 
   @@index([tenantId])
   @@index([tenantId, deliveryStatus])
@@ -854,8 +861,8 @@ model OrderItem {
   productId         String
   quantity          Float         @default(1)
   unitPrice         Float         @default(0)
-  toppingsJson      String?       @db.Text  // JSON: [{id,name,price}] ท็อปปิ้งที่เลือก
-  toppingsTotal     Float         @default(0)  // ยอดรวมท็อปปิ้ง
+  toppingsJson      String?       @db.Text // JSON: [{id,name,price}] ท็อปปิ้งที่เลือก
+  toppingsTotal     Float         @default(0) // ยอดรวมท็อปปิ้ง
   note              String?
   isCancelled       Boolean       @default(false)
   cancelReason      String?
@@ -864,10 +871,10 @@ model OrderItem {
   statusChangedAt   DateTime?
   statusChangedById String?
 
-  tenant            Tenant        @relation(fields: [tenantId], references: [id])
-  order             Order         @relation(fields: [orderId], references: [id])
-  product           Product       @relation(fields: [productId], references: [id])
-  statusChangedBy   User?         @relation("ItemStatusChangedBy", fields: [statusChangedById], references: [id])
+  tenant          Tenant  @relation(fields: [tenantId], references: [id])
+  order           Order   @relation(fields: [orderId], references: [id])
+  product         Product @relation(fields: [productId], references: [id])
+  statusChangedBy User?   @relation("ItemStatusChangedBy", fields: [statusChangedById], references: [id])
 
   @@index([tenantId])
   @@index([orderId], map: "order_items_orderId_fkey")
@@ -884,8 +891,8 @@ model SalesEvent {
   payload    Json
   processed  Boolean  @default(false)
 
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  order      Order    @relation(fields: [orderId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
 
   @@index([tenantId])
   @@index([occurredAt])
@@ -905,8 +912,8 @@ model Payment {
   reference      String?
   paidAt         DateTime      @default(now())
 
-  tenant         Tenant        @relation(fields: [tenantId], references: [id])
-  order          Order         @relation(fields: [orderId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
 
   @@index([tenantId])
   @@index([orderId], map: "payments_orderId_fkey")
@@ -918,15 +925,15 @@ model Payment {
 // ─────────────────────────────────────────────
 
 model Plan {
-  id           String         @id @default(cuid())
-  code         String         @unique // e.g. PLAN_1M, PLAN_3M
+  id           String  @id @default(cuid())
+  code         String  @unique // e.g. PLAN_1M, PLAN_3M
   name         String
   priceLAK     Int
   durationDays Int
   features     Json?
-  isActive     Boolean        @default(true)
+  isActive     Boolean @default(true)
 
-  subs         Subscription[]
+  subs Subscription[]
 
   @@map("plans")
 }
@@ -940,8 +947,8 @@ model Subscription {
   status    SubStatus @default(ACTIVE)
   autoRenew Boolean   @default(false)
 
-  tenant    Tenant    @relation(fields: [tenantId], references: [id])
-  plan      Plan      @relation(fields: [planId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  plan   Plan   @relation(fields: [planId], references: [id])
 
   @@index([tenantId])
   @@index([endAt])
@@ -953,13 +960,13 @@ model Subscription {
 // ─────────────────────────────────────────────
 
 model Wallet {
-  id         String         @id @default(cuid())
-  tenantId   String         @unique
-  balanceLAK Int            @default(0)
-  updatedAt  DateTime       @updatedAt
+  id         String   @id @default(cuid())
+  tenantId   String   @unique
+  balanceLAK Int      @default(0)
+  updatedAt  DateTime @updatedAt
 
-  tenant     Tenant         @relation(fields: [tenantId], references: [id])
-  ledger     WalletLedger[]
+  tenant Tenant         @relation(fields: [tenantId], references: [id])
+  ledger WalletLedger[]
 
   @@map("wallets")
 }
@@ -970,16 +977,16 @@ model WalletLedger {
   walletId         String
   tenantId         String
   type             LedgerType
-  amountLAK        Int        // positive = credit (topup/refund), negative = debit (billing)
-  refType          String?    // "TOPUP" | "SUBSCRIPTION" | "ADJUST"
+  amountLAK        Int // positive = credit (topup/refund), negative = debit (billing)
+  refType          String? // "TOPUP" | "SUBSCRIPTION" | "ADJUST"
   refId            String?
   note             String?
   createdAt        DateTime   @default(now())
   createdByAdminId String?
 
-  wallet           Wallet     @relation(fields: [walletId], references: [id])
-  tenant           Tenant     @relation(fields: [tenantId], references: [id])
-  createdByAdmin   AdminUser? @relation(fields: [createdByAdminId], references: [id])
+  wallet         Wallet     @relation(fields: [walletId], references: [id])
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  createdByAdmin AdminUser? @relation(fields: [createdByAdminId], references: [id])
 
   @@index([walletId])
   @@index([tenantId, createdAt])
@@ -996,16 +1003,16 @@ model TopupRequest {
   tenantId          String
   userId            String
   amountLAK         Int
-  channel           String      // BCEL / transfer / cash / …
+  channel           String // BCEL / transfer / cash / …
   proofUrl          String?
   status            TopupStatus @default(PENDING)
   createdAt         DateTime    @default(now())
   reviewedAt        DateTime?
   reviewedByAdminId String?
 
-  tenant            Tenant      @relation(fields: [tenantId], references: [id])
-  user              User        @relation(fields: [userId], references: [id])
-  reviewedBy        AdminUser?  @relation(fields: [reviewedByAdminId], references: [id])
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  reviewedBy AdminUser? @relation(fields: [reviewedByAdminId], references: [id])
 
   @@index([tenantId, status])
   @@index([userId])
@@ -1020,17 +1027,17 @@ model TopupRequest {
 model AuditLog {
   id        String    @id @default(cuid())
   actorType ActorType
-  adminId   String?   // set when actorType = ADMIN
-  userId    String?   // set when actorType = TENANT_USER
+  adminId   String? // set when actorType = ADMIN
+  userId    String? // set when actorType = TENANT_USER
   tenantId  String?
-  action    String    // e.g. "APPROVE_TOPUP" | "DISABLE_TENANT" | "CHANGE_PLAN"
+  action    String // e.g. "APPROVE_TOPUP" | "DISABLE_TENANT" | "CHANGE_PLAN"
   payload   Json?
   ip        String?
   createdAt DateTime  @default(now())
 
-  admin     AdminUser? @relation(fields: [adminId], references: [id])
-  user      User?      @relation(fields: [userId], references: [id])
-  tenant    Tenant?    @relation(fields: [tenantId], references: [id])
+  admin  AdminUser? @relation(fields: [adminId], references: [id])
+  user   User?      @relation(fields: [userId], references: [id])
+  tenant Tenant?    @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId, createdAt])
   @@index([action])
@@ -1093,7 +1100,7 @@ enum ActorType {
 enum ProductType {
   SALE_ITEM
   RAW_MATERIAL
-  PREP           // ของเตรียม/แปรรูป (น้ำซุป, ซอส, หมูหมัก)
+  PREP // ของเตรียม/แปรรูป (น้ำซุป, ซอส, หมูหมัก)
   PACKAGING
   ENTERTAIN
 }
@@ -1115,8 +1122,8 @@ enum MovementType {
   WASTE
   OPENING
   RETURN
-  PRODUCTION_OUT   // ตัดวัตถุดิบดิบเพื่อแปรรูป
-  PRODUCTION_IN    // รับ PREP product เข้าคลัง
+  PRODUCTION_OUT // ตัดวัตถุดิบดิบเพื่อแปรรูป
+  PRODUCTION_IN // รับ PREP product เข้าคลัง
 }
 
 // ─────────────────────────────────────────────
@@ -1127,7 +1134,7 @@ model PlatformConfig {
   key       String   @id // e.g., 'REGISTER_URL', 'CONTACT_URL'
   value     String   @db.Text
   updatedAt DateTime @updatedAt
-  updatedBy String?  // adminId
+  updatedBy String? // adminId
 
   @@map("platform_config")
 }
@@ -1196,32 +1203,32 @@ enum PaymentMethod {
 
 enum SkuSuggestionStatus {
   PENDING
-  APPROVED_MAP  // อนุมัติ map ไป existing SKU
-  APPROVED_NEW  // อนุมัติสร้าง SKU ใหม่
+  APPROVED_MAP // อนุมัติ map ไป existing SKU
+  APPROVED_NEW // อนุมัติสร้าง SKU ใหม่
   REJECTED
 }
 
 enum ConsumeFailType {
-  NO_BOM           // เมนูไม่มีสูตร BOM เลย
-  BOM_INCOMPLETE   // BOM มีบางรายการขาด qty/unit
-  NO_UOM_CONV      // ไม่มีหน่วยแปลง (เช่น ถุง→กรัม)
-  STOCK_EMPTY      // สต็อคใน location ไม่พอ
-  WRONG_WAREHOUSE  // ของมีแต่อยู่คลังอื่น
-  NO_GR            // สินค้ายังไม่ได้รับเข้าคลัง (inventory record = 0)
-  SYSTEM_ERROR     // ข้อผิดพลาดระบบอื่นๆ
+  NO_BOM // เมนูไม่มีสูตร BOM เลย
+  BOM_INCOMPLETE // BOM มีบางรายการขาด qty/unit
+  NO_UOM_CONV // ไม่มีหน่วยแปลง (เช่น ถุง→กรัม)
+  STOCK_EMPTY // สต็อคใน location ไม่พอ
+  WRONG_WAREHOUSE // ของมีแต่อยู่คลังอื่น
+  NO_GR // สินค้ายังไม่ได้รับเข้าคลัง (inventory record = 0)
+  SYSTEM_ERROR // ข้อผิดพลาดระบบอื่นๆ
 }
 
 enum FailLogStatus {
-  OPEN       // รอดำเนินการ
-  RESOLVED   // แก้ไขแล้ว
-  IGNORED    // ยกเลิก/ข้ามไป
+  OPEN // รอดำเนินการ
+  RESOLVED // แก้ไขแล้ว
+  IGNORED // ยกเลิก/ข้ามไป
 }
 
 enum StockCountStatus {
-  DRAFT        // เตรียมรายการ
-  IN_PROGRESS  // กำลังนับ (systemQty ถูก snapshot แล้ว)
-  COMPLETED    // นับครบทุกรายการ รอ Approve
-  ADJUSTED     // Apply adjustment เข้าระบบแล้ว
+  DRAFT // เตรียมรายการ
+  IN_PROGRESS // กำลังนับ (systemQty ถูก snapshot แล้ว)
+  COMPLETED // นับครบทุกรายการ รอ Approve
+  ADJUSTED // Apply adjustment เข้าระบบแล้ว
   CANCELLED
 }
 
@@ -1325,37 +1332,37 @@ enum RiskLevel {
 
 /// วัตถุดิบ / ของเตรียม / วัสดุสิ้นเปลือง master catalog
 model InventoryItem {
-  id               String      @id @default(cuid())
-  tenantId         String
-  code             String      // unique per tenant
-  name             String
-  normalizedName   String      // used for soft-duplicate check
-  itemRole         ItemRole
-  itemKind         ItemKind
-  categoryKey      String?     // MEAT, SEAFOOD, SAUCE, EGG...
-  proteinFamily    String?     // CHICKEN, PORK, SHRIMP, FISH
-  speciesType      String?     // WHITE_SHRIMP, RIVER_SHRIMP, TILAPIA
-  cutPart          String?     // BELLY, BREAST, WING_MID
-  formState        String?     // FRESH, FROZEN, MINCED, MARINATED
-  baseUnit         String      // g, ml, egg, piece, pack
-  purchaseUnit     String?     // kg, tray, bottle, pack
-  trackStock       Boolean     @default(true)
-  isPurchasable    Boolean     @default(true)
-  isSellable       Boolean     @default(false)
-  status           ItemStatus  @default(DRAFT)
-  aiConfidence     Decimal?    @db.Decimal(5, 4)
-  aiStatus         AiItemStatus?
-  createdById      String?
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  id             String        @id @default(cuid())
+  tenantId       String
+  code           String // unique per tenant
+  name           String
+  normalizedName String // used for soft-duplicate check
+  itemRole       ItemRole
+  itemKind       ItemKind
+  categoryKey    String? // MEAT, SEAFOOD, SAUCE, EGG...
+  proteinFamily  String? // CHICKEN, PORK, SHRIMP, FISH
+  speciesType    String? // WHITE_SHRIMP, RIVER_SHRIMP, TILAPIA
+  cutPart        String? // BELLY, BREAST, WING_MID
+  formState      String? // FRESH, FROZEN, MINCED, MARINATED
+  baseUnit       String // g, ml, egg, piece, pack
+  purchaseUnit   String? // kg, tray, bottle, pack
+  trackStock     Boolean       @default(true)
+  isPurchasable  Boolean       @default(true)
+  isSellable     Boolean       @default(false)
+  status         ItemStatus    @default(DRAFT)
+  aiConfidence   Decimal?      @db.Decimal(5, 4)
+  aiStatus       AiItemStatus?
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  tenant           Tenant      @relation(fields: [tenantId], references: [id])
-  conversions      ItemUnitConversion[]
-  aliases          ItemAlias[]
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id])
+  conversions       ItemUnitConversion[]
+  aliases           ItemAlias[]
   aiClassifications AiItemClassification[]
-  issues           ValidationIssue[]
-  recommendations  AiRecommendation[]
-  products         Product[]
+  issues            ValidationIssue[]
+  recommendations   AiRecommendation[]
+  products          Product[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1366,17 +1373,17 @@ model InventoryItem {
 
 /// แปลงหน่วยซื้อ → หน่วยใช้งาน
 model ItemUnitConversion {
-  id              String        @id @default(cuid())
+  id              String   @id @default(cuid())
   tenantId        String
   inventoryItemId String
   fromUnit        String
   toUnit          String
-  ratio           Decimal       @db.Decimal(18, 6)
-  isDefault       Boolean       @default(true)
-  createdAt       DateTime      @default(now())
+  ratio           Decimal  @db.Decimal(18, 6)
+  isDefault       Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
-  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, inventoryItemId, fromUnit, toUnit])
   @@index([tenantId])
@@ -1386,17 +1393,17 @@ model ItemUnitConversion {
 
 /// ชื่อเรียกอื่น / ชื่อทางร้าน
 model ItemAlias {
-  id                  String        @id @default(cuid())
+  id                  String      @id @default(cuid())
   tenantId            String
   inventoryItemId     String
   aliasName           String
   normalizedAliasName String
-  sourceType          AliasSource   @default(USER)
-  isActive            Boolean       @default(true)
-  createdAt           DateTime      @default(now())
+  sourceType          AliasSource @default(USER)
+  isActive            Boolean     @default(true)
+  createdAt           DateTime    @default(now())
 
-  tenant              Tenant        @relation(fields: [tenantId], references: [id])
-  inventoryItem       InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, aliasName])
   @@index([tenantId])
@@ -1406,28 +1413,28 @@ model ItemAlias {
 
 /// ผล AI suggestion — ไม่ write master ตรง ๆ
 model AiItemClassification {
-  id                    String         @id @default(cuid())
-  tenantId              String
-  inventoryItemId       String?        // null = classify แต่ยังไม่ save item
-  inputName             String
-  suggestedRole         String?
-  suggestedKind         String?
-  suggestedCategory     String?
-  suggestedBaseUnit     String?
-  suggestedPurchaseUnit String?
-  suggestedCode         String?
+  id                     String   @id @default(cuid())
+  tenantId               String
+  inventoryItemId        String? // null = classify แต่ยังไม่ save item
+  inputName              String
+  suggestedRole          String?
+  suggestedKind          String?
+  suggestedCategory      String?
+  suggestedBaseUnit      String?
+  suggestedPurchaseUnit  String?
+  suggestedCode          String?
   suggestedProteinFamily String?
-  suggestedSpeciesType  String?
-  suggestedCutPart      String?
-  suggestedFormState    String?
-  confidenceScore       Decimal        @db.Decimal(5, 4)
-  duplicateCandidateJson Json          @default("[]")
-  warningJson           Json           @default("[]")
-  rawModelResponse      Json?
-  createdAt             DateTime       @default(now())
+  suggestedSpeciesType   String?
+  suggestedCutPart       String?
+  suggestedFormState     String?
+  confidenceScore        Decimal  @db.Decimal(5, 4)
+  duplicateCandidateJson Json     @default("[]")
+  warningJson            Json     @default("[]")
+  rawModelResponse       Json?
+  createdAt              DateTime @default(now())
 
-  tenant                Tenant         @relation(fields: [tenantId], references: [id])
-  inventoryItem         InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
 
   @@index([tenantId])
   @@index([inventoryItemId])
@@ -1436,21 +1443,21 @@ model AiItemClassification {
 
 /// ปัญหาที่ rule engine ตรวจพบ
 model ValidationIssue {
-  id             String        @id @default(cuid())
-  tenantId       String
-  entityType     String        @default("ITEM") // ITEM
-  entityId       String
-  issueCode      String        // DUPLICATE_NAME, MISSING_CONVERSION ...
-  severity       IssueSeverity
-  message        String        @db.Text
-  detailsJson    Json          @default("{}")
-  status         IssueStatus   @default(OPEN)
-  createdAt      DateTime      @default(now())
-  resolvedAt     DateTime?
-  resolvedBy     String?
+  id          String        @id @default(cuid())
+  tenantId    String
+  entityType  String        @default("ITEM") // ITEM
+  entityId    String
+  issueCode   String // DUPLICATE_NAME, MISSING_CONVERSION ...
+  severity    IssueSeverity
+  message     String        @db.Text
+  detailsJson Json          @default("{}")
+  status      IssueStatus   @default(OPEN)
+  createdAt   DateTime      @default(now())
+  resolvedAt  DateTime?
+  resolvedBy  String?
 
-  tenant         Tenant        @relation(fields: [tenantId], references: [id])
-  inventoryItem  InventoryItem @relation(fields: [entityId], references: [id])
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  inventoryItem InventoryItem @relation(fields: [entityId], references: [id])
 
   @@index([tenantId, status])
   @@index([tenantId, entityId])
@@ -1460,22 +1467,22 @@ model ValidationIssue {
 
 /// คำแนะนำจาก AI ให้ผู้ใช้กดยืนยัน/ปฏิเสธ
 model AiRecommendation {
-  id                 String        @id @default(cuid())
+  id                 String    @id @default(cuid())
   tenantId           String
-  entityType         String        @default("ITEM")
+  entityType         String    @default("ITEM")
   entityId           String?
   recommendationType RecType
   title              String
   detailsJson        Json
-  confidenceScore    Decimal       @db.Decimal(5, 4)
-  riskLevel          RiskLevel     @default(LOW)
-  status             RecStatus     @default(OPEN)
-  createdAt          DateTime      @default(now())
+  confidenceScore    Decimal   @db.Decimal(5, 4)
+  riskLevel          RiskLevel @default(LOW)
+  status             RecStatus @default(OPEN)
+  createdAt          DateTime  @default(now())
   approvedAt         DateTime?
   approvedBy         String?
 
-  tenant             Tenant        @relation(fields: [tenantId], references: [id])
-  inventoryItem      InventoryItem? @relation(fields: [entityId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  inventoryItem InventoryItem? @relation(fields: [entityId], references: [id])
 
   @@index([tenantId, status])
   @@index([tenantId, entityType, status])
@@ -1485,13 +1492,13 @@ model AiRecommendation {
 /// ติดตามการใช้งาน entity เพื่อป้องกัน delete มั่ว
 model EntityUsageSummary {
   tenantId         String
-  entityType       String   // ITEM
+  entityType       String // ITEM
   entityId         String
-  purchaseTxnCount Int      @default(0)
-  stockTxnCount    Int      @default(0)
+  purchaseTxnCount Int       @default(0)
+  stockTxnCount    Int       @default(0)
   lastUsedAt       DateTime?
 
-  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@id([tenantId, entityType, entityId])
   @@index([tenantId])

@@ -4,9 +4,11 @@ import { withAuth, ok, err } from '@/lib/api'
 
 const include = {
     outputProduct: { select: { id: true, name: true, sku: true, unit: true } },
+    outputLocation: { select: { id: true, code: true, name: true } },
     lines: {
         include: {
             product: { select: { id: true, name: true, sku: true, unit: true } },
+            location: { select: { id: true, code: true, name: true } },
         },
     },
     productions: {
@@ -27,8 +29,8 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
     return ok(recipe)
 }, ['OWNER', 'MANAGER'])
 
-// PATCH /api/prep-recipes/[id]
-export const PATCH = withAuth(async (req: NextRequest, ctx: any) => {
+// PUT /api/prep-recipes/[id]
+export const PUT = withAuth(async (req: NextRequest, ctx: any) => {
     try {
         const { tenantId, params } = ctx
         const id = params?.id
@@ -37,7 +39,7 @@ export const PATCH = withAuth(async (req: NextRequest, ctx: any) => {
         const recipe = await prisma.prepRecipe.findFirst({ where: { id, tenantId } })
         if (!recipe) return err('ไม่พบสูตร', 404)
 
-        const { lines, ...fields } = body
+        const { ingredients, ...fields } = body
 
         await prisma.$transaction(async tx => {
             await tx.prepRecipe.update({
@@ -45,22 +47,24 @@ export const PATCH = withAuth(async (req: NextRequest, ctx: any) => {
                 data: {
                     name: fields.name ?? recipe.name,
                     outputProductId: fields.outputProductId ?? recipe.outputProductId,
-                    yieldQty: fields.yieldQty ?? recipe.yieldQty,
-                    yieldUnit: fields.yieldUnit ?? recipe.yieldUnit,
+                    outputLocationId: fields.outputLocationId ?? recipe.outputLocationId,
+                    yieldQty: fields.outputQty ?? recipe.yieldQty,
+                    yieldUnit: fields.outputUnit ?? recipe.yieldUnit,
                     note: fields.note ?? recipe.note,
                     isActive: fields.isActive ?? recipe.isActive,
                 },
             })
-            if (Array.isArray(lines)) {
+            if (Array.isArray(ingredients)) {
                 await tx.prepRecipeLine.deleteMany({ where: { prepRecipeId: id } })
-                if (lines.length > 0) {
+                if (ingredients.length > 0) {
                     await tx.prepRecipeLine.createMany({
-                        data: lines.map((l: any) => ({
+                        data: ingredients.map((l: any) => ({
                             tenantId,
                             prepRecipeId: id,
                             productId: l.productId,
                             quantity: l.quantity,
                             unit: l.unit,
+                            locationId: l.locationId,
                         })),
                     })
                 }
@@ -70,7 +74,7 @@ export const PATCH = withAuth(async (req: NextRequest, ctx: any) => {
         const updated = await prisma.prepRecipe.findUnique({ where: { id }, include })
         return ok(updated)
     } catch (e) {
-        console.error('PrepRecipe patch error:', e)
+        console.error('PrepRecipe put error:', e)
         return err('เกิดข้อผิดพลาด')
     }
 }, ['OWNER', 'MANAGER'])
