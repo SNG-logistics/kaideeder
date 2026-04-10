@@ -12,10 +12,11 @@ import { prisma } from '@/lib/prisma'
  */
 export const POST = withAuth(async (
   req: NextRequest,
-  ctx: AuthContext & { params: { id: string } }
+  ctx: any
 ) => {
   const tenantId = ctx.tenantId
-  const countId = ctx.params?.id as string
+  const params = await ctx.params
+  const countId = params?.id as string
 
   if (!countId) return err('ไม่พบ countId')
 
