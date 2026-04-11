@@ -1257,6 +1257,11 @@ enum DeliveryChannel {
   PHONE
   WALKIN
   WEBSITE
+  GRAB
+  FOODPANDA
+  LINEMAN
+  SHOPEEFOOD
+  LALAMOVE
   OTHER
 }
 

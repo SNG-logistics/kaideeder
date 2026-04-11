@@ -4,7 +4,7 @@ import { useCurrency } from '@/context/TenantContext'
 
 // ─── Types ────────────────────────────────────────────────────
 type DeliveryStatus = 'RECEIVED' | 'PREPARING' | 'ASSIGNED' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED'
-type DeliveryChannel = 'WHATSAPP' | 'LINE' | 'PHONE' | 'WALKIN' | 'WEBSITE' | 'OTHER'
+type DeliveryChannel = 'WHATSAPP' | 'LINE' | 'PHONE' | 'WALKIN' | 'WEBSITE' | 'GRAB' | 'FOODPANDA' | 'LINEMAN' | 'SHOPEEFOOD' | 'LALAMOVE' | 'OTHER'
 
 interface DeliveryInfo {
     id: string
@@ -54,7 +54,9 @@ const NEXT_STATUS: Partial<Record<DeliveryStatus, DeliveryStatus>> = {
 
 const CHANNEL_LABEL: Record<DeliveryChannel, string> = {
     WHATSAPP: '💬 WhatsApp', LINE: '💚 LINE', PHONE: '📞 โทรศัพท์',
-    WALKIN: '🚶 Walk-in',   WEBSITE: '🌐 เว็บ',  OTHER: '🔗 อื่นๆ',
+    WALKIN: '🚶 Walk-in',   WEBSITE: '🌐 เว็บ',
+    GRAB: '🟢 Grab', FOODPANDA: '🐼 Foodpanda', LINEMAN: '🔰 LineMan', SHOPEEFOOD: '🟠 ShopeeFood', LALAMOVE: '🚚 Lalamove',
+    OTHER: '🔗 อื่นๆ',
 }
 
 const PRODUCT_FIELDS = [

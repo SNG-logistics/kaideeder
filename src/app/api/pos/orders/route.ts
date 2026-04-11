@@ -16,7 +16,7 @@ const deliveryInfoSchema = z.object({
     customerName: z.string().min(1),
     customerPhone: z.string().min(1),
     addressText: z.string().min(1),
-    channel: z.enum(['WHATSAPP', 'LINE', 'PHONE', 'WALKIN', 'WEBSITE', 'OTHER']).default('PHONE'),
+    channel: z.enum(['WHATSAPP', 'LINE', 'PHONE', 'WALKIN', 'WEBSITE', 'GRAB', 'FOODPANDA', 'LINEMAN', 'SHOPEEFOOD', 'LALAMOVE', 'OTHER']).default('PHONE'),
     deliveryFee: z.number().min(0).default(0),
     isPrepaid: z.boolean().default(false),
     paymentRef: z.string().optional(),
