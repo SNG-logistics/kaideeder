@@ -404,8 +404,8 @@ export default function DeliveryOrderPage() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                                         <span style={{ fontSize: '1.2rem' }}>👋</span>
                                         <div>
-                                            <div style={{ color: C.green, fontWeight: 800, fontSize: '0.88rem' }}>สวัสดีคุณ {profile.name}!</div>
-                                            <div style={{ color: C.sub, fontSize: '0.75rem', marginTop: 1 }}>พบข้อมูลเก่าของคุณ — ใช้เลยได้เลย</div>
+                                            <div style={{ color: C.green, fontWeight: 800, fontSize: '0.88rem' }}>{t('delivery_profile_greeting')} {profile.name}!</div>
+                                            <div style={{ color: C.sub, fontSize: '0.75rem', marginTop: 1 }}>{t('delivery_profile_sub')}</div>
                                         </div>
                                     </div>
                                     <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 10, paddingLeft: 28 }}>
@@ -414,10 +414,10 @@ export default function DeliveryOrderPage() {
                                     </div>
                                     <div style={{ display: 'flex', gap: 8 }}>
                                         <button onClick={() => applyProfile(profile)} style={{ flex: 2, padding: '9px 12px', background: C.green, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', fontFamily: FONT }}>
-                                            ✓ ใช้ข้อมูลเดิม
+                                            {t('delivery_profile_use')}
                                         </button>
                                         <button onClick={() => { setSavedProfile(null); setPhoneLookupProfile(null); setProfileApplied(true) }} style={{ flex: 1, padding: '9px 12px', background: 'rgba(255,255,255,0.05)', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 10, fontWeight: 600, fontSize: '0.83rem', cursor: 'pointer', fontFamily: FONT }}>
-                                            ใส่ใหม่
+                                            {t('delivery_profile_new')}
                                         </button>
                                     </div>
                                 </div>
@@ -443,7 +443,7 @@ export default function DeliveryOrderPage() {
                                     onClick={handleGetLocation}
                                     style={{ background: latitude ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.06)', border: `1px solid ${latitude ? C.green : C.border}`, color: latitude ? C.green : C.text, padding: '10px', borderRadius: 12, cursor: 'pointer', fontFamily: FONT, fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                                 >
-                                    {locating ? '⏳ กำลังดึงตำแหน่ง...' : (latitude ? '📍 ปักหมุดแล้ว (คลิกเพื่ออัปเดต)' : '📍 ปักหมุดแผนที่ (รับพิกัดปัจจุบัน)')}
+                                    {locating ? t('delivery_locating') : (latitude ? t('delivery_pin_done') : t('delivery_pin_btn'))}
                                 </button>
                                 {latitude && longitude && (
                                     <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.border}`, height: 160, position: 'relative' }}>
