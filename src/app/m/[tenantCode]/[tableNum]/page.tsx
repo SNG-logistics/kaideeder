@@ -6,7 +6,7 @@ import { LangSwitcher } from '@/components/LangSwitcher'
 
 type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean; toppingsJson?: string | null }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
-type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string; hasBanner?: boolean; qrBankingBase64?: string | null }
+type Tenant = { name: string; displayName: string | null; storeNameLao?: string | null; language?: string; logoUrl: string | null; currency: string; hasBanner?: boolean; qrBankingBase64?: string | null }
 type Topping = { id: string; name: string; price: number; isActive?: boolean }
 type CartItem = Product & { cartId: string; quantity: number; note: string; toppingsJson?: string; toppingsTotal?: number }
 
@@ -50,7 +50,7 @@ function fmtPrice(v: number | null, currency: string) {
 
 // ── Global Styles ──────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   html,body { margin: 0; padding: 0; background: #e8eceb; height: 100%; }
   ::-webkit-scrollbar { display: none; }
@@ -112,6 +112,7 @@ export default function MenuPage() {
     const { t, lang, setLang } = useT()
 
     const [tenant, setTenant] = useState<Tenant | null>(null)
+    const showLangSwitcher = tenant?.language === 'both'
     const [categories, setCategories] = useState<Category[]>([])
     const [products, setProducts] = useState<Product[]>([])
     const [cart, setCart] = useState<CartItem[]>([])
@@ -149,9 +150,15 @@ export default function MenuPage() {
                 setCategories(d.categories)
                 setProducts(d.products)
             })
-            .catch(() => setError('ไม่สามารถโหลดเมนูได้'))
+            .catch(() => setError(t('menu_load_error')))
             .finally(() => setLoading(false))
-    }, [params.tenantCode])
+    }, [params.tenantCode, t])
+
+    useEffect(() => {
+        if (!tenant || !tenant.language) return
+        if (tenant.language === 'th') setLang('th')
+        else if (tenant.language === 'lo') setLang('lo')
+    }, [tenant, setLang])
 
     const loadBill = useCallback(async () => {
         setBillLoading(true)
@@ -470,7 +477,7 @@ export default function MenuPage() {
                                         <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>{t('qr_table')} {tableNum}</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        <LangSwitcher lang={lang} setLang={setLang} theme="dark" />
+                                        {showLangSwitcher && <LangSwitcher lang={lang} setLang={setLang} theme="dark" />}
                                         {hasAnyOrder && (
                                             <button onClick={() => setViewBill(true)} style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 99, padding: '6px 12px', cursor: 'pointer', color: '#fff', fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
                                                 🧾 {t('bill_title').replace('🧾 ','')}{billDone && ' ✓'}
@@ -481,6 +488,7 @@ export default function MenuPage() {
                                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 16px 14px' }}>
                                     <div style={{ color: '#fff', fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2, textShadow: '0 1px 8px rgba(0,0,0,0.4)' }}>
                                         {tenant?.displayName || tenant?.name || 'เมนูร้าน'}
+                                        {tenant?.storeNameLao && lang === 'lo' && <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.85)', marginLeft: 6 }}>({tenant.storeNameLao})</span>}
                                     </div>
                                     {hasAnyOrder && (
                                         <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.85)', marginTop: 2, fontWeight: 500 }}>
@@ -493,11 +501,14 @@ export default function MenuPage() {
                             <div style={{ background: '#fff', padding: '14px 16px 10px', borderBottom: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.2rem', lineHeight: 1.1 }}>{tenant?.displayName || tenant?.name || 'MENU'}</div>
+                                        <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.2rem', lineHeight: 1.1 }}>
+                                            {tenant?.displayName || tenant?.name || 'MENU'}
+                                            {tenant?.storeNameLao && lang === 'lo' && <span style={{ fontSize: '0.9rem', color: C.accentDark, marginLeft: 6 }}>({tenant.storeNameLao})</span>}
+                                        </div>
                                         <div style={{ color: C.muted, fontSize: '0.72rem', marginTop: 1 }}>🪑 {t('qr_table')} {tableNum}</div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        <LangSwitcher lang={lang} setLang={setLang} theme="light" />
+                                        {showLangSwitcher && <LangSwitcher lang={lang} setLang={setLang} theme="light" />}
                                         {hasAnyOrder && (
                                             <button onClick={() => setViewBill(true)} style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 12, padding: '7px 14px', cursor: 'pointer', color: C.accent, fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
                                                 🧾 {billDone ? '✓' : ''}

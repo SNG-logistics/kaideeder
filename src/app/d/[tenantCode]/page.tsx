@@ -1,13 +1,15 @@
 'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useT } from '@/lib/i18n/useT'
+import { LangSwitcher } from '@/components/LangSwitcher'
 
 // ── Types ─────────────────────────────────────────────────────
 type Step = 1 | 2 | 3
 type Topping = { id: string; name: string; price: number; isActive?: boolean }
 type Product = { toppingsJson?: string | null;  id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
-type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string; qrBankingBase64?: string | null }
+type Tenant = { name: string; displayName: string | null; storeNameLao?: string | null; language?: string; logoUrl: string | null; currency: string; qrBankingBase64?: string | null }
 type CartItem = Product & { cartId: string; quantity: number; note: string; toppingsJson?: string | null; toppingsTotal?: number }
 
 // ── Design System ─────────────────────────────────────────────
@@ -30,7 +32,7 @@ const C = {
 }
 const FONT = "'Outfit','Noto Sans Thai',system-ui,sans-serif"
 const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   html,body { margin: 0; padding: 0; background: #0f172a; }
   ::-webkit-scrollbar { display: none; }
@@ -47,39 +49,7 @@ function fmt(v: number | null, currency: string) {
 }
 
 // ── Step Indicator ───────────────────────────────────────────
-function StepDots({ current }: { current: Step }) {
-    const steps = [
-        { n: 1, label: 'ข้อมูล' },
-        { n: 2, label: 'เมนู' },
-        { n: 3, label: 'ยืนยัน' },
-    ]
-    return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, padding: '12px 0 8px' }}>
-            {steps.map((s, i) => (
-                <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <div style={{
-                            width: 32, height: 32, borderRadius: '50%',
-                            background: current >= s.n ? C.accentGrad : 'rgba(255,255,255,0.06)',
-                            border: `2px solid ${current >= s.n ? C.accent : 'rgba(255,255,255,0.1)'}`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.8rem', fontWeight: 800,
-                            color: current >= s.n ? '#fff' : C.muted,
-                            transition: 'all 0.25s',
-                            boxShadow: current === s.n ? C.accentGlow : 'none',
-                        }}>
-                            {current > s.n ? '✓' : s.n}
-                        </div>
-                        <span style={{ fontSize: '0.6rem', color: current >= s.n ? '#FDA4AF' : C.muted, fontWeight: 600 }}>{s.label}</span>
-                    </div>
-                    {i < steps.length - 1 && (
-                        <div style={{ width: 40, height: 2, background: current > s.n ? C.accent : 'rgba(255,255,255,0.08)', margin: '0 4px', marginBottom: 20, transition: 'background 0.3s', borderRadius: 1 }} />
-                    )}
-                </div>
-            ))}
-        </div>
-    )
-}
+// StepDots now accepts t function and step translations from component hook
 
 // ── Input Component ───────────────────────────────────────────
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -111,6 +81,10 @@ export default function DeliveryOrderPage() {
     const [products, setProducts] = useState<Product[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const { t, lang, setLang } = useT()
+
+    // Disable languages based on tenant setting
+    const showLangSwitcher = tenant?.language === 'both'
 
     // ── Step ─────────────────────────────────────────────────
     const [step, setStep] = useState<Step>(1)
@@ -154,9 +128,17 @@ export default function DeliveryOrderPage() {
                 setCategories(d.categories)
                 setProducts(d.products)
             })
-            .catch(() => setError('ไม่สามารถโหลดเมนูได้'))
+            .catch(() => setError(t('menu_load_error')))
             .finally(() => setLoading(false))
-    }, [tenantCode])
+    }, [tenantCode, t])
+
+    // Apply auto-language config on tenant load
+    useEffect(() => {
+        if (!tenant || !tenant.language) return
+        if (tenant.language === 'th') setLang('th')
+        else if (tenant.language === 'lo') setLang('lo')
+        // 'both' relies on useT's default behavior
+    }, [tenant, setLang])
 
     // ── Cart helpers ──────────────────────────────────────────
     const addToCart = useCallback((p: Product) => {
@@ -179,7 +161,7 @@ export default function DeliveryOrderPage() {
             const cartId = p.id + (tJson || '')
             const ex = prev.find(i => i.cartId === cartId)
             if (ex) return prev.map(i => i.cartId === cartId ? { ...i, quantity: i.quantity + 1 } : i)
-            const topsNote = tops.length > 0 ? '(' + tops.map(t => t.name).join(', ') + ')' : ''
+            const topsNote = tops.length > 0 ? '(' + tops.map(top => top.name).join(', ') + ')' : ''
             return [...prev, { ...p, cartId, quantity: 1, note: topsNote, toppingsJson: tJson, toppingsTotal: topTotal }]
         })
         setToppingProduct(null)
@@ -205,9 +187,9 @@ export default function DeliveryOrderPage() {
     // ── Step 1 → 2 ───────────────────────────────────────────
     function goToMenu() {
         setStep1Err('')
-        if (!name.trim()) { setStep1Err('กรุณาระบุชื่อ'); return }
-        if (!phone.trim()) { setStep1Err('กรุณาระบุเบอร์โทร'); return }
-        if (!address.trim()) { setStep1Err('กรุณาระบุที่อยู่จัดส่ง'); return }
+        if (!name.trim()) { setStep1Err(t('delivery_err_name')); return }
+        if (!phone.trim()) { setStep1Err(t('delivery_err_phone')); return }
+        if (!address.trim()) { setStep1Err(t('delivery_err_address')); return }
         setStep(2)
     }
 
@@ -236,8 +218,8 @@ export default function DeliveryOrderPage() {
     // ── Submit order ──────────────────────────────────────────
     async function submitOrder() {
         setSubmitErr('')
-        if (cart.length === 0) { setSubmitErr('กรุณาเลือกอาหารอย่างน้อย 1 รายการ'); return }
-        if (totalAmount > 0 && !paymentSlipBase64) { setSubmitErr('กรุณาแนบสลิปโอนเงิน (หากสั่งเกิน 0 บาท) เพื่อยืนยันการสั่งซื้อ'); return }
+        if (cart.length === 0) { setSubmitErr(t('bill_total') + ' = 0'); return }
+        if (totalAmount > 0 && !paymentSlipBase64) { setSubmitErr('Please upload payment slip / กรุณาแนบสลิป'); return }
         setSubmitting(true)
         try {
             const res = await fetch('/api/public/delivery/orders', {
@@ -258,9 +240,9 @@ export default function DeliveryOrderPage() {
             if (j.success) {
                 router.push(`/d/${tenantCode}/track/${j.orderId}`)
             } else {
-                setSubmitErr(j.error || 'เกิดข้อผิดพลาด')
+                setSubmitErr(j.error || t('error_occurred'))
             }
-        } catch { setSubmitErr('ไม่สามารถเชื่อมต่อได้') }
+        } catch { setSubmitErr(t('error_connect')) }
         finally { setSubmitting(false) }
     }
 
@@ -269,7 +251,7 @@ export default function DeliveryOrderPage() {
         <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ width: 44, height: 44, border: `4px solid ${C.accentLight}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            <p style={{ color: C.sub, margin: 0 }}>กำลังโหลดเมนู…</p>
+            <p style={{ color: C.sub, margin: 0 }}>{t('loading')}...</p>
         </div>
     )
 
@@ -289,38 +271,70 @@ export default function DeliveryOrderPage() {
 
                 {/* ── Header ── */}
                 <div style={{ background: 'linear-gradient(135deg, #4c0519, #881337)', padding: '16px 20px 8px', position: 'sticky', top: 0, zIndex: 30 }}>
+                    {showLangSwitcher && (
+                        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+                            <LangSwitcher lang={lang} setLang={setLang} theme="dark" />
+                        </div>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {tenant?.logoUrl && <img src={tenant.logoUrl} alt="logo" style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover' }} />}
                         <div>
-                            <div style={{ color: C.text, fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>{tenant?.displayName || tenant?.name}</div>
-                            <div style={{ color: '#FDA4AF', fontSize: '0.72rem', fontWeight: 600 }}>🛵 สั่ง Delivery</div>
+                            <div style={{ color: C.text, fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>{tenant?.name}</div>
+                            <div style={{ color: '#FDA4AF', fontSize: '0.72rem', fontWeight: 600 }}>🛵 {t('delivery_badge')}</div>
                         </div>
                     </div>
-                    <StepDots current={step} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, padding: '12px 0 8px' }}>
+                        {[
+                            { n: 1, label: t('delivery_step1') },
+                            { n: 2, label: t('delivery_step2') },
+                            { n: 3, label: t('delivery_step3') },
+                        ].map((s, i, a) => (
+                            <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                    <div style={{
+                                        width: 32, height: 32, borderRadius: '50%',
+                                        background: step >= s.n ? C.accentGrad : 'rgba(255,255,255,0.06)',
+                                        border: `2px solid ${step >= s.n ? C.accent : 'rgba(255,255,255,0.1)'}`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '0.8rem', fontWeight: 800,
+                                        color: step >= s.n ? '#fff' : C.muted,
+                                        transition: 'all 0.25s',
+                                        boxShadow: step === s.n ? C.accentGlow : 'none',
+                                    }}>
+                                        {step > s.n ? '✓' : s.n}
+                                    </div>
+                                    <span style={{ fontSize: '0.6rem', color: step >= s.n ? '#FDA4AF' : C.muted, fontWeight: 600 }}>{s.label}</span>
+                                </div>
+                                {i < a.length - 1 && (
+                                    <div style={{ width: 40, height: 2, background: step > s.n ? C.accent : 'rgba(255,255,255,0.08)', margin: '0 4px', marginBottom: 20, transition: 'background 0.3s', borderRadius: 1 }} />
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 {/* ══════════════ STEP 1 — ข้อมูลลูกค้า ═══════════════ */}
                 {step === 1 && (
                     <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: 0, animation: 'fadeUp 0.3s ease' }}>
-                        <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 4 }}>📋 กรอกข้อมูลการจัดส่ง</div>
-                        <div style={{ fontSize: '0.8rem', color: C.sub, marginBottom: 20 }}>ข้อมูลนี้ใช้สำหรับนำส่งอาหารถึงคุณ</div>
+                        <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 4 }}>📋 {t('delivery_info_title')}</div>
+                        <div style={{ fontSize: '0.8rem', color: C.sub, marginBottom: 20 }}>{t('delivery_info_sub')}</div>
 
-                        <Field label="ชื่อผู้รับ" required>
-                            <input id="delivery-name" style={inputCss} placeholder="ชื่อ-นามสกุล..." value={name} onChange={e => setName(e.target.value)} />
+                        <Field label={t('delivery_name')} required>
+                            <input id="delivery-name" style={inputCss} placeholder={t('delivery_name')} value={name} onChange={e => setName(e.target.value)} />
                         </Field>
 
-                        <Field label="เบอร์โทรศัพท์" required>
+                        <Field label={t('delivery_phone')} required>
                             <input id="delivery-phone" style={inputCss} placeholder="+856 20..." type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
                         </Field>
 
-                        <Field label="ที่อยู่จัดส่ง" required>
+                        <Field label={t('delivery_address')} required>
                             <textarea id="delivery-address" style={{ ...inputCss, height: 80, resize: 'vertical' }}
-                                placeholder="บ้านเลขที่ ซอย ถนน หมู่บ้าน..." value={address}
+                                placeholder={t('delivery_address')} value={address}
                                 onChange={e => setAddress(e.target.value)} />
                         </Field>
 
-                        <Field label="หมายเหตุเพิ่มเติม">
-                            <input id="delivery-note" style={inputCss} placeholder="เช่น บอกทางไรเดอร์..." value={note}
+                        <Field label={t('delivery_note')}>
+                            <input id="delivery-note" style={inputCss} placeholder={t('delivery_note_placeholder')} value={note}
                                 onChange={e => setNote(e.target.value)} />
                         </Field>
 
@@ -331,7 +345,7 @@ export default function DeliveryOrderPage() {
                         )}
 
                         <button id="btn-go-to-menu" onClick={goToMenu} style={{ marginTop: 'auto', width: '100%', padding: '14px', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontSize: '0.97rem', fontWeight: 800, fontFamily: FONT, boxShadow: '0 6px 20px rgba(225,29,72,0.45)' }}>
-                            เลือกเมนูอาหาร →
+                            {t('delivery_btn_menu')} →
                         </button>
                     </div>
                 )}
@@ -344,18 +358,18 @@ export default function DeliveryOrderPage() {
                         <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '10px 14px', display: 'flex', gap: 8 }}>
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: '8px 12px', border: `1px solid ${C.border}` }}>
                                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.sub} strokeWidth="2.5"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
-                                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเมนู…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.87rem', fontFamily: FONT }} />
+                                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search_menu')} style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.87rem', fontFamily: FONT }} />
                                 {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', padding: 0, lineHeight: 1 }}>✕</button>}
                             </div>
                             {/* Back to step 1 */}
                             <button onClick={() => setStep(1)} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 12px', cursor: 'pointer', color: C.sub, fontSize: '0.82rem', fontFamily: FONT, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                ← แก้ที่อยู่
+                                ← {t('delivery_btn_back')}
                             </button>
                         </div>
 
                         {/* Category pills */}
                         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '10px 14px 8px', background: C.surface }}>
-                            {[{ id: 'all', name: 'ทั้งหมด', icon: '🍽️' }, ...categories.map(c => ({ id: c.id, name: c.name, icon: c.icon || '🍴' }))].map(cat => (
+                            {[{ id: 'all', name: t('all_menus'), icon: '🍽️' }, ...categories.map(c => ({ id: c.id, name: c.name, icon: c.icon || '🍴' }))].map(cat => (
                                 <button key={cat.id} onClick={() => setActiveCategory(cat.id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: FONT, fontSize: '0.78rem', fontWeight: activeCategory === cat.id ? 700 : 500, whiteSpace: 'nowrap', background: activeCategory === cat.id ? C.accentGrad : 'rgba(255,255,255,0.06)', color: activeCategory === cat.id ? '#fff' : C.sub, transition: 'all 0.15s', boxShadow: activeCategory === cat.id ? '0 2px 10px rgba(225,29,72,0.4)' : 'none' }}>
                                     <span>{cat.icon}</span> {cat.name}
                                 </button>
@@ -367,7 +381,7 @@ export default function DeliveryOrderPage() {
                             {filtered.length === 0 && (
                                 <div style={{ textAlign: 'center', padding: '50px 20px', color: C.muted }}>
                                     <div style={{ fontSize: '3rem', marginBottom: 10 }}>🍽️</div>
-                                    <div>ไม่พบเมนูที่ค้นหา</div>
+                                    <div>{t('no_menu_found')}</div>
                                 </div>
                             )}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -391,14 +405,14 @@ export default function DeliveryOrderPage() {
                                             <div style={{ padding: '9px 10px 10px' }}>
                                                 <div style={{ color: C.text, fontWeight: 700, fontSize: '0.83rem', lineHeight: 1.35, marginBottom: 4, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
                                                 <div style={{ color: '#FDA4AF', fontWeight: 800, fontSize: '0.88rem', marginBottom: p.toppingsJson ? 2 : 8 }}>{fmt(p.price, currency)}</div>
-                                                {p.toppingsJson && <div style={{ color: '#fb923c', fontSize: '0.72rem', fontWeight: 700, marginBottom: 6 }}>+ เพิ่มท็อปปิ้งได้</div>}
+                                                {p.toppingsJson && <div style={{ color: '#fb923c', fontSize: '0.72rem', fontWeight: 700, marginBottom: 6 }}>+ {t('add')} {t('topping')}</div>}
                                                 {qty === 0 ? (
                                                     <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: 'none', background: C.accentGrad, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: FONT, boxShadow: '0 3px 10px rgba(225,29,72,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 34 }}>
-                                                        <span>+</span> เพิ่ม
+                                                        <span>+</span> {t('add')}
                                                     </button>
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 10, padding: '2px 3px', minHeight: 34 }}>
-                                                        <button onClick={() => { if(p.toppingsJson){alert('จัดการจากตะกร้า'); return} removeFromCart(cart.find(i=>i.id===p.id)?.cartId||'') }} style={stepBtn}>−</button>
+                                                        <button onClick={() => { if(p.toppingsJson){alert(t('topping_in_cart_alert')); return} removeFromCart(cart.find(i=>i.id===p.id)?.cartId||'') }} style={stepBtn}>−</button>
                                                         <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '0.95rem', minWidth: 20, textAlign: 'center' }}>{qty}</span>
                                                         <button onClick={() => internalAddToCart(p, cart.find(i=>i.id===p.id)?.toppingsJson ? JSON.parse(cart.find(i=>i.id===p.id)!.toppingsJson as string) : [], cart.find(i=>i.id===p.id)?.toppingsTotal||0)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                                     </div>
@@ -416,9 +430,9 @@ export default function DeliveryOrderPage() {
                                 <button id="btn-view-cart" onClick={() => setCartOpen(true)} style={{ width: '100%', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 16, padding: '0 6px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', fontFamily: FONT, boxShadow: '0 8px 28px rgba(225,29,72,0.5)', minHeight: 58, animation: 'popIn 0.2s ease' }}>
                                     <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '8px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 42, flexShrink: 0 }}>
                                         <span style={{ fontSize: '1.05rem', fontWeight: 900 }}>{totalItems}</span>
-                                        <span style={{ fontSize: '0.58rem', opacity: 0.85 }}>รายการ</span>
+                                        <span style={{ fontSize: '0.58rem', opacity: 0.85 }}>{t('items_count')}</span>
                                     </div>
-                                    <span style={{ flex: 1, fontSize: '0.92rem' }}>ดูตะกร้าและยืนยัน</span>
+                                    <span style={{ flex: 1, fontSize: '0.92rem' }}>{t('view_cart')}</span>
                                     <span style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 10, padding: '8px 12px', fontSize: '0.88rem', fontWeight: 800, flexShrink: 0 }}>
                                         {fmt(subtotal, currency)}
                                     </span>
@@ -432,13 +446,13 @@ export default function DeliveryOrderPage() {
                                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)' }} onClick={() => setCartOpen(false)} />
                                 <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '0 20px 40px', maxHeight: '80dvh', overflowY: 'auto', animation: 'slideUp 0.24s ease', boxShadow: '0 -16px 48px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.07)' }}>
                                     <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '14px auto 16px' }} />
-                                    <h2 style={{ color: C.text, fontSize: '1rem', fontWeight: 800, margin: '0 0 16px' }}>🛒 รายการที่เลือก</h2>
+                                    <h2 style={{ color: C.text, fontSize: '1rem', fontWeight: 800, margin: '0 0 16px' }}>🛒 {t('cart_title')}</h2>
                                     {cart.map(item => (
                                         <div key={item.cartId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ color: C.text, fontWeight: 600, fontSize: '0.87rem' }}>{item.name}</div>
                                                 {item.note && <div style={{ color: '#fb923c', fontSize: '0.72rem', marginTop: 1 }}>{item.note}</div>}
-                                                <div style={{ color: '#FDA4AF', fontSize: '0.76rem', marginTop: 2 }}>{fmt((item.price ?? 0) + (item.toppingsTotal ?? 0), currency)} × {item.quantity}{item.toppingsTotal ? ' (รวมท็อปปิ้ง)' : ''}</div>
+                                                <div style={{ color: '#FDA4AF', fontSize: '0.76rem', marginTop: 2 }}>{fmt((item.price ?? 0) + (item.toppingsTotal ?? 0), currency)} × {item.quantity}{item.toppingsTotal ? ` (${t('include_topping')})` : ''}</div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.accentLight, borderRadius: 10, padding: '2px 3px' }}>
                                                 <button onClick={() => removeFromCart(item.cartId)} style={stepBtn}>−</button>
@@ -448,20 +462,20 @@ export default function DeliveryOrderPage() {
                                         </div>
                                     ))}
                                     <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: `1.5px solid ${C.border}` }}>
-                                        <span style={{ color: C.sub, fontWeight: 600 }}>รวมอาหาร</span>
+                                        <span style={{ color: C.sub, fontWeight: 600 }}>{t('bill_total')}</span>
                                         <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(subtotal, currency)}</span>
                                     </div>
                                     {DELIVERY_FEE > 0 && (
                                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-                                            <span style={{ color: C.muted, fontSize: '0.85rem' }}>🛵 ค่าส่ง</span>
+                                            <span style={{ color: C.muted, fontSize: '0.85rem' }}>{t('delivery_fee')}</span>
                                             <span style={{ color: C.sub, fontSize: '0.9rem', fontWeight: 600 }}>{fmt(DELIVERY_FEE, currency)}</span>
                                         </div>
                                     )}
                                     <button id="btn-confirm-order" onClick={() => { setCartOpen(false); setStep(3) }} style={{ width: '100%', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontWeight: 800, fontSize: '0.97rem', cursor: 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: '0 6px 20px rgba(225,29,72,0.45)' }}>
-                                        ยืนยันรายการ →
+                                        {t('cart_confirm')} →
                                     </button>
                                     <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 13, padding: '12px', fontWeight: 500, fontSize: '0.87rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>
-                                        ← เลือกเพิ่ม
+                                        ← {t('cart_add_more')}
                                     </button>
                                 </div>
                             </div>
@@ -472,12 +486,12 @@ export default function DeliveryOrderPage() {
                 {/* ══════════════ STEP 3 — ยืนยัน ════════════════════ */}
                 {step === 3 && (
                     <div style={{ flex: 1, padding: '20px', animation: 'fadeUp 0.3s ease' }}>
-                        <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 4 }}>📋 ยืนยันออเดอร์</div>
-                        <div style={{ fontSize: '0.8rem', color: C.sub, marginBottom: 20 }}>ตรวจสอบรายละเอียดก่อนสั่ง</div>
+                        <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 4 }}>📋 {t('cart_title')}</div>
+                        <div style={{ fontSize: '0.8rem', color: C.sub, marginBottom: 20 }}>{t('delivery_check_details')}</div>
 
                         {/* Customer info recap */}
                         <div style={{ background: C.surface, borderRadius: 14, padding: '14px 16px', border: `1px solid ${C.border}`, marginBottom: 14 }}>
-                            <div style={{ fontSize: '0.72rem', color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>👤 ข้อมูลผู้รับ</div>
+                            <div style={{ fontSize: '0.72rem', color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>👤 {t('delivery_info_title')}</div>
                             <div style={{ color: C.text, fontWeight: 700, fontSize: '0.9rem' }}>{name}</div>
                             <div style={{ color: C.sub, fontSize: '0.83rem', marginTop: 2 }}>{phone}</div>
                             <div style={{ color: C.sub, fontSize: '0.83rem', marginTop: 6, lineHeight: 1.5 }}>📍 {address}</div>
@@ -487,7 +501,7 @@ export default function DeliveryOrderPage() {
                         {/* Items recap */}
                         <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden', marginBottom: 14 }}>
                             <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
-                                <div style={{ fontSize: '0.72rem', color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🍽️ รายการอาหาร</div>
+                                <div style={{ fontSize: '0.72rem', color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🍽️ {t('bill_total')}</div>
                             </div>
                             {cart.map((item, i) => (
                                 <div key={item.cartId} style={{ padding: '9px 14px', borderBottom: i < cart.length - 1 ? `1px solid ${C.border}` : 'none' }}>
@@ -500,12 +514,12 @@ export default function DeliveryOrderPage() {
                             ))}
                             {DELIVERY_FEE > 0 && (
                                 <div style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.border}` }}>
-                                    <span style={{ color: C.muted, fontSize: '0.83rem' }}>🛵 ค่าส่ง</span>
+                                    <span style={{ color: C.muted, fontSize: '0.83rem' }}>{t('delivery_fee')}</span>
                                     <span style={{ color: C.sub, fontSize: '0.83rem', fontWeight: 600 }}>{fmt(DELIVERY_FEE, currency)}</span>
                                 </div>
                             )}
                             <div style={{ padding: '12px 14px', background: C.accentLight, display: 'flex', justifyContent: 'space-between', borderTop: `1px solid rgba(124,58,237,0.2)` }}>
-                                <span style={{ color: '#C4B5FD', fontWeight: 700 }}>รวมทั้งหมด</span>
+                                <span style={{ color: '#C4B5FD', fontWeight: 700 }}>{t('track_total')}</span>
                                 <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(totalAmount, currency)}</span>
                             </div>
                         </div>
@@ -520,11 +534,11 @@ export default function DeliveryOrderPage() {
                                     </div>
                                 ) : (
                                     <div style={{ color: C.sub, fontSize: '0.8rem', marginBottom: 12 }}>
-                                        💳 โอนเงินผ่านหมายเลขบัญชีของร้านค้า หรือติดต่อเพจของร้านค้า
+                                        💳 {t('qr_instruction_2')}
                                     </div>
                                 )}
                                 <div style={{ borderTop: `1px dashed ${C.border}`, paddingTop: 12 }}>
-                                    <div style={{ fontSize: '0.8rem', color: '#FDA4AF', fontWeight: 600, marginBottom: 8 }}>อัปโหลดสลิปเพื่อยืนยันการสั่งซื้อ:</div>
+                                    <div style={{ fontSize: '0.8rem', color: '#FDA4AF', fontWeight: 600, marginBottom: 8 }}>{t('bill_upload_slip')}:</div>
                                     <input 
                                         type="file" 
                                         accept="image/*" 
@@ -535,7 +549,7 @@ export default function DeliveryOrderPage() {
                                 {paymentSlipBase64 && (
                                     <div style={{ marginTop: 12, textAlign: 'center' }}>
                                         <img src={paymentSlipBase64} alt="slip" style={{ width: 100, borderRadius: 8, border: `2px solid ${C.green}` }} />
-                                        <div style={{ color: C.green, fontSize: '0.8rem', marginTop: 4, fontWeight: 600 }}>✅ แนบสลิปแล้ว</div>
+                                        <div style={{ color: C.green, fontSize: '0.8rem', marginTop: 4, fontWeight: 600 }}>✅ {t('success')}</div>
                                     </div>
                                 )}
                             </div>
@@ -548,10 +562,10 @@ export default function DeliveryOrderPage() {
                         )}
 
                         <button id="btn-place-order" onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? C.muted : C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: submitting ? 'none' : '0 6px 20px rgba(225,29,72,0.45)', transition: 'all 0.2s' }}>
-                            {submitting ? '⏳ กำลังสั่ง…' : '🛵 ยืนยันสั่ง Delivery'}
+                            {submitting ? '⏳ ...' : '🛵 ' + t('delivery_badge')}
                         </button>
                         <button onClick={() => setStep(2)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 13, padding: '12px', fontWeight: 500, fontSize: '0.87rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>
-                            ← แก้รายการอาหาร
+                            ← {t('edit_menu')}
                         </button>
                     </div>
                 )}
@@ -570,7 +584,7 @@ export default function DeliveryOrderPage() {
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setToppingProduct(null)} />
                     <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '20px 20px 40px', maxHeight: '85dvh', overflowY: 'auto', animation: 'slideUp 0.24s ease', boxShadow: '0 -16px 48px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}>
                         <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
-                        <div style={{ color: C.text, fontWeight: 800, fontSize: '1rem', marginBottom: 4 }}>🧂 เพิ่มท็อปปิ้ง</div>
+                        <div style={{ color: C.text, fontWeight: 800, fontSize: '1rem', marginBottom: 4 }}>🧂 {t('topping')}</div>
                         <div style={{ color: C.sub, fontSize: '0.78rem', marginBottom: 16 }}>{toppingProduct.name}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                             {tops.map(t => {
@@ -589,14 +603,14 @@ export default function DeliveryOrderPage() {
                         </div>
                         {toppingsTotal > 0 && (
                             <div style={{ background: C.accentLight, border: `1px solid ${C.accent}`, borderRadius: 12, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ color: C.text, fontSize: '0.82rem', fontWeight: 600 }}>ยอดท็อปปิ้ง</span>
+                                <span style={{ color: C.text, fontSize: '0.82rem', fontWeight: 600 }}>{t('topping_total')}</span>
                                 <span style={{ color: '#FDA4AF', fontWeight: 800, fontSize: '0.92rem' }}>+{fmt(toppingsTotal, currency)}</span>
                             </div>
                         )}
                         <button onClick={() => internalAddToCart(toppingProduct, selectedToppings, toppingsTotal)} style={{ width: '100%', padding: '15px', borderRadius: 14, border: 'none', background: C.accentGrad, color: '#fff', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer', fontFamily: FONT, marginBottom: 8, boxShadow: '0 6px 20px rgba(225,29,72,0.45)' }}>
-                            ยืนยันใส่ตะกร้า {toppingsTotal > 0 ? `(${fmt((toppingProduct.price ?? 0) + toppingsTotal, currency)})` : ''}
+                            {t('confirm')} {toppingsTotal > 0 ? `(${fmt((toppingProduct.price ?? 0) + toppingsTotal, currency)})` : ''}
                         </button>
-                        <button onClick={() => setToppingProduct(null)} style={{ width: '100%', padding: '12px', borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.sub, fontWeight: 500, fontSize: '0.87rem', cursor: 'pointer', fontFamily: FONT }}>ยกเลิก</button>
+                        <button onClick={() => setToppingProduct(null)} style={{ width: '100%', padding: '12px', borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.sub, fontWeight: 500, fontSize: '0.87rem', cursor: 'pointer', fontFamily: FONT }}>{t('cancel')}</button>
                     </div>
                 </div>
             )

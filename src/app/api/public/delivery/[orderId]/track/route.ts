@@ -17,7 +17,7 @@ export async function GET(
                     where: { isCancelled: false },
                     include: { product: { select: { name: true } } },
                 },
-                tenant: { select: { name: true, displayName: true, currency: true, logoUrl: true } },
+                tenant: { select: { name: true, displayName: true, storeNameLao: true, language: true, currency: true, logoUrl: true } },
             },
         })
 
@@ -32,6 +32,8 @@ export async function GET(
             orderId: order.id,
             orderNumber: order.orderNumber,
             storeName: order.tenant.displayName || order.tenant.name,
+            storeNameLao: order.tenant.storeNameLao,
+            language: order.tenant.language,
             currency: order.tenant.currency,
             logoUrl: order.tenant.logoUrl,
 

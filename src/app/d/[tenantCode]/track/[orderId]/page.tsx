@@ -10,6 +10,8 @@ interface TrackData {
     orderId: string
     orderNumber: string
     storeName: string
+    storeNameLao?: string
+    language?: string
     currency: string
     logoUrl?: string
     deliveryStatus: DeliveryStatus
@@ -30,7 +32,7 @@ interface TrackData {
 // ── Constants ─────────────────────────────────────────────────
 const FONT = "'Outfit','Noto Sans Thai',system-ui,sans-serif"
 const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html,body { margin: 0; padding: 0; background: #140507; }
   ::-webkit-scrollbar { display: none; }
@@ -77,6 +79,15 @@ export default function TrackPage() {
         return () => clearInterval(timer)
     }, [fetchStatus, data?.deliveryStatus])
 
+    // Apply auto-language config on tenant load
+    useEffect(() => {
+        if (!data || !data.language) return
+        if (data.language === 'th') setLang('th')
+        else if (data.language === 'lo') setLang('lo')
+    }, [data, setLang])
+
+    const showLangSwitcher = data?.language === 'both'
+
     // Build translated steps
     const STEPS = [
         { key: 'RECEIVED' as DeliveryStatus,         label: t('track_received'),   sub: t('track_received_sub'),   icon: '📥', color: '#3B82F6' },
@@ -116,13 +127,18 @@ export default function TrackPage() {
                 {/* ── Header ── */}
                 <div style={{ background: 'linear-gradient(135deg,#4c0519,#881337)', padding: '20px 20px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', inset: 0, opacity: 0.08, backgroundImage: 'radial-gradient(circle at 50% 50%,#fff 1px,transparent 1px)', backgroundSize: '24px 24px' }} />
-                    <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 10 }}>
-                        <LangSwitcher lang={lang} setLang={setLang} theme="dark" />
-                    </div>
+                    {showLangSwitcher && (
+                        <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 10 }}>
+                            <LangSwitcher lang={lang} setLang={setLang} theme="dark" />
+                        </div>
+                    )}
                     {data.logoUrl && (
                         <img src={data.logoUrl} alt="logo" style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', marginBottom: 8, border: '2px solid rgba(255,255,255,0.2)' }} />
                     )}
-                    <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{data.storeName}</div>
+                    <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        {data.storeName}
+                        {data.storeNameLao && lang === 'lo' && <span style={{ marginLeft: 6 }}>({data.storeNameLao})</span>}
+                    </div>
                     <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.15rem', marginTop: 4 }}>🛵 {t('track_title')}</div>
                     <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginTop: 4, fontFamily: 'monospace' }}>{data.orderNumber}</div>
                 </div>
