@@ -11,20 +11,21 @@ type CartItem = Product & { quantity: number; note: string }
 
 // ── Design System ─────────────────────────────────────────────
 const C = {
-    bg: '#0f172a',
-    surface: '#1e293b',
-    border: 'rgba(255,255,255,0.07)',
-    accent: '#7C3AED',
-    accentLight: 'rgba(124,58,237,0.15)',
-    accentGlow: '0 0 24px rgba(124,58,237,0.4)',
-    accentGrad: 'linear-gradient(135deg,#7C3AED,#6D28D9)',
+    bg: '#140507',
+    surface: '#1c070a',
+    surfaceGrad: 'linear-gradient(145deg, #2a0b12, #180508)',
+    border: 'rgba(255,255,255,0.08)',
+    accent: '#E11D48',
+    accentLight: 'rgba(225,29,72,0.15)',
+    accentGlow: '0 0 24px rgba(225,29,72,0.45)',
+    accentGrad: 'linear-gradient(135deg, #E11D48, #9F1239)',
     green: '#10B981',
     greenLight: 'rgba(16,185,129,0.12)',
-    text: '#F1F5F9',
-    sub: '#94A3B8',
-    muted: '#475569',
+    text: '#FFF1F2',
+    sub: '#FECDD3',
+    muted: '#881337',
     danger: '#F87171',
-    shadow: '0 8px 28px rgba(0,0,0,0.35)',
+    shadow: '0 8px 28px rgba(225,29,72,0.15)',
 }
 const FONT = "'Outfit','Noto Sans Thai',system-ui,sans-serif"
 const GLOBAL_CSS = `
@@ -59,7 +60,7 @@ function StepDots({ current }: { current: Step }) {
                         <div style={{
                             width: 32, height: 32, borderRadius: '50%',
                             background: current >= s.n ? C.accentGrad : 'rgba(255,255,255,0.06)',
-                            border: `2px solid ${current >= s.n ? '#7C3AED' : 'rgba(255,255,255,0.1)'}`,
+                            border: `2px solid ${current >= s.n ? C.accent : 'rgba(255,255,255,0.1)'}`,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: '0.8rem', fontWeight: 800,
                             color: current >= s.n ? '#fff' : C.muted,
@@ -68,10 +69,10 @@ function StepDots({ current }: { current: Step }) {
                         }}>
                             {current > s.n ? '✓' : s.n}
                         </div>
-                        <span style={{ fontSize: '0.6rem', color: current >= s.n ? '#A78BFA' : C.muted, fontWeight: 600 }}>{s.label}</span>
+                        <span style={{ fontSize: '0.6rem', color: current >= s.n ? '#FDA4AF' : C.muted, fontWeight: 600 }}>{s.label}</span>
                     </div>
                     {i < steps.length - 1 && (
-                        <div style={{ width: 40, height: 2, background: current > s.n ? '#7C3AED' : 'rgba(255,255,255,0.08)', margin: '0 4px', marginBottom: 20, transition: 'background 0.3s', borderRadius: 1 }} />
+                        <div style={{ width: 40, height: 2, background: current > s.n ? C.accent : 'rgba(255,255,255,0.08)', margin: '0 4px', marginBottom: 20, transition: 'background 0.3s', borderRadius: 1 }} />
                     )}
                 </div>
             ))}
@@ -240,12 +241,12 @@ export default function DeliveryOrderPage() {
             <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
 
                 {/* ── Header ── */}
-                <div style={{ background: 'linear-gradient(135deg,#1e1b4b,#312e81)', padding: '16px 20px 8px', position: 'sticky', top: 0, zIndex: 30 }}>
+                <div style={{ background: 'linear-gradient(135deg, #4c0519, #881337)', padding: '16px 20px 8px', position: 'sticky', top: 0, zIndex: 30 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {tenant?.logoUrl && <img src={tenant.logoUrl} alt="logo" style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover' }} />}
                         <div>
                             <div style={{ color: C.text, fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>{tenant?.displayName || tenant?.name}</div>
-                            <div style={{ color: '#8B5CF6', fontSize: '0.72rem', fontWeight: 600 }}>🛵 สั่ง Delivery</div>
+                            <div style={{ color: '#FDA4AF', fontSize: '0.72rem', fontWeight: 600 }}>🛵 สั่ง Delivery</div>
                         </div>
                     </div>
                     <StepDots current={step} />
@@ -282,7 +283,7 @@ export default function DeliveryOrderPage() {
                             </div>
                         )}
 
-                        <button id="btn-go-to-menu" onClick={goToMenu} style={{ marginTop: 'auto', width: '100%', padding: '14px', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontSize: '0.97rem', fontWeight: 800, fontFamily: FONT, boxShadow: '0 6px 20px rgba(124,58,237,0.45)' }}>
+                        <button id="btn-go-to-menu" onClick={goToMenu} style={{ marginTop: 'auto', width: '100%', padding: '14px', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontSize: '0.97rem', fontWeight: 800, fontFamily: FONT, boxShadow: '0 6px 20px rgba(225,29,72,0.45)' }}>
                             เลือกเมนูอาหาร →
                         </button>
                     </div>
@@ -308,7 +309,7 @@ export default function DeliveryOrderPage() {
                         {/* Category pills */}
                         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '10px 14px 8px', background: C.surface }}>
                             {[{ id: 'all', name: 'ทั้งหมด', icon: '🍽️' }, ...categories.map(c => ({ id: c.id, name: c.name, icon: c.icon || '🍴' }))].map(cat => (
-                                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: FONT, fontSize: '0.78rem', fontWeight: activeCategory === cat.id ? 700 : 500, whiteSpace: 'nowrap', background: activeCategory === cat.id ? C.accentGrad : 'rgba(255,255,255,0.06)', color: activeCategory === cat.id ? '#fff' : C.sub, transition: 'all 0.15s', boxShadow: activeCategory === cat.id ? '0 2px 10px rgba(124,58,237,0.4)' : 'none' }}>
+                                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: FONT, fontSize: '0.78rem', fontWeight: activeCategory === cat.id ? 700 : 500, whiteSpace: 'nowrap', background: activeCategory === cat.id ? C.accentGrad : 'rgba(255,255,255,0.06)', color: activeCategory === cat.id ? '#fff' : C.sub, transition: 'all 0.15s', boxShadow: activeCategory === cat.id ? '0 2px 10px rgba(225,29,72,0.4)' : 'none' }}>
                                     <span>{cat.icon}</span> {cat.name}
                                 </button>
                             ))}
@@ -327,8 +328,8 @@ export default function DeliveryOrderPage() {
                                     const qty = cartQty(p.id)
                                     const catIcon = categories.find(c => c.id === p.categoryId)?.icon || '🍽️'
                                     return (
-                                        <div key={p.id} style={{ background: C.surface, borderRadius: 16, overflow: 'hidden', border: `1.5px solid ${qty > 0 ? '#7C3AED' : C.border}`, boxShadow: qty > 0 ? C.accentGlow : 'none', animation: `fadeUp 0.25s ease ${Math.min(idx, 8) * 0.04}s both`, transition: 'border-color 0.15s' }}>
-                                            <div style={{ height: 110, background: 'linear-gradient(135deg,rgba(124,58,237,0.1),rgba(55,48,163,0.15))', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                        <div key={p.id} style={{ background: C.surfaceGrad, borderRadius: 16, overflow: 'hidden', border: `1.5px solid ${qty > 0 ? C.accent : C.border}`, boxShadow: qty > 0 ? C.accentGlow : 'none', animation: `fadeUp 0.25s ease ${Math.min(idx, 8) * 0.04}s both`, transition: 'border-color 0.15s' }}>
+                                            <div style={{ height: 110, background: 'linear-gradient(135deg, rgba(225,29,72,0.15), rgba(159,18,57,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                                                 {p.imageUrl ? (
                                                     <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                                                 ) : (
@@ -342,15 +343,15 @@ export default function DeliveryOrderPage() {
                                             </div>
                                             <div style={{ padding: '9px 10px 10px' }}>
                                                 <div style={{ color: C.text, fontWeight: 700, fontSize: '0.83rem', lineHeight: 1.35, marginBottom: 4, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
-                                                <div style={{ color: '#A78BFA', fontWeight: 800, fontSize: '0.88rem', marginBottom: 8 }}>{fmt(p.price, currency)}</div>
+                                                <div style={{ color: '#FDA4AF', fontWeight: 800, fontSize: '0.88rem', marginBottom: 8 }}>{fmt(p.price, currency)}</div>
                                                 {qty === 0 ? (
-                                                    <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: 'none', background: C.accentGrad, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: FONT, boxShadow: '0 3px 10px rgba(124,58,237,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 34 }}>
+                                                    <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: 'none', background: C.accentGrad, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: FONT, boxShadow: '0 3px 10px rgba(225,29,72,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 34 }}>
                                                         <span>+</span> เพิ่ม
                                                     </button>
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 10, padding: '2px 3px', minHeight: 34 }}>
                                                         <button onClick={() => removeFromCart(p.id)} style={stepBtn}>−</button>
-                                                        <span style={{ color: '#A78BFA', fontWeight: 900, fontSize: '0.95rem', minWidth: 20, textAlign: 'center' }}>{qty}</span>
+                                                        <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '0.95rem', minWidth: 20, textAlign: 'center' }}>{qty}</span>
                                                         <button onClick={() => addToCart(p)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                                     </div>
                                                 )}
@@ -364,7 +365,7 @@ export default function DeliveryOrderPage() {
                         {/* Cart bar */}
                         {totalItems > 0 && !cartOpen && (
                             <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 32px)', maxWidth: 398, zIndex: 40 }}>
-                                <button id="btn-view-cart" onClick={() => setCartOpen(true)} style={{ width: '100%', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 16, padding: '0 6px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', fontFamily: FONT, boxShadow: '0 8px 28px rgba(124,58,237,0.5)', minHeight: 58, animation: 'popIn 0.2s ease' }}>
+                                <button id="btn-view-cart" onClick={() => setCartOpen(true)} style={{ width: '100%', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 16, padding: '0 6px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', fontFamily: FONT, boxShadow: '0 8px 28px rgba(225,29,72,0.5)', minHeight: 58, animation: 'popIn 0.2s ease' }}>
                                     <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '8px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 42, flexShrink: 0 }}>
                                         <span style={{ fontSize: '1.05rem', fontWeight: 900 }}>{totalItems}</span>
                                         <span style={{ fontSize: '0.58rem', opacity: 0.85 }}>รายการ</span>
@@ -388,18 +389,18 @@ export default function DeliveryOrderPage() {
                                         <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ color: C.text, fontWeight: 600, fontSize: '0.87rem' }}>{item.name}</div>
-                                                <div style={{ color: '#A78BFA', fontSize: '0.76rem', marginTop: 2 }}>{fmt(item.price, currency)} × {item.quantity}</div>
+                                                <div style={{ color: '#FDA4AF', fontSize: '0.76rem', marginTop: 2 }}>{fmt(item.price, currency)} × {item.quantity}</div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.accentLight, borderRadius: 10, padding: '2px 3px' }}>
                                                 <button onClick={() => removeFromCart(item.id)} style={stepBtn}>−</button>
-                                                <span style={{ color: '#A78BFA', fontWeight: 900, width: 20, textAlign: 'center', fontSize: '0.9rem' }}>{item.quantity}</span>
+                                                <span style={{ color: '#FDA4AF', fontWeight: 900, width: 20, textAlign: 'center', fontSize: '0.9rem' }}>{item.quantity}</span>
                                                 <button onClick={() => addToCart(item)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                             </div>
                                         </div>
                                     ))}
                                     <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: `1.5px solid ${C.border}` }}>
                                         <span style={{ color: C.sub, fontWeight: 600 }}>รวมอาหาร</span>
-                                        <span style={{ color: '#A78BFA', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(subtotal, currency)}</span>
+                                        <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(subtotal, currency)}</span>
                                     </div>
                                     {DELIVERY_FEE > 0 && (
                                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
@@ -407,7 +408,7 @@ export default function DeliveryOrderPage() {
                                             <span style={{ color: C.sub, fontSize: '0.9rem', fontWeight: 600 }}>{fmt(DELIVERY_FEE, currency)}</span>
                                         </div>
                                     )}
-                                    <button id="btn-confirm-order" onClick={() => { setCartOpen(false); setStep(3) }} style={{ width: '100%', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontWeight: 800, fontSize: '0.97rem', cursor: 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: '0 6px 20px rgba(124,58,237,0.45)' }}>
+                                    <button id="btn-confirm-order" onClick={() => { setCartOpen(false); setStep(3) }} style={{ width: '100%', background: C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontWeight: 800, fontSize: '0.97rem', cursor: 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: '0 6px 20px rgba(225,29,72,0.45)' }}>
                                         ยืนยันรายการ →
                                     </button>
                                     <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 13, padding: '12px', fontWeight: 500, fontSize: '0.87rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>
@@ -442,7 +443,7 @@ export default function DeliveryOrderPage() {
                             {cart.map((item, i) => (
                                 <div key={item.id} style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', borderBottom: i < cart.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                                     <span style={{ color: C.text, fontSize: '0.85rem' }}>{item.name} × {item.quantity}</span>
-                                    <span style={{ color: '#A78BFA', fontWeight: 600, fontSize: '0.85rem' }}>{fmt((item.price ?? 0) * item.quantity, currency)}</span>
+                                    <span style={{ color: '#FDA4AF', fontWeight: 600, fontSize: '0.85rem' }}>{fmt((item.price ?? 0) * item.quantity, currency)}</span>
                                 </div>
                             ))}
                             {DELIVERY_FEE > 0 && (
@@ -453,7 +454,7 @@ export default function DeliveryOrderPage() {
                             )}
                             <div style={{ padding: '12px 14px', background: C.accentLight, display: 'flex', justifyContent: 'space-between', borderTop: `1px solid rgba(124,58,237,0.2)` }}>
                                 <span style={{ color: '#C4B5FD', fontWeight: 700 }}>รวมทั้งหมด</span>
-                                <span style={{ color: '#A78BFA', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(totalAmount, currency)}</span>
+                                <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(totalAmount, currency)}</span>
                             </div>
                         </div>
 
@@ -463,7 +464,7 @@ export default function DeliveryOrderPage() {
                             </div>
                         )}
 
-                        <button id="btn-place-order" onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? C.muted : C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: submitting ? 'none' : '0 6px 20px rgba(124,58,237,0.45)', transition: 'all 0.2s' }}>
+                        <button id="btn-place-order" onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? C.muted : C.accentGrad, color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: submitting ? 'none' : '0 6px 20px rgba(225,29,72,0.45)', transition: 'all 0.2s' }}>
                             {submitting ? '⏳ กำลังสั่ง…' : '🛵 ยืนยันสั่ง Delivery'}
                         </button>
                         <button onClick={() => setStep(2)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 13, padding: '12px', fontWeight: 500, fontSize: '0.87rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>
@@ -480,7 +481,7 @@ export default function DeliveryOrderPage() {
 const stepBtn: React.CSSProperties = {
     width: 30, height: 30, borderRadius: 8,
     border: '1px solid rgba(139,92,246,0.25)',
-    background: 'rgba(255,255,255,0.05)', color: '#A78BFA',
+    background: 'rgba(255,255,255,0.05)', color: '#FDA4AF',
     fontWeight: 800, fontSize: '1.05rem',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontFamily: "'Outfit',system-ui,sans-serif",
