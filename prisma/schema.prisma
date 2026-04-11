@@ -835,6 +835,8 @@ model DeliveryInfo {
   customerName     String
   customerPhone    String
   addressText      String
+  latitude         Float?
+  longitude        Float?
   channel          DeliveryChannel @default(PHONE)
   deliveryStatus   DeliveryStatus  @default(RECEIVED)
   deliveryFee      Float           @default(0)

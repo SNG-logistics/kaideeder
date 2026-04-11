@@ -7,6 +7,8 @@ const schema = z.object({
     customerName: z.string().min(1, 'กรุณาระบุชื่อ'),
     customerPhone: z.string().min(1, 'กรุณาระบุเบอร์โทร'),
     addressText: z.string().min(1, 'กรุณาระบุที่อยู่จัดส่ง'),
+    latitude: z.number().optional().nullable(),
+    longitude: z.number().optional().nullable(),
     items: z.array(z.object({
         productId: z.string().min(1),
         quantity: z.number().int().positive(),
@@ -101,6 +103,8 @@ export async function POST(req: Request) {
                 customerName: data.customerName,
                 customerPhone: data.customerPhone,
                 addressText: data.addressText,
+                latitude: data.latitude,
+                longitude: data.longitude,
                 channel: 'WEBSITE',   // QR scan = WEBSITE channel
                 deliveryFee: data.deliveryFee,
                 deliveryStatus: 'RECEIVED',

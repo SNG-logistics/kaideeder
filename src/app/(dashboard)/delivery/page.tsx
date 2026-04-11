@@ -19,6 +19,8 @@ interface DeliveryInfo {
     paymentSlipBase64?: string | null
     driverNote?: string
     estimatedAt?: string
+    latitude?: number | null
+    longitude?: number | null
 }
 
 interface OrderItem {
@@ -311,6 +313,13 @@ function OrderCard({ order, onStatusChange }: { order: DeliveryOrder; onStatusCh
             {/* Address */}
             <div style={{ padding: '8px 12px', background: '#F9FAFB', fontSize: 11, color: '#374151', lineHeight: 1.5 }}>
                 📍 {info.addressText}
+                {info.latitude != null && info.longitude != null && (
+                    <div style={{ marginTop: 8 }}>
+                        <a href={`https://maps.google.com/?q=${info.latitude},${info.longitude}`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: '#2563EB', color: '#fff', textDecoration: 'none', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
+                            🗺️ นำทางไรเดอร์ (Google Maps)
+                        </a>
+                    </div>
+                )}
                 {info.driverNote && <div style={{ color: '#6B7280', fontStyle: 'italic', marginTop: 2 }}>💬 {info.driverNote}</div>}
                 {info.deliveryFee > 0 && <div style={{ color: '#059669', fontWeight: 600, marginTop: 2 }}>🛵 ค่าส่ง {fmt(info.deliveryFee)}</div>}
             </div>

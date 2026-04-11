@@ -94,6 +94,9 @@ export default function DeliveryOrderPage() {
     const [phone, setPhone] = useState('')
     const [address, setAddress] = useState('')
     const [note, setNote] = useState('')
+    const [latitude, setLatitude] = useState<number | null>(null)
+    const [longitude, setLongitude] = useState<number | null>(null)
+    const [locating, setLocating] = useState(false)
     const [step1Err, setStep1Err] = useState('')
 
     // ── Step 2 — Menu ─────────────────────────────────────────
@@ -193,6 +196,26 @@ export default function DeliveryOrderPage() {
         setStep(2)
     }
 
+    const handleGetLocation = () => {
+        if (!navigator.geolocation) {
+            alert('เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งที่ตั้ง')
+            return
+        }
+        setLocating(true)
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setLatitude(pos.coords.latitude)
+                setLongitude(pos.coords.longitude)
+                setLocating(false)
+            },
+            (err) => {
+                alert('ไม่สามารถดึงตำแหน่งได้ กรุณาอนุญาตการเข้าถึงตำแหน่ง หรือพิมพ์ที่อยู่ให้ชัดเจน')
+                setLocating(false)
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        )
+    }
+
     // ── Slip Upload ───────────────────────────────────────────
     const handleSlipUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]; if (!file) return;
@@ -230,6 +253,8 @@ export default function DeliveryOrderPage() {
                     customerName: name.trim(),
                     customerPhone: phone.trim(),
                     addressText: address.trim(),
+                    latitude,
+                    longitude,
                     items: cart.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: (i.price ?? 0) + (i.toppingsTotal ?? 0), toppingsJson: i.toppingsJson, toppingsTotal: i.toppingsTotal })),
                     deliveryFee: DELIVERY_FEE,
                     customerNote: note.trim() || undefined,
@@ -328,9 +353,29 @@ export default function DeliveryOrderPage() {
                         </Field>
 
                         <Field label={t('delivery_address')} required>
-                            <textarea id="delivery-address" style={{ ...inputCss, height: 80, resize: 'vertical' }}
-                                placeholder={t('delivery_address')} value={address}
-                                onChange={e => setAddress(e.target.value)} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <textarea id="delivery-address" style={{ ...inputCss, height: 80, resize: 'vertical' }}
+                                    placeholder={t('delivery_address')} value={address}
+                                    onChange={e => setAddress(e.target.value)} />
+                                <button
+                                    onClick={handleGetLocation}
+                                    style={{ background: latitude ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.06)', border: `1px solid ${latitude ? C.green : C.border}`, color: latitude ? C.green : C.text, padding: '10px', borderRadius: 12, cursor: 'pointer', fontFamily: FONT, fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                >
+                                    {locating ? '⏳ กำลังดึงตำแหน่ง...' : (latitude ? '📍 ปักหมุดแล้ว (คลิกเพื่ออัปเดต)' : '📍 ปักหมุดแผนที่ (รับพิกัดปัจจุบัน)')}
+                                </button>
+                                {latitude && longitude && (
+                                    <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.border}`, height: 160, position: 'relative' }}>
+                                        <iframe
+                                            width="100%"
+                                            height="100%"
+                                            style={{ border: 0 }}
+                                            loading="lazy"
+                                            allowFullScreen
+                                            src={`https://maps.google.com/maps?q=${latitude},${longitude}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                                        ></iframe>
+                                    </div>
+                                )}
+                            </div>
                         </Field>
 
                         <Field label={t('delivery_note')}>
@@ -495,6 +540,9 @@ export default function DeliveryOrderPage() {
                             <div style={{ color: C.text, fontWeight: 700, fontSize: '0.9rem' }}>{name}</div>
                             <div style={{ color: C.sub, fontSize: '0.83rem', marginTop: 2 }}>{phone}</div>
                             <div style={{ color: C.sub, fontSize: '0.83rem', marginTop: 6, lineHeight: 1.5 }}>📍 {address}</div>
+                            {latitude && longitude && (
+                                <div style={{ color: C.green, fontSize: '0.78rem', marginTop: 4, fontWeight: 600 }}>🗺️ แนบพิกัดแผนที่แล้ว</div>
+                            )}
                             {note && <div style={{ color: C.muted, fontSize: '0.78rem', marginTop: 4, fontStyle: 'italic' }}>💬 {note}</div>}
                         </div>
 
