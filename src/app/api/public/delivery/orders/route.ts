@@ -15,6 +15,7 @@ const schema = z.object({
     })).min(1, 'กรุณาเลือกอาหารอย่างน้อย 1 รายการ'),
     deliveryFee: z.number().min(0).default(0),
     customerNote: z.string().optional(),
+    paymentSlipBase64: z.string().optional(),
 })
 
 function generateOrderNumber(): string {
@@ -103,6 +104,8 @@ export async function POST(req: Request) {
                 channel: 'WEBSITE',   // QR scan = WEBSITE channel
                 deliveryFee: data.deliveryFee,
                 deliveryStatus: 'RECEIVED',
+                paymentSlipBase64: data.paymentSlipBase64 || null,
+                isPrepaid: !!data.paymentSlipBase64,
             },
         })
 

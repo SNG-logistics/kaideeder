@@ -2,10 +2,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 
-type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean }
+type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean; toppingsJson?: string | null }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
 type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string; hasBanner?: boolean; qrBankingBase64?: string | null }
-type CartItem = Product & { quantity: number; note: string }
+type Topping = { id: string; name: string; price: number; isActive?: boolean }
+type CartItem = Product & { cartId: string; quantity: number; note: string; toppingsJson?: string; toppingsTotal?: number }
 
 type BillRound = {
     round: number; orderId: string; orderNumber: string
@@ -116,6 +117,8 @@ export default function MenuPage() {
     const [search, setSearch] = useState('')
     const [submitting, setSubmitting] = useState(false)
     const [cartOpen, setCartOpen] = useState(false)
+    const [toppingProduct, setToppingProduct] = useState<Product | null>(null)
+    const [selectedToppings, setSelectedToppings] = useState<Topping[]>([])
     const [sessionExpired, setSessionExpired] = useState(false)
 
     const [submitted, setSubmitted] = useState(false)
@@ -164,25 +167,44 @@ export default function MenuPage() {
     const hasPending = bill?.hasPending ?? false
 
     const addToCart = useCallback((p: Product) => {
-        setCart(prev => {
-            const ex = prev.find(i => i.id === p.id)
-            if (ex) return prev.map(i => i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i)
-            return [...prev, { ...p, quantity: 1, note: '' }]
-        })
+        if (p.toppingsJson) {
+            try {
+                const parsed = JSON.parse(p.toppingsJson) as Topping[]
+                const active = parsed.filter(t => t.isActive !== false)
+                if (active.length > 0) {
+                    setToppingProduct(p)
+                    setSelectedToppings([])
+                    return
+                }
+            } catch {}
+        }
+        internalAddToCart(p, [], 0)
     }, [])
 
-    const removeFromCart = useCallback((id: string) => {
+    const internalAddToCart = useCallback((p: Product, tops: Topping[], topTotal: number) => {
         setCart(prev => {
-            const item = prev.find(i => i.id === id)
+            const tJson = tops.length > 0 ? JSON.stringify(tops) : undefined
+            const cartId = p.id + (tJson || '')
+            const ex = prev.find(i => i.cartId === cartId)
+            if (ex) return prev.map(i => i.cartId === cartId ? { ...i, quantity: i.quantity + 1 } : i)
+            const topsNote = tops.length > 0 ? '(' + tops.map(t=>t.name).join(', ') + ')' : ''
+            return [...prev, { ...p, cartId, quantity: 1, note: topsNote, toppingsJson: tJson, toppingsTotal: topTotal }]
+        })
+        setToppingProduct(null)
+    }, [])
+
+    const removeFromCart = useCallback((cartId: string) => {
+        setCart(prev => {
+            const item = prev.find(i => i.cartId === cartId)
             if (!item) return prev
-            if (item.quantity <= 1) return prev.filter(i => i.id !== id)
-            return prev.map(i => i.id === id ? { ...i, quantity: i.quantity - 1 } : i)
+            if (item.quantity <= 1) return prev.filter(i => i.cartId !== cartId)
+            return prev.map(i => i.cartId === cartId ? { ...i, quantity: i.quantity - 1 } : i)
         })
     }, [])
 
-    const cartQty = (id: string) => cart.find(i => i.id === id)?.quantity ?? 0
+    const cartQty = (id: string) => cart.filter(i => i.id === id).reduce((s, i) => s + i.quantity, 0)
     const totalItems = cart.reduce((s, i) => s + i.quantity, 0)
-    const totalPrice = cart.reduce((s, i) => s + (i.price ?? 0) * i.quantity, 0)
+    const totalPrice = cart.reduce((s, i) => s + ((i.price ?? 0) + (i.toppingsTotal ?? 0)) * i.quantity, 0)
     const filtered = products.filter(p => {
         const matchCat = activeCategory === 'all'
             || (activeCategory === 'featured' && p.isFeatured)
@@ -203,7 +225,8 @@ export default function MenuPage() {
                     tableNumber: tableNum,
                     items: cart.map(i => ({
                         productId: i.id, name: i.name, quantity: i.quantity,
-                        unitPrice: i.price ?? 0, note: i.note || undefined,
+                        unitPrice: (i.price ?? 0) + (i.toppingsTotal ?? 0), note: i.note || undefined,
+                        toppingsJson: i.toppingsJson, toppingsTotal: i.toppingsTotal
                     })),
                 }),
             })
@@ -622,6 +645,7 @@ export default function MenuPage() {
                                         <div style={{ color: C.accent, fontWeight: 800, fontSize: '0.92rem', marginBottom: 9 }}>
                                             {fmtPrice(p.price, currency)}
                                         </div>
+                                        {p.toppingsJson && <div style={{ color: C.accentDark, fontSize: '0.75rem', fontWeight: 700, marginBottom: 8, marginTop: -4 }}>+ เพิ่มท็อปปิ้งได้</div>}
                                         {qty === 0 ? (
                                             <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '8px 0', borderRadius: 12, border: 'none', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', fontWeight: 700, fontSize: '0.84rem', cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, boxShadow: '0 3px 12px rgba(42,157,80,0.3)', minHeight: 36 }}>
                                                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -629,9 +653,9 @@ export default function MenuPage() {
                                             </button>
                                         ) : (
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 12, padding: '3px', minHeight: 36 }}>
-                                                <button onClick={() => removeFromCart(p.id)} style={stepBtn}>−</button>
+                                                <button onClick={() => { if(p.toppingsJson){alert('กรุณาจัดการจากในตะกร้า'); return} removeFromCart(p.id) }} style={stepBtn}>−</button>
                                                 <span style={{ color: C.accent, fontWeight: 900, fontSize: '1rem', minWidth: 22, textAlign: 'center' }}>{qty}</span>
-                                                <button onClick={() => addToCart(p)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
+                                                <button onClick={() => internalAddToCart(p, p.toppingsJson ? JSON.parse(p.toppingsJson) : [], 0)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                             </div>
                                         )}
                                     </div>
@@ -686,15 +710,15 @@ export default function MenuPage() {
                                 <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>ยอดเก่า {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
                             )}
                             {cart.map(item => (
-                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: `1px solid ${C.border}` }}>
+                                <div key={item.cartId || item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: `1px solid ${C.border}` }}>
                                     <div style={{ flex: 1 }}>
-                                        <div style={{ color: C.text, fontWeight: 600, fontSize: '0.9rem' }}>{item.name}</div>
-                                        <div style={{ color: C.accent, fontSize: '0.78rem', marginTop: 2 }}>{fmtPrice(item.price, currency)} × {item.quantity}</div>
+                                        <div style={{ color: C.text, fontWeight: 600, fontSize: '0.9rem' }}>{item.name} {item.note && <span style={{display: 'block', color: '#6b7280', fontSize: '0.75rem', marginTop: 2}}>{item.note}</span>}</div>
+                                        <div style={{ color: C.accent, fontSize: '0.78rem', marginTop: 2 }}>{fmtPrice((item.price ?? 0) + (item.toppingsTotal ?? 0), currency)} × {item.quantity} {item.toppingsTotal ? '(รวมท็อปปิ้ง)' : ''}</div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.accentLight, borderRadius: 12, padding: '2px 4px' }}>
-                                        <button onClick={() => removeFromCart(item.id)} style={stepBtn}>−</button>
+                                        <button onClick={() => removeFromCart(item.cartId || item.id)} style={stepBtn}>−</button>
                                         <span style={{ color: C.accent, fontWeight: 900, width: 22, textAlign: 'center', fontSize: '0.95rem' }}>{item.quantity}</span>
-                                        <button onClick={() => addToCart(item)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
+                                        <button onClick={() => internalAddToCart(item, item.toppingsJson ? JSON.parse(item.toppingsJson) : [], item.toppingsTotal || 0)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                     </div>
                                 </div>
                             ))}
@@ -714,6 +738,49 @@ export default function MenuPage() {
                         </div>
                     </div>
                 )}
+                
+                {/* ── TOPPING MODAL ─────────────────────────────── */}
+                {toppingProduct && toppingProduct.toppingsJson && (() => {
+                    let tops: Topping[] = []
+                    try { tops = JSON.parse(toppingProduct.toppingsJson) } catch {}
+                    tops = tops.filter(t => t.isActive !== false)
+                    const toppingsTotal = selectedToppings.reduce((s, t) => s + t.price, 0)
+                    return (
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)' }} onClick={() => setToppingProduct(null)} />
+                            <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '20px', maxHeight: '85dvh', overflowY: 'auto', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.24s ease', boxShadow: '0 -16px 48px rgba(0,0,0,0.18)' }}>
+                                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 16 }}>เพิ่มท็อปปิ้ง</div>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                                    {tops.map(t => {
+                                        const isSel = selectedToppings.some(st => st.id === t.id)
+                                        return (
+                                            <div key={t.id} onClick={() => {
+                                                if (isSel) setSelectedToppings(p => p.filter(st => st.id !== t.id))
+                                                else setSelectedToppings(p => [...p, t])
+                                            }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 18, border: `2px solid ${isSel ? C.accent : '#f3f4f6'}`, background: isSel ? C.accentLight : '#fafafa', cursor: 'pointer', fontFamily: FONT, transition: 'all 0.15s' }}>
+                                                <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSel ? C.accent : '#d1d5db'}`, background: isSel ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#fff', fontWeight: 800 }}>{isSel ? '✓' : ''}</span>
+                                                <span style={{ flex: 1, fontWeight: 700, fontSize: '0.9rem', color: C.text, textAlign: 'left' }}>{t.name}</span>
+                                                <span style={{ fontWeight: 800, fontSize: '0.88rem', color: isSel ? C.accent : C.muted }}>+{fmtPrice(t.price, currency)}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                                
+                                {toppingsTotal > 0 && <div style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 16, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.82rem', color: C.text, fontWeight: 600 }}>ยอดท็อปปิ้ง</span>
+                                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: C.accent }}>+{fmtPrice(toppingsTotal, currency)}</span>
+                                </div>}
+                                
+                                <button onClick={() => internalAddToCart(toppingProduct, selectedToppings, toppingsTotal)} style={{ width: '100%', padding: '16px', borderRadius: 18, border: 'none', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer', fontFamily: FONT, marginBottom: 8, boxShadow: C.shadowGreen }}>
+                                    ยืนยันนำเข้าตะกร้า {toppingsTotal > 0 ? `(${fmtPrice((toppingProduct.price ?? 0) + toppingsTotal, currency)})` : ''}
+                                </button>
+                                <button onClick={() => setToppingProduct(null)} style={{ width: '100%', padding: '12px', borderRadius: 16, border: `1.5px solid ${C.border}`, background: 'transparent', cursor: 'pointer', fontFamily: FONT, color: C.muted, fontSize: '0.88rem', fontWeight: 600 }}>ยกเลิก</button>
+                            </div>
+                        </div>
+                    )
+                })()}
+
             </div>
         </div>
     )

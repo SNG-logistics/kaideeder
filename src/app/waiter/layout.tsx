@@ -2,6 +2,7 @@
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import { SidebarProvider, useSidebar } from '@/components/SidebarContext'
+import { NotificationProvider } from '@/components/NotificationContext'
 
 function WaiterLayoutContent({ children }: { children: React.ReactNode }) {
     const { collapsed, isMobile } = useSidebar()
@@ -27,7 +28,9 @@ function WaiterLayoutContent({ children }: { children: React.ReactNode }) {
 export default function WaiterLayout({ children }: { children: React.ReactNode }) {
     return (
         <SidebarProvider>
-            <WaiterLayoutContent>{children}</WaiterLayoutContent>
+            <NotificationProvider>
+                <WaiterLayoutContent>{children}</WaiterLayoutContent>
+            </NotificationProvider>
         </SidebarProvider>
     )
 }

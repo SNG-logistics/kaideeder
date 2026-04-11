@@ -1,5 +1,7 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { useNotification } from './NotificationContext'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type OrderItem = { id: string; quantity: number; unitPrice: number; note: string | null; product: { name: string } }
@@ -14,9 +16,6 @@ type BillRequest = {
     table: { number: number; name: string; zone: string } | null
     items: OrderItem[]
 }
-
-const POLL_INTERVAL = 3000   // 3 s — new orders
-const BILL_POLL_INTERVAL = 3000  // 3 s — bill requests
 
 function fmtTime(iso: string) {
     return new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
@@ -99,7 +98,6 @@ function BillRequestModal({ bill, onAck, onClose }: {
     bill: BillRequest; onAck: () => void; onClose: () => void
 }) {
     const total = bill.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-    // Extract time from note e.g. "🧾 เรียกเช็คบิล 14:30"
     const timeMatch = bill.note?.match(/(\d{2}:\d{2})/)
     const requestTime = timeMatch?.[1] || fmtTime(bill.openedAt)
 
@@ -122,9 +120,7 @@ function BillRequestModal({ bill, onAck, onClose }: {
                         animation: 'billPulse 1.2s ease-in-out infinite',
                     }}>🧾</div>
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 900, color: '#fef2f2', fontSize: '1rem' }}>
-                            ลูกค้าเรียกเช็คบิล!
-                        </div>
+                        <div style={{ fontWeight: 900, color: '#fef2f2', fontSize: '1rem' }}>ลูกค้าเรียกเช็คบิล!</div>
                         <div style={{ color: '#fca5a5', fontSize: '0.78rem', marginTop: 3, fontWeight: 600 }}>
                             {bill.table ? `โต๊ะ ${bill.table.name}` : 'ไม่ระบุโต๊ะ'}
                             {bill.table?.zone && ` — ${bill.table.zone}`}
@@ -153,9 +149,6 @@ function BillRequestModal({ bill, onAck, onClose }: {
                                 </span>
                             </div>
                         ))}
-                        {bill.items.length > 8 && (
-                            <div style={{ padding: '6px 14px', color: '#64748b', fontSize: '0.72rem' }}>+{bill.items.length - 8} รายการ</div>
-                        )}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(239,68,68,0.06)', borderTop: '1px solid rgba(239,68,68,0.1)' }}>
                         <span style={{ color: '#94a3b8', fontSize: '0.82rem', fontWeight: 600 }}>ยอดรวม</span>
@@ -192,126 +185,42 @@ function BillRequestModal({ bill, onAck, onClose }: {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function NewOrderAlert() {
-    // ── New orders (QR → PENDING_CONFIRM) ─────────────────────────────────
-    const [pending, setPending] = useState<PendingOrder[]>([])
-    const [current, setCurrent] = useState<PendingOrder | null>(null)
-    const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
+    const router = useRouter()
+    const { notifications, removeNotification, refresh } = useNotification()
+    const [viewingId, setViewingId] = useState<string | null>(null)
 
-    // ── Bill requests ──────────────────────────────────────────────────────
-    const [billRequests, setBillRequests] = useState<BillRequest[]>([])
-    const [currentBill, setCurrentBill] = useState<BillRequest | null>(null)
-    const [billSeenIds, setBillSeenIds] = useState<Set<string>>(new Set())
+    // Derived states
+    const orderNotifs = notifications.filter(n => n.type === 'ORDER_NEW')
+    const billNotifs = notifications.filter(n => n.type === 'BILL_REQUEST')
+    const deliveryNotifs = notifications.filter(n => n.type === 'DELIVERY_NEW')
 
-    // ── Sound ──────────────────────────────────────────────────────────────
-    const audioUnlocked = useRef(false)
-    const [showSoundHint, setShowSoundHint] = useState(true)
+    const currentOrderNode = viewingId ? orderNotifs.find(n => n.id === viewingId) : null
+    const currentBillNode = viewingId ? billNotifs.find(n => n.id === viewingId) : null
 
-    useEffect(() => {
-        function unlock() { audioUnlocked.current = true; setShowSoundHint(false) }
-        document.addEventListener('click', unlock, { once: true })
-        document.addEventListener('touchstart', unlock, { once: true })
-        return () => { document.removeEventListener('click', unlock); document.removeEventListener('touchstart', unlock) }
-    }, [])
-
-    const playSound = useCallback(() => {
-        if (!audioUnlocked.current) return
-        try { new Audio('/notification.mp3').play() } catch {}
-    }, [])
-
-    // ── Poll: new QR orders ────────────────────────────────────────────────
-    const fetchPending = useCallback(async () => {
-        try {
-            const res = await fetch('/api/pos/orders?status=PENDING_CONFIRM')
-            if (!res.ok) return
-            const data = await res.json()
-            const orders: PendingOrder[] = data.data ?? data ?? []
-            setPending(orders)
-            if (orders.length > 0 && !current) {
-                const unseen = orders.find(o => !seenIds.has(o.id))
-                if (unseen) {
-                    setCurrent(unseen)
-                    setSeenIds(prev => new Set([...prev, unseen.id]))
-                    playSound()
-                }
-            }
-        } catch {}
-    }, [current, seenIds, playSound])
-
-    // ── Poll: bill requests ────────────────────────────────────────────────
-    const fetchBillRequests = useCallback(async () => {
-        try {
-            const res = await fetch('/api/pos/bill-requests')
-            if (!res.ok) return
-            const data = await res.json()
-            const bills: BillRequest[] = data.data ?? []
-            setBillRequests(bills)
-            if (bills.length > 0 && !currentBill) {
-                const unseen = bills.find(b => !billSeenIds.has(b.id))
-                if (unseen) {
-                    setCurrentBill(unseen)
-                    setBillSeenIds(prev => new Set([...prev, unseen.id]))
-                    playSound()
-                }
-            }
-        } catch {}
-    }, [currentBill, billSeenIds, playSound])
-
-    useEffect(() => {
-        fetchPending()
-        const iv = setInterval(fetchPending, POLL_INTERVAL)
-        return () => clearInterval(iv)
-    }, [fetchPending])
-
-    useEffect(() => {
-        fetchBillRequests()
-        const iv = setInterval(fetchBillRequests, BILL_POLL_INTERVAL)
-        return () => clearInterval(iv)
-    }, [fetchBillRequests])
-
-    // ── Handlers ───────────────────────────────────────────────────────────
-    function handleConfirm() {
-        if (current) setPending(prev => prev.filter(o => o.id !== current.id))
-        setCurrent(null)
-    }
-
-    function handleBillAck() {
-        setCurrentBill(null)
-        // Show next pending bill if any
-        const next = billRequests.find(b => !billSeenIds.has(b.id) && b.id !== currentBill?.id)
-        if (next) {
-            setCurrentBill(next)
-            setBillSeenIds(prev => new Set([...prev, next.id]))
+    const handleConfirmOrder = useCallback(() => {
+        if (currentOrderNode) {
+            removeNotification(currentOrderNode.id)
+            setViewingId(null)
+            refresh()
         }
-    }
+    }, [currentOrderNode, removeNotification, refresh])
 
-    // Pending bill count excluding seen
-    const unseenBillCount = billRequests.filter(b => !billSeenIds.has(b.id) || b.id === currentBill?.id).length
+    const handleAckBill = useCallback(() => {
+        if (currentBillNode) {
+            removeNotification(currentBillNode.id)
+            setViewingId(null)
+            refresh()
+        }
+    }, [currentBillNode, removeNotification, refresh])
 
     return (
         <>
-            {/* Sound unlock hint */}
-            {showSoundHint && (pending.length > 0 || billRequests.length > 0) && (
-                <div
-                    onClick={() => { audioUnlocked.current = true; setShowSoundHint(false) }}
-                    style={{
-                        position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
-                        zIndex: 10000, background: '#1e293b', border: '1px solid rgba(245,158,11,0.4)',
-                        borderRadius: 99, padding: '6px 16px', fontSize: '0.75rem',
-                        color: '#f59e0b', fontWeight: 600, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap',
-                    }}
-                >
-                    🔔 แตะที่นี่เพื่อเปิดเสียงแจ้งเตือน
-                </div>
-            )}
-
             {/* 🟡 New order badge */}
-            {pending.length > 0 && !current && (
+            {orderNotifs.length > 0 && !currentOrderNode && (
                 <button
-                    onClick={() => { if (pending.length > 0) setCurrent(pending[0]) }}
+                    onClick={() => setViewingId(orderNotifs[0].id)}
                     style={{
-                        position: 'fixed', bottom: 80, right: unseenBillCount > 0 ? 170 : 20, zIndex: 1000,
+                        position: 'fixed', bottom: 80, right: billNotifs.length > 0 ? 170 : 20, zIndex: 1000,
                         background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 14,
                         padding: '10px 16px', fontWeight: 800, fontSize: '0.85rem',
                         cursor: 'pointer', fontFamily: 'inherit',
@@ -321,20 +230,14 @@ export default function NewOrderAlert() {
                         transition: 'right 0.3s ease',
                     }}
                 >
-                    🔔 ออเดอร์ใหม่ {pending.length > 1 && <span style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 99, padding: '1px 7px', fontSize: '0.72rem' }}>{pending.length}</span>}
+                    🔔 ออเดอร์ใหม่ {orderNotifs.length > 1 && <span style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 99, padding: '1px 7px', fontSize: '0.72rem' }}>{orderNotifs.length}</span>}
                 </button>
             )}
 
             {/* 🔴 Bill request badge */}
-            {billRequests.length > 0 && !currentBill && (
+            {billNotifs.length > 0 && !currentBillNode && (
                 <button
-                    onClick={() => {
-                        const first = billRequests[0]
-                        if (first) {
-                            setCurrentBill(first)
-                            setBillSeenIds(prev => new Set([...prev, first.id]))
-                        }
-                    }}
+                    onClick={() => setViewingId(billNotifs[0].id)}
                     style={{
                         position: 'fixed', bottom: 80, right: 20, zIndex: 1001,
                         background: 'linear-gradient(135deg,#dc2626,#ef4444)',
@@ -346,25 +249,44 @@ export default function NewOrderAlert() {
                         animation: 'billBadgePulse 1.2s ease-in-out infinite',
                     }}
                 >
-                    🧾 เช็คบิล {billRequests.length > 1 && <span style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 99, padding: '1px 7px', fontSize: '0.72rem' }}>{billRequests.length}</span>}
+                    🧾 เช็คบิล {billNotifs.length > 1 && <span style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 99, padding: '1px 7px', fontSize: '0.72rem' }}>{billNotifs.length}</span>}
+                </button>
+            )}
+
+            {/* 🛵 Delivery request badge */}
+            {deliveryNotifs.length > 0 && (
+                <button
+                    onClick={() => router.push('/delivery')}
+                    style={{
+                        position: 'fixed', bottom: 135, right: 20, zIndex: 1000,
+                        background: 'linear-gradient(135deg,#db2777,#be185d)',
+                        color: '#fff', border: 'none', borderRadius: 14,
+                        padding: '10px 16px', fontWeight: 800, fontSize: '0.85rem',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        boxShadow: '0 6px 20px rgba(219,39,119,0.55)',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        animation: 'pulse 1.5s ease-in-out infinite',
+                    }}
+                >
+                    🛵 Delivery ใหม่ {deliveryNotifs.length > 1 && <span style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 99, padding: '1px 7px', fontSize: '0.72rem' }}>{deliveryNotifs.length}</span>}
                 </button>
             )}
 
             {/* New order modal */}
-            {current && (
+            {currentOrderNode && (
                 <PendingOrderModal
-                    order={current}
-                    onConfirm={handleConfirm}
-                    onClose={() => setCurrent(null)}
+                    order={currentOrderNode.metadata}
+                    onConfirm={handleConfirmOrder}
+                    onClose={() => setViewingId(null)}
                 />
             )}
 
             {/* Bill request modal */}
-            {currentBill && (
+            {currentBillNode && (
                 <BillRequestModal
-                    bill={currentBill}
-                    onAck={handleBillAck}
-                    onClose={() => setCurrentBill(null)}
+                    bill={currentBillNode.metadata}
+                    onAck={handleAckBill}
+                    onClose={() => setViewingId(null)}
                 />
             )}
 

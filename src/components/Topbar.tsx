@@ -3,6 +3,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useSidebar } from './SidebarContext'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useNotification } from './NotificationContext'
 
 const ROLE_LABELS: Record<string, string> = {
     owner: '👑 เจ้าของ', manager: '📊 ผู้จัดการ', cashier: '💰 แคชเชียร์',
@@ -33,6 +34,8 @@ export default function Topbar() {
     const [time, setTime] = useState('')
     const { toggle, isMobile } = useSidebar()
     const currentUser = useCurrentUser()
+    const { notifications, unreadCount, markAsSeen } = useNotification()
+    const [showDropdown, setShowDropdown] = useState(false)
 
     useEffect(() => {
         const tick = () => setTime(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }))
@@ -127,19 +130,75 @@ export default function Topbar() {
                 )}
 
                 {/* Notifications */}
-                <div style={{
-                    width: 34, height: 34, borderRadius: 8,
-                    background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', position: 'relative', fontSize: '0.9rem',
-                }}>
-                    🔔
-                    <span style={{
-                        position: 'absolute', top: -2, right: -2,
-                        width: 14, height: 14, borderRadius: '50%',
-                        background: '#E8364E', color: '#fff',
-                        fontSize: '0.55rem', fontWeight: 700,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>3</span>
+                <div style={{ position: 'relative' }}>
+                    <div 
+                        onClick={() => setShowDropdown(!showDropdown)}
+                        style={{
+                            width: 34, height: 34, borderRadius: 8,
+                            background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', position: 'relative', fontSize: '0.9rem',
+                        }}
+                    >
+                        🔔
+                        {unreadCount > 0 && (
+                            <span style={{
+                                position: 'absolute', top: -2, right: -2,
+                                width: 16, height: 16, borderRadius: '50%',
+                                background: '#E8364E', color: '#fff',
+                                fontSize: '0.55rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>{unreadCount}</span>
+                        )}
+                    </div>
+
+                    {showDropdown && (
+                        <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowDropdown(false)} />
+                            <div style={{
+                                position: 'absolute', top: 44, right: 0, width: 320, background: '#fff',
+                                border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                                zIndex: 50, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                                animation: 'slideDown 0.2s ease',
+                            }}>
+                                <div style={{ padding: '12px 16px', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#111827' }}>การแจ้งเตือน</span>
+                                    {unreadCount > 0 && <span style={{ fontSize: '0.75rem', color: '#E8364E', fontWeight: 600, background: 'rgba(232,54,78,0.1)', padding: '2px 8px', borderRadius: 99 }}>{unreadCount} ใหม่</span>}
+                                </div>
+                                <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                                    {notifications.length === 0 ? (
+                                        <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6B7280', fontSize: '0.85rem' }}>
+                                            ไม่มีการแจ้งเตือนใหม่
+                                        </div>
+                                    ) : (
+                                        notifications.slice(0, 10).map((notif, idx) => (
+                                            <div 
+                                                key={idx}
+                                                onClick={() => { markAsSeen(notif.id); setShowDropdown(false) }}
+                                                style={{
+                                                    padding: '12px 16px', borderBottom: '1px solid #F3F4F6',
+                                                    background: '#FAFAFA',
+                                                    cursor: 'pointer', transition: 'background 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
+                                                onMouseLeave={e => e.currentTarget.style.background = '#FAFAFA'}
+                                            >
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                                                    <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#111827' }}>{notif.title}</span>
+                                                    <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>{new Date(notif.createdAt).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: '#4B5563', lineHeight: 1.4 }}>
+                                                    {notif.message}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                <button style={{ padding: '10px 0', border: 'none', borderTop: '1px solid #E5E7EB', background: '#F9FAFB', color: '#6B7280', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', width: '100%', textAlign: 'center' }}>
+                                    ดูทั้งหมด
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Divider — hidden on mobile */}

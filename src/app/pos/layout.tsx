@@ -1,6 +1,7 @@
 'use client'
 import Sidebar from '@/components/Sidebar'
 import { SidebarProvider, useSidebar } from '@/components/SidebarContext'
+import { NotificationProvider } from '@/components/NotificationContext'
 
 function POSContent({ children }: { children: React.ReactNode }) {
     const { collapsed, isMobile, toggle, mobileOpen } = useSidebar()
@@ -53,7 +54,9 @@ function POSContent({ children }: { children: React.ReactNode }) {
 export default function POSLayout({ children }: { children: React.ReactNode }) {
     return (
         <SidebarProvider>
-            <POSContent>{children}</POSContent>
+            <NotificationProvider>
+                <POSContent>{children}</POSContent>
+            </NotificationProvider>
         </SidebarProvider>
     )
 }

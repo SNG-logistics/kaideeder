@@ -16,6 +16,7 @@ interface DeliveryInfo {
     deliveryFee: number
     isPrepaid: boolean
     paymentRef?: string
+    paymentSlipBase64?: string | null
     driverNote?: string
     estimatedAt?: string
 }
@@ -253,6 +254,7 @@ function OrderCard({ order, onStatusChange }: { order: DeliveryOrder; onStatusCh
     const next = NEXT_STATUS[info.deliveryStatus]
     const [loading, setLoading] = useState(false)
     const [expanded, setExpanded] = useState(false)
+    const [showSlip, setShowSlip] = useState(false)
     const activeItems = order.items.filter(i => !i.isCancelled)
 
     async function advance() {
@@ -312,6 +314,23 @@ function OrderCard({ order, onStatusChange }: { order: DeliveryOrder; onStatusCh
                 {info.driverNote && <div style={{ color: '#6B7280', fontStyle: 'italic', marginTop: 2 }}>💬 {info.driverNote}</div>}
                 {info.deliveryFee > 0 && <div style={{ color: '#059669', fontWeight: 600, marginTop: 2 }}>🛵 ค่าส่ง {fmt(info.deliveryFee)}</div>}
             </div>
+
+            {/* Slip Box (Inline or Modal trigger) */}
+            {info.paymentSlipBase64 && (
+                <div style={{ padding: '6px 12px', display: 'flex', gap: 8, background: '#ECFDF5', borderTop: '1px solid #D1FAE5', borderBottom: '1px solid #D1FAE5' }}>
+                    <button onClick={() => setShowSlip(!showSlip)} style={{ fontSize: 11, fontWeight: 700, color: '#059669', background: 'transparent', border: '1px solid #10B981', padding: '4px 10px', borderRadius: 4, cursor: 'pointer' }}>
+                        {showSlip ? 'ซ่อนสลิป ▲' : '📄 ดูสลิปโอนเงิน ▼'}
+                    </button>
+                    <span style={{ fontSize: 11, color: '#065F46', display: 'flex', alignItems: 'center' }}>ลูกค้าอัปโหลดสลิปแล้ว</span>
+                </div>
+            )}
+            
+            {showSlip && info.paymentSlipBase64 && (
+                <div style={{ padding: '12px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'center', background: '#F9FAFB' }}>
+                    <img src={info.paymentSlipBase64} alt="Payment Slip" style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid #D1D5DB' }} />
+                </div>
+            )}
+
 
             {/* Items toggle */}
             <button onClick={() => setExpanded(e => !e)} style={{ width: '100%', padding: '6px 12px', background: 'none', border: 'none', borderTop: '1px solid #F3F4F6', cursor: 'pointer', fontSize: 11, color: '#6B7280', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>

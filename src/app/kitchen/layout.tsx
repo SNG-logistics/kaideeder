@@ -2,6 +2,7 @@
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import { SidebarProvider, useSidebar } from '@/components/SidebarContext'
+import { NotificationProvider } from '@/components/NotificationContext'
 
 function KitchenLayoutContent({ children }: { children: React.ReactNode }) {
     const { collapsed, isMobile } = useSidebar()
@@ -34,7 +35,9 @@ function KitchenLayoutContent({ children }: { children: React.ReactNode }) {
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {
     return (
         <SidebarProvider>
-            <KitchenLayoutContent>{children}</KitchenLayoutContent>
+            <NotificationProvider>
+                <KitchenLayoutContent>{children}</KitchenLayoutContent>
+            </NotificationProvider>
         </SidebarProvider>
     )
 }

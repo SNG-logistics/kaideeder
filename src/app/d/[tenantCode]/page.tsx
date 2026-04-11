@@ -4,10 +4,11 @@ import { useParams, useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────
 type Step = 1 | 2 | 3
-type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean }
+type Topping = { id: string; name: string; price: number; isActive?: boolean }
+type Product = { toppingsJson?: string | null;  id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
-type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string }
-type CartItem = Product & { quantity: number; note: string }
+type Tenant = { name: string; displayName: string | null; logoUrl: string | null; currency: string; qrBankingBase64?: string | null }
+type CartItem = Product & { cartId: string; quantity: number; note: string; toppingsJson?: string | null; toppingsTotal?: number }
 
 // ── Design System ─────────────────────────────────────────────
 const C = {
@@ -130,6 +131,7 @@ export default function DeliveryOrderPage() {
     // ── Step 3 — Confirm ─────────────────────────────────────
     const [submitting, setSubmitting] = useState(false)
     const [submitErr, setSubmitErr] = useState('')
+    const [paymentSlipBase64, setPaymentSlipBase64] = useState<string | null>(null)
 
     // ── Delivery fee (fixed — fetched from tenant settings in future) ──
     // For now: free (staff can adjust from queue)
@@ -159,7 +161,7 @@ export default function DeliveryOrderPage() {
         setCart(prev => {
             const ex = prev.find(i => i.id === p.id)
             if (ex) return prev.map(i => i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i)
-            return [...prev, { ...p, quantity: 1, note: '' }]
+            return [...prev, { ...p, cartId: Math.random().toString(36).substr(2, 9), quantity: 1, note: '' }]
         })
     }, [])
 
@@ -189,10 +191,33 @@ export default function DeliveryOrderPage() {
         setStep(2)
     }
 
+    // ── Slip Upload ───────────────────────────────────────────
+    const handleSlipUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let { width, height } = img;
+                const MAX = 800;
+                if (width > height && width > MAX) { height *= MAX / width; width = MAX; }
+                else if (height > MAX) { width *= MAX / height; height = MAX; }
+                canvas.width = width; canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                setPaymentSlipBase64(canvas.toDataURL('image/jpeg', 0.6));
+            };
+            img.src = ev.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+    };
+
     // ── Submit order ──────────────────────────────────────────
     async function submitOrder() {
         setSubmitErr('')
         if (cart.length === 0) { setSubmitErr('กรุณาเลือกอาหารอย่างน้อย 1 รายการ'); return }
+        if (totalAmount > 0 && !paymentSlipBase64) { setSubmitErr('กรุณาแนบสลิปโอนเงิน (หากสั่งเกิน 0 บาท) เพื่อยืนยันการสั่งซื้อ'); return }
         setSubmitting(true)
         try {
             const res = await fetch('/api/public/delivery/orders', {
@@ -206,6 +231,7 @@ export default function DeliveryOrderPage() {
                     items: cart.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price ?? 0 })),
                     deliveryFee: DELIVERY_FEE,
                     customerNote: note.trim() || undefined,
+                    paymentSlipBase64,
                 }),
             })
             const j = await res.json()
@@ -457,6 +483,37 @@ export default function DeliveryOrderPage() {
                                 <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(totalAmount, currency)}</span>
                             </div>
                         </div>
+
+                        {/* Payment Verification / Contact */}
+                        {totalAmount > 0 && (
+                            <div style={{ background: C.surface, borderRadius: 14, padding: '16px', border: `1px solid ${C.accent}`, marginBottom: 16 }}>
+                                <div style={{ fontSize: '0.85rem', color: C.text, fontWeight: 700, marginBottom: 8 }}>💳 ชำระเงิน / Payment</div>
+                                {tenant?.qrBankingBase64 ? (
+                                    <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                                        <img src={tenant.qrBankingBase64} alt="QR Code" style={{ width: '100%', maxWidth: 220, borderRadius: 8 }} />
+                                    </div>
+                                ) : (
+                                    <div style={{ color: C.sub, fontSize: '0.8rem', marginBottom: 12 }}>
+                                        💳 โอนเงินผ่านหมายเลขบัญชีของร้านค้า หรือติดต่อเพจของร้านค้า
+                                    </div>
+                                )}
+                                <div style={{ borderTop: `1px dashed ${C.border}`, paddingTop: 12 }}>
+                                    <div style={{ fontSize: '0.8rem', color: '#FDA4AF', fontWeight: 600, marginBottom: 8 }}>อัปโหลดสลิปเพื่อยืนยันการสั่งซื้อ:</div>
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={handleSlipUpload}
+                                        style={{ width: '100%', fontSize: '0.8rem', color: C.text, padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: 8, border: `1px solid ${C.border}` }}
+                                    />
+                                </div>
+                                {paymentSlipBase64 && (
+                                    <div style={{ marginTop: 12, textAlign: 'center' }}>
+                                        <img src={paymentSlipBase64} alt="slip" style={{ width: 100, borderRadius: 8, border: `2px solid ${C.green}` }} />
+                                        <div style={{ color: C.green, fontSize: '0.8rem', marginTop: 4, fontWeight: 600 }}>✅ แนบสลิปแล้ว</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {submitErr && (
                             <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 10, padding: '10px 14px', color: C.danger, fontSize: '0.83rem', fontWeight: 600, marginBottom: 14 }}>

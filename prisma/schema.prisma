@@ -828,23 +828,24 @@ model Order {
 
 // ─────────────────────────────────────────────
 model DeliveryInfo {
-  id             String          @id @default(cuid())
-  tenantId       String
-  orderId        String          @unique
-  customerName   String
-  customerPhone  String
-  addressText    String
-  channel        DeliveryChannel @default(PHONE)
-  deliveryStatus DeliveryStatus  @default(RECEIVED)
-  deliveryFee    Float           @default(0)
-  isPrepaid      Boolean         @default(false)
-  paymentRef     String?
-  riderId        String?
-  driverNote     String?
-  estimatedAt    DateTime?
-  deliveredAt    DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id               String          @id @default(cuid())
+  tenantId         String
+  orderId          String          @unique
+  customerName     String
+  customerPhone    String
+  addressText      String
+  channel          DeliveryChannel @default(PHONE)
+  deliveryStatus   DeliveryStatus  @default(RECEIVED)
+  deliveryFee      Float           @default(0)
+  isPrepaid        Boolean         @default(false)
+  paymentRef       String?
+  paymentSlipBase64 String?        @db.LongText
+  riderId          String?
+  driverNote       String?
+  estimatedAt      DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   order  Order  @relation(fields: [orderId], references: [id])
