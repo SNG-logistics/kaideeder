@@ -83,7 +83,12 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     useEffect(() => {
         fetch('/api/products?active=true&limit=200')
             .then(r => r.json())
-            .then(j => j.success && setProducts(j.data?.items ?? j.data ?? []))
+            .then(j => {
+                if (j.success) {
+                    const arr = j.data?.products || j.data?.items || (Array.isArray(j.data) ? j.data : [])
+                    setProducts(arr)
+                }
+            })
             .catch(() => {})
     }, [])
 
