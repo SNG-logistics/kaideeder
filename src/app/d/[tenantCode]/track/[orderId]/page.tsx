@@ -354,6 +354,25 @@ export default function TrackPage() {
                         pointerEvents: 'none',
                     }} />
 
+                    {/* ✕ Close button */}
+                    <button
+                        onClick={() => setShowThanks(false)}
+                        style={{
+                            position: 'absolute', top: 14, right: 14,
+                            width: 32, height: 32, borderRadius: '50%',
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            color: '#94A3B8', fontSize: '1rem',
+                            cursor: 'pointer', display: 'flex',
+                            alignItems: 'center', justifyContent: 'center',
+                            zIndex: 10, fontFamily: FONT,
+                            transition: 'background 0.2s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                    >✕</button>
+
+
                     {/* Checkmark circle */}
                     <div style={{
                         width: 80, height: 80, borderRadius: '50%',
