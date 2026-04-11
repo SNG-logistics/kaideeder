@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import { useT } from '@/lib/i18n/useT'
+import { LangSwitcher } from '@/components/LangSwitcher'
 
 type Product = { id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean; toppingsJson?: string | null }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
@@ -62,12 +64,14 @@ const GLOBAL_CSS = `
 `
 
 // ── Session Expired / Table Closed Screen ──────────────────────────
-function SessionExpiredScreen({ tableNum }: {
-    tableNum: number
-}) {
+function SessionExpiredScreen({ tableNum }: { tableNum: number }) {
+    const { t, lang, setLang } = useT()
     return (
         <div style={{ minHeight: '100dvh', background: '#fdf2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 0, padding: 28, textAlign: 'center', fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
+            <div style={{ position: 'absolute', top: 16, right: 16 }}>
+                <LangSwitcher lang={lang} setLang={setLang} theme="light" />
+            </div>
             <div style={{
                 width: 96, height: 96, borderRadius: '50%',
                 background: 'linear-gradient(135deg,#fee2e2,#fecaca)',
@@ -77,14 +81,14 @@ function SessionExpiredScreen({ tableNum }: {
                 animation: 'popIn 0.4s ease',
             }}>🔒</div>
             <h1 style={{ color: '#7f1d1d', fontWeight: 900, fontSize: '1.35rem', margin: '0 0 12px', lineHeight: 1.3 }}>
-                QR นี้หมดอายุแล้ว
+                {t('qr_session_expired')}
             </h1>
             <p style={{ color: '#991b1b', fontSize: '0.92rem', lineHeight: 1.75, margin: '0 0 8px', fontWeight: 500 }}>
-                โต๊ะ <b>{tableNum}</b> ยังไม่ได้เปิดบริการ
+                {t('qr_table')} <b>{tableNum}</b> {t('qr_session_desc')}
             </p>
             <p style={{ color: '#b91c1c', fontSize: '0.82rem', lineHeight: 1.7, margin: '0 0 28px' }}>
-                ลิงก์นี้ใช้ได้เฉพาะเมื่อนั่งโต๊ะที่ร้านเท่านั้น<br />
-                กรุณาแจ้งพนักงานเพื่อเปิดโต๊ะ
+                {t('qr_link_hint')}<br />
+                {t('qr_session_tell_staff')}
             </p>
             <div style={{
                 background: '#fff', borderRadius: 18, padding: '18px 24px',
@@ -93,8 +97,8 @@ function SessionExpiredScreen({ tableNum }: {
                 maxWidth: 320, width: '100%',
             }}>
                 <p style={{ color: '#6b7280', fontSize: '0.78rem', margin: 0, lineHeight: 1.7 }}>
-                    🪑 นั่งที่โต๊ะ → แจ้งพนักงานเปิดโต๊ะ<br />
-                    📱 สแกน QR ใหม่อีกครั้ง → สั่งได้เลย
+                    🪑 {t('qr_session_hint1')}<br />
+                    📱 {t('qr_session_hint2')}
                 </p>
             </div>
         </div>
@@ -105,6 +109,7 @@ export default function MenuPage() {
     const params = useParams<{ tenantCode: string; tableNum: string }>()
     const tenantCode = params.tenantCode
     const tableNum = Number(params.tableNum)
+    const { t, lang, setLang } = useT()
 
     const [tenant, setTenant] = useState<Tenant | null>(null)
     const [categories, setCategories] = useState<Category[]>([])
@@ -249,7 +254,7 @@ export default function MenuPage() {
             await loadBill()
             setSubmittedRound((bill?.totalRounds ?? 0) + 1)
             setSubmitted(true)
-        } catch { setError('เกิดข้อผิดพลาดในการส่งออเดอร์') }
+        } catch { setError(t('error_occurred')) }
         finally { setSubmitting(false) }
     }
 
@@ -259,8 +264,8 @@ export default function MenuPage() {
             const res = await fetch(`/api/public/bill/${params.tenantCode}/${params.tableNum}`, { method: 'POST' })
             const json = await res.json()
             if (res.ok) { setBillDone(true); await loadBill() }
-            else setError(json.error || 'ไม่สามารถส่งคำขอได้')
-        } catch { setError('เกิดข้อผิดพลาด') }
+            else setError(json.error || t('error_occurred'))
+        } catch { setError(t('error_occurred')) }
         finally { setBillRequesting(false) }
     }
 
@@ -274,7 +279,7 @@ export default function MenuPage() {
         <div style={{ minHeight: '100dvh', background: '#e8eceb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14, fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ width: 44, height: 44, border: `4px solid ${C.accentLight}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            <p style={{ color: C.muted, fontSize: '0.88rem', margin: 0 }}>กำลังโหลดเมนู…</p>
+            <p style={{ color: C.muted, fontSize: '0.88rem', margin: 0 }}>{t('loading')}</p>
         </div>
     )
 
@@ -283,7 +288,7 @@ export default function MenuPage() {
             <style>{GLOBAL_CSS}</style>
             <span style={{ fontSize: '3rem' }}>😕</span>
             <p style={{ color: C.danger, fontWeight: 600, textAlign: 'center', margin: 0 }}>{error}</p>
-            <button onClick={() => setError('')} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '11px 28px', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, fontSize: '0.95rem' }}>ลองใหม่</button>
+            <button onClick={() => setError('')} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '11px 28px', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, fontSize: '0.95rem' }}>{t('back')}</button>
         </div>
     )
 
@@ -294,15 +299,15 @@ export default function MenuPage() {
             <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', background: '#f7f8f7' }}>
                 <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`, padding: '14px 20px', position: 'sticky', top: 0, zIndex: 30, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <button onClick={() => setViewBill(false)} style={{ background: C.accentLight, border: 'none', borderRadius: 10, padding: '8px 14px', color: C.accent, cursor: 'pointer', fontFamily: FONT, fontSize: '0.83rem', fontWeight: 600 }}>← กลับ</button>
+                        <button onClick={() => setViewBill(false)} style={{ background: C.accentLight, border: 'none', borderRadius: 10, padding: '8px 14px', color: C.accent, cursor: 'pointer', fontFamily: FONT, fontSize: '0.83rem', fontWeight: 600 }}>← {t('back')}</button>
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.62rem', color: C.muted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>โต๊ะ {tableNum}</div>
-                            <div style={{ color: C.text, fontWeight: 800, fontSize: '1.05rem' }}>🧾 บิลรวมทั้งหมด</div>
+                            <div style={{ fontSize: '0.62rem', color: C.muted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('qr_table')} {tableNum}</div>
+                            <div style={{ color: C.text, fontWeight: 800, fontSize: '1.05rem' }}>{t('bill_title')}</div>
                         </div>
                         {totalRounds > 0 && (
                             <div style={{ background: C.accentLight, border: `1px solid ${C.accentMid}`, borderRadius: 10, padding: '6px 12px', textAlign: 'center' }}>
                                 <div style={{ color: C.accent, fontWeight: 800, fontSize: '1.1rem', lineHeight: 1 }}>{totalRounds}</div>
-                                <div style={{ color: C.accent, fontSize: '0.58rem', fontWeight: 600 }}>รอบ</div>
+                                <div style={{ color: C.accent, fontSize: '0.58rem', fontWeight: 600 }}>{t('bill_round')}</div>
                             </div>
                         )}
                     </div>
@@ -316,7 +321,7 @@ export default function MenuPage() {
                     ) : !bill?.hasOrder ? (
                         <div style={{ textAlign: 'center', padding: 60, color: C.muted }}>
                             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📭</div>
-                            <div>ยังไม่มีออเดอร์ที่โต๊ะนี้</div>
+                            <div>{t('bill_no_order')}</div>
                         </div>
                     ) : (
                         <>
@@ -326,12 +331,12 @@ export default function MenuPage() {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <span style={{ fontSize: '1rem' }}>{round.status === 'OPEN' ? '✅' : '🕐'}</span>
                                             <div>
-                                                <div style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>รอบที่ {round.round}</div>
+                                                <div style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>{t('bill_round')} {round.round}</div>
                                                 <div style={{ color: C.muted, fontSize: '0.65rem', fontFamily: 'monospace' }}>{round.orderNumber}</div>
                                             </div>
                                         </div>
                                         <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '4px 10px', borderRadius: 99, color: round.status === 'OPEN' ? '#fff' : C.gold, background: round.status === 'OPEN' ? C.accent : C.goldLight }}>
-                                            {round.status === 'OPEN' ? 'ยืนยันแล้ว' : 'รอยืนยัน'}
+                                            {round.status === 'OPEN' ? t('confirm') : t('bill_pending_confirm')}
                                         </span>
                                     </div>
                                     {round.items.map((item, i) => (
@@ -347,15 +352,15 @@ export default function MenuPage() {
                                         </div>
                                     ))}
                                     <div style={{ padding: '9px 16px', display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.02)' }}>
-                                        <span style={{ color: C.muted, fontSize: '0.78rem' }}>รวมรอบนี้</span>
+                                        <span style={{ color: C.muted, fontSize: '0.78rem' }}>{t('subtotal')}</span>
                                         <span style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>{Math.round(round.subtotal).toLocaleString()} {currency}</span>
                                     </div>
                                 </div>
                             ))}
                             <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.25)`, borderRadius: 16, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                 <div>
-                                    <div style={{ color: C.muted, fontSize: '0.75rem' }}>รวมทั้งหมด ({totalRounds} รอบ)</div>
-                                    {hasPending && <div style={{ color: C.gold, fontSize: '0.72rem', marginTop: 2, fontWeight: 600 }}>⚠️ รอยืนยัน {bill.rounds?.filter(r => r.status === 'PENDING_CONFIRM').length} รอบ</div>}
+                                    <div style={{ color: C.muted, fontSize: '0.75rem' }}>{t('bill_grand_total')} ({totalRounds} {t('bill_round')})</div>
+                                    {hasPending && <div style={{ color: C.gold, fontSize: '0.72rem', marginTop: 2, fontWeight: 600 }}>⚠️ {t('bill_pending_confirm')} {bill.rounds?.filter(r => r.status === 'PENDING_CONFIRM').length} {t('bill_round')}</div>}
                                 </div>
                                 <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.5rem' }}>{Math.round(bill.grandTotal ?? 0).toLocaleString()} {currency}</span>
                             </div>
@@ -374,12 +379,12 @@ export default function MenuPage() {
                                 billDone || bill.billRequested ? (
                                     <div style={{ background: C.accentLight, border: `1px solid rgba(42,157,80,0.3)`, borderRadius: 16, padding: '18px', textAlign: 'center' }}>
                                         <div style={{ fontSize: '2rem', marginBottom: 6 }}>✅</div>
-                                        <div style={{ color: C.accent, fontWeight: 700, fontSize: '0.95rem' }}>ส่งคำขอเช็คบิลแล้ว</div>
-                                        <div style={{ color: C.muted, fontSize: '0.8rem', marginTop: 4 }}>พนักงานจะมาหาคุณที่โต๊ะเร็วๆ นี้</div>
+                                        <div style={{ color: C.accent, fontWeight: 700, fontSize: '0.95rem' }}>{t('bill_requested')}</div>
+                                        <div style={{ color: C.muted, fontSize: '0.8rem', marginTop: 4 }}>{t('bill_staff_coming')}</div>
                                     </div>
                                 ) : (
                                     <button onClick={requestBill} disabled={billRequesting} style={{ width: '100%', background: billRequesting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 16, padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: billRequesting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: billRequesting ? 'none' : C.shadowGreen, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                                        {billRequesting ? '⏳ กำลังส่ง…' : '🧾 เรียกเช็คบิล'}
+                                        {billRequesting ? t('bill_requesting') : t('bill_request')}
                                     </button>
                                 )
                             )}
@@ -394,7 +399,7 @@ export default function MenuPage() {
                 {hasAnyOrder && (
                     <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, padding: '0 16px 24px', zIndex: 40 }}>
                         <button onClick={() => setViewBill(false)} style={{ width: '100%', background: '#fff', border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '14px', fontWeight: 700, fontSize: '0.92rem', color: C.text, cursor: 'pointer', fontFamily: FONT, boxShadow: C.shadow }}>
-                            ➕ สั่งอาหารเพิ่ม
+                            ➕ {t('qr_add_more_items')}
                         </button>
                     </div>
                 )}
@@ -406,39 +411,38 @@ export default function MenuPage() {
     if (submitted) return (
         <div style={{ minHeight: '100dvh', background: '#e8eceb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 18, padding: 32, textAlign: 'center', fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
+            <div style={{ position: 'absolute', top: 16, right: 16 }}>
+                <LangSwitcher lang={lang} setLang={setLang} theme="light" />
+            </div>
             <div style={{ width: 88, height: 88, background: C.accentLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.6rem', animation: 'bounce 0.6s ease', boxShadow: C.shadowGreen }}>
                 {isAddon ? '➕' : '✅'}
             </div>
             <h1 style={{ color: C.text, fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>
-                {isAddon ? 'เพิ่มรายการเรียบร้อยแล้ว!' : 'สั่งอาหารเรียบร้อยแล้ว!'}
+                {isAddon ? t('qr_order_addon') : t('qr_order_success')}
             </h1>
             <p style={{ color: C.muted, margin: 0, fontSize: '0.9rem', lineHeight: 1.7 }}>
-                {isAddon ? (
-                    <>ออเดอร์เพิ่มโต๊ะ <b style={{ color: C.accent }}>{tableNum}</b><br />รอการยืนยันจากพนักงาน</>
-                ) : (
-                    <>ออเดอร์ของคุณจะถูกยืนยันโดยพนักงาน<br />กรุณารอสักครู่</>
-                )}
+                {t('qr_order_kitchen')}
             </p>
             <div style={{ background: C.card, border: `1.5px solid ${C.accentLight}`, borderRadius: 16, padding: '14px 32px', boxShadow: C.shadow }}>
-                <div style={{ color: C.muted, fontSize: '0.7rem', marginBottom: 4, fontWeight: 600, letterSpacing: '0.06em' }}>เลขออเดอร์</div>
+                <div style={{ color: C.muted, fontSize: '0.7rem', marginBottom: 4, fontWeight: 600, letterSpacing: '0.06em' }}>{t('qr_order_number')}</div>
                 <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.3rem', fontFamily: 'monospace' }}>{orderNumber}</div>
             </div>
             {totalRounds > 0 && (
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: C.shadow, width: '100%', maxWidth: 320 }}>
                     <span style={{ fontSize: '1.3rem' }}>📋</span>
                     <div style={{ textAlign: 'left' }}>
-                        <div style={{ color: C.accent, fontWeight: 700, fontSize: '0.88rem' }}>สั่งทั้งหมด {totalRounds} รอบ</div>
-                        <div style={{ color: C.muted, fontSize: '0.75rem' }}>ยอดรวม {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
+                        <div style={{ color: C.accent, fontWeight: 700, fontSize: '0.88rem' }}>{t('bill_round')} {totalRounds}</div>
+                        <div style={{ color: C.muted, fontSize: '0.75rem' }}>{t('total')} {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
                     </div>
                 </div>
             )}
-            <p style={{ color: C.muted, fontSize: '0.75rem', margin: 0 }}>โต๊ะ {tableNum}</p>
+            <p style={{ color: C.muted, fontSize: '0.75rem', margin: 0 }}>{t('qr_table')} {tableNum}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
                 <button onClick={() => { setSubmitted(false); setViewBill(true) }} style={{ width: '100%', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, fontSize: '0.92rem', boxShadow: C.shadowGreen }}>
-                    🧾 ดูบิลรวม
+                    {t('qr_view_bill')}
                 </button>
                 <button onClick={() => setSubmitted(false)} style={{ width: '100%', background: '#fff', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: FONT, fontSize: '0.88rem' }}>
-                    ← สั่งอาหารเพิ่ม
+                    ← {t('qr_add_more_items')}
                 </button>
             </div>
         </div>
@@ -463,12 +467,13 @@ export default function MenuPage() {
                                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', borderRadius: 99, padding: '5px 12px 5px 8px', display: 'flex', alignItems: 'center', gap: 5, border: '1px solid rgba(255,255,255,0.25)' }}>
                                         <span style={{ fontSize: '0.8rem' }}>🪑</span>
-                                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>โต๊ะ {tableNum}</span>
+                                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>{t('qr_table')} {tableNum}</span>
                                     </div>
-                                    <div style={{ display: 'flex', gap: 8 }}>
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                        <LangSwitcher lang={lang} setLang={setLang} theme="dark" />
                                         {hasAnyOrder && (
                                             <button onClick={() => setViewBill(true)} style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 99, padding: '6px 12px', cursor: 'pointer', color: '#fff', fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
-                                                🧾 บิล{billDone && ' ✓'}
+                                                🧾 {t('bill_title').replace('🧾 ','')}{billDone && ' ✓'}
                                             </button>
                                         )}
                                     </div>
@@ -488,14 +493,17 @@ export default function MenuPage() {
                             <div style={{ background: '#fff', padding: '14px 16px 10px', borderBottom: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.2rem', lineHeight: 1.1 }}>{tenant?.displayName || tenant?.name || 'เมนูร้าน'}</div>
-                                        <div style={{ color: C.muted, fontSize: '0.72rem', marginTop: 1 }}>🪑 โต๊ะ {tableNum}</div>
+                                        <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.2rem', lineHeight: 1.1 }}>{tenant?.displayName || tenant?.name || 'MENU'}</div>
+                                        <div style={{ color: C.muted, fontSize: '0.72rem', marginTop: 1 }}>🪑 {t('qr_table')} {tableNum}</div>
                                     </div>
-                                    {hasAnyOrder && (
-                                        <button onClick={() => setViewBill(true)} style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 12, padding: '7px 14px', cursor: 'pointer', color: C.accent, fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
-                                            🧾 บิล{billDone && ' ✓'}
-                                        </button>
-                                    )}
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                        <LangSwitcher lang={lang} setLang={setLang} theme="light" />
+                                        {hasAnyOrder && (
+                                            <button onClick={() => setViewBill(true)} style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 12, padding: '7px 14px', cursor: 'pointer', color: C.accent, fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
+                                                🧾 {billDone ? '✓' : ''}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -506,7 +514,7 @@ export default function MenuPage() {
                         <div style={{ padding: '10px 14px 8px', display: 'flex', gap: 8, alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 14, padding: '9px 14px', flex: 1 }}>
                                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
-                                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเมนู…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.88rem', fontFamily: FONT }} />
+                                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search_placeholder')} style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '0.88rem', fontFamily: FONT }} />
                                 {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', padding: 0 }}>✕</button>}
                             </div>
                             {/* Dropdown trigger */}
@@ -524,9 +532,9 @@ export default function MenuPage() {
                                         : categories.find(c => c.id === activeCategory)?.icon || '🍴'}
                                 </span>
                                 <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {activeCategory === 'all' ? 'ทั้งหมด'
-                                        : activeCategory === 'featured' ? 'เมนูแนะนำ'
-                                        : categories.find(c => c.id === activeCategory)?.name || 'หมวด'}
+                                    {activeCategory === 'all' ? t('all_menu')
+                                        : activeCategory === 'featured' ? t('featured')
+                                        : categories.find(c => c.id === activeCategory)?.name || t('qr_category_label')}
                                 </span>
                                 <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{catDropdownOpen ? '▲' : '▼'}</span>
                             </button>
@@ -547,10 +555,10 @@ export default function MenuPage() {
                                 }}>
                                     {/* Header */}
                                     <div style={{ padding: '14px 16px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6' }}>
-                                        <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>หมวดหมู่ทั้งหมด</div>
+                                        <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{t('qr_category_label')}</div>
                                         <button onClick={() => setCatDropdownOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.1rem', cursor: 'pointer', color: C.muted }}>✕</button>
                                     </div>
-                                    {/* เมนูแนะนำ */}
+                                    {/* Featured */}
                                     {products.some(p => p.isFeatured) && (
                                         <div onClick={() => { setActiveCategory('featured'); setCatDropdownOpen(false) }}
                                             style={{
@@ -561,11 +569,11 @@ export default function MenuPage() {
                                             }}
                                         >
                                             <span style={{ fontSize: '1.3rem' }}>⭐</span>
-                                            <span style={{ fontWeight: 700, fontSize: '0.92rem', color: activeCategory === 'featured' ? C.gold : C.text }}>เมนูแนะนำ</span>
+                                            <span style={{ fontWeight: 700, fontSize: '0.92rem', color: activeCategory === 'featured' ? C.gold : C.text }}>{t('featured')}</span>
                                             {activeCategory === 'featured' && <span style={{ marginLeft: 'auto', color: C.gold, fontSize: '1rem' }}>✓</span>}
                                         </div>
                                     )}
-                                    {/* ทั้งหมด */}
+                                    {/* All */}
                                     <div onClick={() => { setActiveCategory('all'); setCatDropdownOpen(false) }}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: 12,
@@ -575,7 +583,7 @@ export default function MenuPage() {
                                         }}
                                     >
                                         <span style={{ fontSize: '1.3rem' }}>🍽️</span>
-                                        <span style={{ fontWeight: activeCategory === 'all' ? 700 : 500, fontSize: '0.92rem', color: activeCategory === 'all' ? C.accent : C.text }}>ทั้งหมด</span>
+                                        <span style={{ fontWeight: activeCategory === 'all' ? 700 : 500, fontSize: '0.92rem', color: activeCategory === 'all' ? C.accent : C.text }}>{t('all_menu')}</span>
                                         {activeCategory === 'all' && <span style={{ marginLeft: 'auto', color: C.accent, fontSize: '1rem' }}>✓</span>}
                                     </div>
                                     {/* หมวดหมู่ */}
@@ -604,8 +612,8 @@ export default function MenuPage() {
                     {filtered.length === 0 && (
                         <div style={{ textAlign: 'center', padding: '60px 20px', color: C.muted }}>
                             <div style={{ fontSize: '3rem', marginBottom: 12 }}>🍽️</div>
-                            <div style={{ fontWeight: 700, fontSize: '1rem' }}>ไม่พบเมนู</div>
-                            <div style={{ fontSize: '0.82rem', marginTop: 4 }}>{search ? `"${search}" ไม่มีในเมนู` : 'ยังไม่มีสินค้าในหมวดนี้'}</div>
+                            <div style={{ fontWeight: 700, fontSize: '1rem' }}>{t('no_result')}</div>
+                            <div style={{ fontSize: '0.82rem', marginTop: 4 }}>{search ? `"${search}"` : ''}</div>
                         </div>
                     )}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -645,11 +653,11 @@ export default function MenuPage() {
                                         <div style={{ color: C.accent, fontWeight: 800, fontSize: '0.92rem', marginBottom: 9 }}>
                                             {fmtPrice(p.price, currency)}
                                         </div>
-                                        {p.toppingsJson && <div style={{ color: C.accentDark, fontSize: '0.75rem', fontWeight: 700, marginBottom: 8, marginTop: -4 }}>+ เพิ่มท็อปปิ้งได้</div>}
+                                        {p.toppingsJson && <div style={{ color: C.accentDark, fontSize: '0.75rem', fontWeight: 700, marginBottom: 8, marginTop: -4 }}>{t('topping_available')}</div>}
                                         {qty === 0 ? (
                                             <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '8px 0', borderRadius: 12, border: 'none', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', fontWeight: 700, fontSize: '0.84rem', cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, boxShadow: '0 3px 12px rgba(42,157,80,0.3)', minHeight: 36 }}>
                                                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                                เพิ่ม
+                                                {t('add')}
                                             </button>
                                         ) : (
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 12, padding: '3px', minHeight: 36 }}>
@@ -671,11 +679,11 @@ export default function MenuPage() {
                         {hasOpenRound && totalItems === 0 && (
                             billDone || bill?.billRequested ? (
                                 <div style={{ background: '#fff', borderRadius: 18, padding: '14px 18px', textAlign: 'center', color: C.accent, fontWeight: 600, fontSize: '0.88rem', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: `1.5px solid rgba(42,157,80,0.2)` }}>
-                                    ✅ ส่งคำขอเช็คบิลแล้ว
+                                    {t('bill_requested')}
                                 </div>
                             ) : (
                                 <button onClick={requestBill} disabled={billRequesting} style={{ width: '100%', background: billRequesting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '16px 20px', fontWeight: 800, fontSize: '0.97rem', cursor: billRequesting ? 'not-allowed' : 'pointer', fontFamily: FONT, boxShadow: billRequesting ? 'none' : C.shadowGreen, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                                    {billRequesting ? '⏳ กำลังส่ง…' : `🧾 เรียกเช็คบิล (${Math.round(bill?.grandTotal ?? 0).toLocaleString()} ${currency})`}
+                                    {billRequesting ? t('bill_requesting') : `${t('bill_request')} (${Math.round(bill?.grandTotal ?? 0).toLocaleString()} ${currency})`}
                                 </button>
                             )
                         )}
@@ -684,10 +692,10 @@ export default function MenuPage() {
                                 style={{ width: '100%', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '0 6px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', fontFamily: FONT, boxShadow: '0 8px 28px rgba(42,157,80,0.4)', minHeight: 60, animation: 'popIn 0.22s ease', gap: 8 }}>
                                 <div style={{ background: 'rgba(255,255,255,0.22)', borderRadius: 12, padding: '8px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 42, flexShrink: 0 }}>
                                     <span style={{ fontSize: '1.1rem', fontWeight: 900 }}>{totalItems}</span>
-                                    <span style={{ fontSize: '0.58rem', opacity: 0.85, fontWeight: 500, lineHeight: 1 }}>รายการ</span>
+                                    <span style={{ fontSize: '0.58rem', opacity: 0.85, fontWeight: 500, lineHeight: 1 }}>{t('items_count')}</span>
                                 </div>
                                 <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 700 }}>
-                                    {isAddon || hasAnyOrder ? 'ยืนยันสั่งเพิ่ม →' : 'ดูตะกร้า →'}
+                                    {isAddon || hasAnyOrder ? `${t('qr_add_more_items')} →` : `${t('qr_view_cart')} →`}
                                 </span>
                                 <span style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 12, padding: '8px 12px', fontSize: '0.88rem', fontWeight: 800, flexShrink: 0 }}>
                                     {Math.round(totalPrice).toLocaleString()} {currency}
@@ -704,16 +712,16 @@ export default function MenuPage() {
                         <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '0 20px 40px', maxHeight: '84dvh', overflowY: 'auto', animation: 'slideUp 0.26s ease', boxShadow: '0 -12px 48px rgba(0,0,0,0.18)' }}>
                             <div style={{ width: 36, height: 4, background: '#dde1e0', borderRadius: 2, margin: '14px auto 16px' }} />
                             <h2 style={{ color: C.text, fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px' }}>
-                                {hasAnyOrder ? '➕ สั่งเพิ่ม' : '🛒 รายการสั่งอาหาร'} — โต๊ะ {tableNum}
+                                {hasAnyOrder ? `➕ ${t('qr_add_more_items')}` : t('qr_cart_title')} — {t('qr_table')} {tableNum}
                             </h2>
                             {hasAnyOrder && (
-                                <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>ยอดเก่า {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
+                                <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>{t('total')} {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
                             )}
                             {cart.map(item => (
                                 <div key={item.cartId || item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: `1px solid ${C.border}` }}>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ color: C.text, fontWeight: 600, fontSize: '0.9rem' }}>{item.name} {item.note && <span style={{display: 'block', color: '#6b7280', fontSize: '0.75rem', marginTop: 2}}>{item.note}</span>}</div>
-                                        <div style={{ color: C.accent, fontSize: '0.78rem', marginTop: 2 }}>{fmtPrice((item.price ?? 0) + (item.toppingsTotal ?? 0), currency)} × {item.quantity} {item.toppingsTotal ? '(รวมท็อปปิ้ง)' : ''}</div>
+                                        <div style={{ color: C.accent, fontSize: '0.78rem', marginTop: 2 }}>{fmtPrice((item.price ?? 0) + (item.toppingsTotal ?? 0), currency)} × {item.quantity} {item.toppingsTotal ? `(${t('delivery_with_topping')})` : ''}</div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.accentLight, borderRadius: 12, padding: '2px 4px' }}>
                                         <button onClick={() => removeFromCart(item.cartId || item.id)} style={stepBtn}>−</button>
@@ -722,17 +730,17 @@ export default function MenuPage() {
                                     </div>
                                 </div>
                             ))}
-                            {cart.length === 0 && <p style={{ color: C.muted, textAlign: 'center', padding: 32, margin: 0 }}>ยังไม่มีรายการ</p>}
+                            {cart.length === 0 && <p style={{ color: C.muted, textAlign: 'center', padding: 32, margin: 0 }}>{t('qr_cart_empty')}</p>}
                             {cart.length > 0 && (
                                 <>
                                     <div style={{ marginTop: 16, padding: '14px 0', borderTop: `1.5px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: C.subtext, fontWeight: 600 }}>รวมรอบนี้</span>
+                                        <span style={{ color: C.subtext, fontWeight: 600 }}>{t('subtotal')}</span>
                                         <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.1rem' }}>{Math.round(totalPrice).toLocaleString()} {currency}</span>
                                     </div>
                                     <button onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: submitting ? 'none' : C.shadowGreen }}>
-                                        {submitting ? '⏳ กำลังส่ง…' : hasAnyOrder ? '➕ ยืนยันสั่งเพิ่ม' : '🍽️ ยืนยันสั่งอาหาร'}
+                                        {submitting ? t('qr_submitting') : hasAnyOrder ? `➕ ${t('qr_add_more_items')}` : t('qr_confirm_order')}
                                     </button>
-                                    <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '12px', fontWeight: 500, fontSize: '0.88rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>← ดูเมนูต่อ</button>
+                                    <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '12px', fontWeight: 500, fontSize: '0.88rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>← {t('qr_add_more')}</button>
                                 </>
                             )}
                         </div>
@@ -749,33 +757,33 @@ export default function MenuPage() {
                         <div style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)' }} onClick={() => setToppingProduct(null)} />
                             <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '20px', maxHeight: '85dvh', overflowY: 'auto', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.24s ease', boxShadow: '0 -16px 48px rgba(0,0,0,0.18)' }}>
-                                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 16 }}>เพิ่มท็อปปิ้ง</div>
+                                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 16 }}>{t('topping_title')}</div>
                                 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                                    {tops.map(t => {
-                                        const isSel = selectedToppings.some(st => st.id === t.id)
+                                    {tops.map(top => {
+                                        const isSel = selectedToppings.some(st => st.id === top.id)
                                         return (
-                                            <div key={t.id} onClick={() => {
-                                                if (isSel) setSelectedToppings(p => p.filter(st => st.id !== t.id))
-                                                else setSelectedToppings(p => [...p, t])
+                                            <div key={top.id} onClick={() => {
+                                                if (isSel) setSelectedToppings(p => p.filter(st => st.id !== top.id))
+                                                else setSelectedToppings(p => [...p, top])
                                             }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 18, border: `2px solid ${isSel ? C.accent : '#f3f4f6'}`, background: isSel ? C.accentLight : '#fafafa', cursor: 'pointer', fontFamily: FONT, transition: 'all 0.15s' }}>
                                                 <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSel ? C.accent : '#d1d5db'}`, background: isSel ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#fff', fontWeight: 800 }}>{isSel ? '✓' : ''}</span>
-                                                <span style={{ flex: 1, fontWeight: 700, fontSize: '0.9rem', color: C.text, textAlign: 'left' }}>{t.name}</span>
-                                                <span style={{ fontWeight: 800, fontSize: '0.88rem', color: isSel ? C.accent : C.muted }}>+{fmtPrice(t.price, currency)}</span>
+                                                <span style={{ flex: 1, fontWeight: 700, fontSize: '0.9rem', color: C.text, textAlign: 'left' }}>{top.name}</span>
+                                                <span style={{ fontWeight: 800, fontSize: '0.88rem', color: isSel ? C.accent : C.muted }}>+{fmtPrice(top.price, currency)}</span>
                                             </div>
                                         )
                                     })}
                                 </div>
                                 
                                 {toppingsTotal > 0 && <div style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 16, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.82rem', color: C.text, fontWeight: 600 }}>ยอดท็อปปิ้ง</span>
+                                    <span style={{ fontSize: '0.82rem', color: C.text, fontWeight: 600 }}>{t('topping_total_label')}</span>
                                     <span style={{ fontWeight: 800, fontSize: '0.95rem', color: C.accent }}>+{fmtPrice(toppingsTotal, currency)}</span>
                                 </div>}
                                 
                                 <button onClick={() => internalAddToCart(toppingProduct, selectedToppings, toppingsTotal)} style={{ width: '100%', padding: '16px', borderRadius: 18, border: 'none', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer', fontFamily: FONT, marginBottom: 8, boxShadow: C.shadowGreen }}>
-                                    ยืนยันนำเข้าตะกร้า {toppingsTotal > 0 ? `(${fmtPrice((toppingProduct.price ?? 0) + toppingsTotal, currency)})` : ''}
+                                    {t('topping_confirm')} {toppingsTotal > 0 ? `(${fmtPrice((toppingProduct.price ?? 0) + toppingsTotal, currency)})` : ''}
                                 </button>
-                                <button onClick={() => setToppingProduct(null)} style={{ width: '100%', padding: '12px', borderRadius: 16, border: `1.5px solid ${C.border}`, background: 'transparent', cursor: 'pointer', fontFamily: FONT, color: C.muted, fontSize: '0.88rem', fontWeight: 600 }}>ยกเลิก</button>
+                                <button onClick={() => setToppingProduct(null)} style={{ width: '100%', padding: '12px', borderRadius: 16, border: `1.5px solid ${C.border}`, background: 'transparent', cursor: 'pointer', fontFamily: FONT, color: C.muted, fontSize: '0.88rem', fontWeight: 600 }}>{t('cancel')}</button>
                             </div>
                         </div>
                     )
