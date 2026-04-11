@@ -99,6 +99,57 @@ export default function DeliveryOrderPage() {
     const [locating, setLocating] = useState(false)
     const [step1Err, setStep1Err] = useState('')
 
+    // ── Customer Profile Auto-Fill ─────────────────────────────
+    type SavedProfile = { name: string; phone: string; address: string; latitude: number | null; longitude: number | null }
+    const PROFILE_KEY = `delivery_profile_${tenantCode}`
+    const [savedProfile, setSavedProfile] = useState<SavedProfile | null>(null)
+    const [profileApplied, setProfileApplied] = useState(false)
+    const [phoneLookupProfile, setPhoneLookupProfile] = useState<SavedProfile | null>(null)
+
+    // Load from localStorage on mount
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(PROFILE_KEY)
+            if (raw) setSavedProfile(JSON.parse(raw))
+        } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    function applyProfile(profile: SavedProfile) {
+        setName(profile.name)
+        setPhone(profile.phone)
+        setAddress(profile.address)
+        setLatitude(profile.latitude)
+        setLongitude(profile.longitude)
+        setProfileApplied(true)
+        setSavedProfile(null)
+        setPhoneLookupProfile(null)
+    }
+
+    async function handlePhoneBlur() {
+        if (phone.replace(/[^0-9]/g, '').length < 8) return
+        if (name.trim()) return // already have name, skip lookup
+        try {
+            const res = await fetch(`/api/public/delivery/profile?phone=${encodeURIComponent(phone)}&tenant=${tenantCode}`)
+            const j = await res.json()
+            if (j.data && j.data.customerName) {
+                setPhoneLookupProfile({
+                    name: j.data.customerName,
+                    phone: j.data.customerPhone,
+                    address: j.data.addressText,
+                    latitude: j.data.latitude ?? null,
+                    longitude: j.data.longitude ?? null,
+                })
+            }
+        } catch {}
+    }
+
+    function saveProfileToStorage() {
+        try {
+            localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: name.trim(), phone: phone.trim(), address: address.trim(), latitude, longitude }))
+        } catch {}
+    }
+
     // ── Step 2 — Menu ─────────────────────────────────────────
     const [cart, setCart] = useState<CartItem[]>([])
     const [activeCategory, setActiveCategory] = useState('all')
@@ -263,6 +314,7 @@ export default function DeliveryOrderPage() {
             })
             const j = await res.json()
             if (j.success) {
+                saveProfileToStorage()
                 router.push(`/d/${tenantCode}/track/${j.orderId}`)
             } else {
                 setSubmitErr(j.error || t('error_occurred'))
@@ -342,14 +394,44 @@ export default function DeliveryOrderPage() {
                 {step === 1 && (
                     <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: 0, animation: 'fadeUp 0.3s ease' }}>
                         <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, marginBottom: 4 }}>📋 {t('delivery_info_title')}</div>
-                        <div style={{ fontSize: '0.8rem', color: C.sub, marginBottom: 20 }}>{t('delivery_info_sub')}</div>
+                        <div style={{ fontSize: '0.8rem', color: C.sub, marginBottom: 16 }}>{t('delivery_info_sub')}</div>
+
+                        {/* ── Profile Banner: localStorage or phone lookup ─── */}
+                        {(savedProfile || phoneLookupProfile) && !profileApplied && (() => {
+                            const profile = savedProfile || phoneLookupProfile!
+                            return (
+                                <div style={{ background: 'rgba(34,197,94,0.08)', border: '1.5px solid rgba(34,197,94,0.35)', borderRadius: 14, padding: '12px 14px', marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                        <span style={{ fontSize: '1.2rem' }}>👋</span>
+                                        <div>
+                                            <div style={{ color: C.green, fontWeight: 800, fontSize: '0.88rem' }}>สวัสดีคุณ {profile.name}!</div>
+                                            <div style={{ color: C.sub, fontSize: '0.75rem', marginTop: 1 }}>พบข้อมูลเก่าของคุณ — ใช้เลยได้เลย</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 10, paddingLeft: 28 }}>
+                                        📞 {profile.phone} &nbsp;•&nbsp; 📍 {profile.address.slice(0, 40)}{profile.address.length > 40 ? '…' : ''}
+                                        {profile.latitude && <span style={{ color: C.green }}> &nbsp;🗺️ มีพิน</span>}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button onClick={() => applyProfile(profile)} style={{ flex: 2, padding: '9px 12px', background: C.green, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', fontFamily: FONT }}>
+                                            ✓ ใช้ข้อมูลเดิม
+                                        </button>
+                                        <button onClick={() => { setSavedProfile(null); setPhoneLookupProfile(null); setProfileApplied(true) }} style={{ flex: 1, padding: '9px 12px', background: 'rgba(255,255,255,0.05)', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 10, fontWeight: 600, fontSize: '0.83rem', cursor: 'pointer', fontFamily: FONT }}>
+                                            ใส่ใหม่
+                                        </button>
+                                    </div>
+                                </div>
+                            )
+                        })()}
 
                         <Field label={t('delivery_name')} required>
                             <input id="delivery-name" style={inputCss} placeholder={t('delivery_name')} value={name} onChange={e => setName(e.target.value)} />
                         </Field>
 
                         <Field label={t('delivery_phone')} required>
-                            <input id="delivery-phone" style={inputCss} placeholder="+856 20..." type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+                            <input id="delivery-phone" style={inputCss} placeholder="+856 20..." type="tel" value={phone}
+                                onChange={e => setPhone(e.target.value)}
+                                onBlur={handlePhoneBlur} />
                         </Field>
 
                         <Field label={t('delivery_address')} required>
