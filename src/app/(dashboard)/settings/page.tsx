@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { usePermission } from '@/hooks/usePermission'
 import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBranding'
+import QRCode from 'qrcode'
 import { useTenant } from '@/context/TenantContext'
 import { getPrinterSettings, setPrinterSettings, setStationPrinter, type PrinterSettings, type StationPrinterConfig } from '@/lib/printerSettings'
 
@@ -483,6 +484,109 @@ function QrBankingCard() {
     )
 }
 
+// ─── Delivery Link & QR Card ─────────────────────────────────
+function DeliveryLinkCard() {
+    const canManage = usePermission('SETTINGS_MANAGE')
+    const { settings } = useTenant()
+    const canvasRef = useRef<HTMLCanvasElement>(null)
+
+    // The host might vary by environments, for now hardcoding delivery domain or using location context.
+    const deliveryUrl = settings?.code ? `https://delivery.kaideeder.com/d/${settings.code}` : ''
+
+    useEffect(() => {
+        if (!canvasRef.current || !deliveryUrl) return
+        QRCode.toCanvas(canvasRef.current, deliveryUrl, {
+            width: 140, margin: 1,
+            color: { dark: '#000000', light: '#FFFFFF' },
+        })
+    }, [deliveryUrl])
+
+    function copyLink() {
+        if (!deliveryUrl) return
+        navigator.clipboard.writeText(deliveryUrl)
+        toast.success('📋 คัดลอกลิงก์แล้ว')
+    }
+
+    function downloadQR() {
+        if (!canvasRef.current || !settings) return
+        const canvas = document.createElement('canvas')
+        canvas.width = 180; canvas.height = 220
+        const ctx = canvas.getContext('2d')!
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, 180, 220)
+        ctx.drawImage(canvasRef.current, 20, 16)
+        
+        ctx.fillStyle = '#1f2937'
+        ctx.font = 'bold 12px system-ui'
+        ctx.textAlign = 'center'
+        ctx.fillText(settings.displayName || settings.name || 'Delivery', 90, 175)
+        
+        ctx.font = '10px system-ui'
+        ctx.fillStyle = '#6b7280'
+        ctx.fillText('สแกนสั่งเดลิเวอรี่', 90, 195)
+        
+        const link = document.createElement('a')
+        link.download = `delivery-qr-${settings.code}.png`
+        link.href = canvas.toDataURL()
+        link.click()
+    }
+
+    if (!canManage || !settings) return null
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(236,72,153,0.25)', background: 'rgba(236,72,153,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🛵</span> ลิงก์ระบบจัดส่ง (Delivery Link & QR)
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
+                คัดลอกลิงก์หรือดาวน์โหลด QR Code ไปแปะในเพจ เพื่อให้ลูกค้าสั่งเดลิเวอรี่
+            </p>
+
+            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                {/* QR Code */}
+                <div style={{ background: '#fff', padding: 8, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', flexShrink: 0 }}>
+                    <canvas ref={canvasRef} style={{ display: 'block' }} />
+                </div>
+
+                {/* Link & Actions */}
+                <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+                            🔗 URL สำหรับนำไปแชร์
+                        </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <input 
+                                readOnly 
+                                value={deliveryUrl} 
+                                className="input" 
+                                style={{ flex: 1, color: '#DB2777', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }} 
+                                onClick={e => e.currentTarget.select()}
+                            />
+                            <button 
+                                onClick={copyLink}
+                                style={{ padding: '0 14px', borderRadius: 10, background: '#EC4899', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem' }}
+                            >
+                                📋 คัดลอก
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                        • สามารถส่ง URL ให้ลูกค้าใน Line หรือ Messenger<br/>
+                        • หรือนำรูป QR Code ไปใส่ในรูปโปสเตอร์โฆษณา
+                    </div>
+
+                    <button 
+                        onClick={downloadQR}
+                        style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(236,72,153,0.3)', background: 'rgba(236,72,153,0.06)', color: '#DB2777', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                        ⬇️ ดาวน์โหลดรูป QR Code
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 function StoreSettingsCard() {
 
@@ -1226,6 +1330,9 @@ export default function SettingsPage() {
 
                 {/* ── Menu Banner ── */}
                 <MenuBannerCard />
+
+                {/* ── Delivery Link ── */}
+                <DeliveryLinkCard />
 
                 {/* ── QR Banking ── */}
                 <QrBankingCard />
