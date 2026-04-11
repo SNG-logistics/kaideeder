@@ -41,6 +41,29 @@ const GLOBAL_CSS = `
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
   @keyframes ripple { 0%{transform:scale(0.8);opacity:1} 100%{transform:scale(2.4);opacity:0} }
   @keyframes bounce { 0%,100%{transform:scale(1)} 45%{transform:scale(1.18)} 70%{transform:scale(0.94)} }
+  @keyframes heartFloat {
+    0%   { transform: translateY(0) scale(1); opacity: 1; }
+    60%  { opacity: 1; }
+    100% { transform: translateY(-120px) scale(0.6); opacity: 0; }
+  }
+  @keyframes popIn {
+    0%   { transform: scale(0.5); opacity: 0; }
+    60%  { transform: scale(1.08); }
+    80%  { transform: scale(0.97); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes shimmer {
+    0%,100% { opacity: 0.7; }
+    50%     { opacity: 1; }
+  }
+  @keyframes confettiFall {
+    0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+  @keyframes glowPulse {
+    0%,100% { box-shadow: 0 0 30px rgba(16,185,129,0.4); }
+    50%     { box-shadow: 0 0 70px rgba(16,185,129,0.9), 0 0 120px rgba(16,185,129,0.3); }
+  }
 `
 
 // STEPS are now translated inside the component
@@ -60,6 +83,7 @@ export default function TrackPage() {
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(true)
     const [lastPoll, setLastPoll] = useState(Date.now())
+    const [showThanks, setShowThanks] = useState(false)
     const { t, lang, setLang } = useT()
 
     const fetchStatus = useCallback(async () => {
@@ -78,6 +102,14 @@ export default function TrackPage() {
         const timer = setInterval(fetchStatus, 30_000)
         return () => clearInterval(timer)
     }, [fetchStatus, data?.deliveryStatus])
+
+    // Show thank-you popup when delivered
+    useEffect(() => {
+        if (data?.deliveryStatus === 'DELIVERED') {
+            const timer = setTimeout(() => setShowThanks(true), 800)
+            return () => clearTimeout(timer)
+        }
+    }, [data?.deliveryStatus])
 
     // Apply auto-language config on tenant load
     useEffect(() => {
@@ -120,6 +152,7 @@ export default function TrackPage() {
     const elapsed = elapsedMin(data.openedAt)
 
     return (
+        <>
         <div style={{ minHeight: '100dvh', background: '#140507', fontFamily: FONT, display: 'flex', justifyContent: 'center' }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
@@ -251,5 +284,143 @@ export default function TrackPage() {
 
             </div>
         </div>
+
+        {/* ── THANK YOU POPUP ──────────────────────────────────────── */}
+        {showThanks && (
+            <div
+                onClick={() => setShowThanks(false)}
+                style={{
+                    position: 'fixed', inset: 0, zIndex: 999,
+                    background: 'rgba(0,0,0,0.82)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: FONT,
+                }}
+            >
+                {/* Confetti particles */}
+                {['#FDA4AF','#FCD34D','#6EE7B7','#93C5FD','#F9A8D4','#C4B5FD'].map((color, i) => (
+                    ['\u2665','\u2605','\u2665','\u25CF','\u2605','\u2665'].map((shape, j) => (
+                        <div key={`c-${i}-${j}`} style={{
+                            position: 'absolute',
+                            left: `${8 + i * 16 + j * 2}%`,
+                            top: '-20px',
+                            fontSize: `${10 + (i+j) % 8}px`,
+                            color,
+                            animation: `confettiFall ${2.5 + (i*0.3 + j*0.2) % 2}s ease-in ${(i*0.15 + j*0.1)}s forwards`,
+                            pointerEvents: 'none',
+                        }}>{shape}</div>
+                    ))
+                ))}
+
+                {/* Floating hearts */}
+                {['2.5rem','2rem','1.5rem','3rem','1.8rem','2.2rem'].map((size, i) => (
+                    <div key={`h-${i}`} style={{
+                        position: 'absolute',
+                        bottom: `${15 + (i % 3) * 12}%`,
+                        left: `${10 + i * 15}%`,
+                        fontSize: size,
+                        animation: `heartFloat ${2 + i * 0.3}s ease-out ${i * 0.25}s infinite`,
+                        pointerEvents: 'none',
+                    }}>{'\u2764\uFE0F'}</div>
+                ))}
+
+                {/* Card */}
+                <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                        background: 'linear-gradient(160deg, #0f2922 0%, #0d1f1a 40%, #1a0a10 100%)',
+                        border: '2px solid rgba(16,185,129,0.4)',
+                        borderRadius: 28,
+                        padding: '40px 32px 36px',
+                        maxWidth: 340,
+                        width: '88%',
+                        textAlign: 'center',
+                        animation: 'popIn 0.6s cubic-bezier(0.34,1.56,0.64,1)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+                        animationName: 'popIn, glowPulse',
+                        animationDuration: '0.6s, 2s',
+                        animationTimingFunction: 'cubic-bezier(0.34,1.56,0.64,1), ease-in-out',
+                        animationFillMode: 'both, none',
+                        animationDelay: '0s, 0.6s',
+                        animationIterationCount: '1, infinite',
+                    }}
+                >
+                    {/* Glow background blob */}
+                    <div style={{
+                        position: 'absolute', inset: 0,
+                        background: 'radial-gradient(circle at 50% 40%, rgba(16,185,129,0.12), transparent 70%)',
+                        pointerEvents: 'none',
+                    }} />
+
+                    {/* Checkmark circle */}
+                    <div style={{
+                        width: 80, height: 80, borderRadius: '50%',
+                        background: 'rgba(16,185,129,0.15)',
+                        border: '3px solid #10B981',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '2.6rem',
+                        margin: '0 auto 20px',
+                        animation: 'bounce 0.8s 0.2s ease both',
+                    }}>{'\uD83C\uDF89'}</div>
+
+                    {/* Hearts row */}
+                    <div style={{ fontSize: '1.8rem', letterSpacing: 6, marginBottom: 20, animation: 'shimmer 1.5s ease-in-out infinite' }}>
+                        {'\u2764\uFE0F'} {'\u2764\uFE0F'} {'\u2764\uFE0F'}
+                    </div>
+
+                    {/* Thank you text */}
+                    <div style={{ color: '#10B981', fontWeight: 900, fontSize: '1.55rem', lineHeight: 1.2, marginBottom: 8 }}>
+                        ขอบพระคุณลูกค้า
+                    </div>
+                    <div style={{ color: '#6EE7B7', fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2, marginBottom: 6 }}>
+                        ຂອຂອບໃຈທ່ານລູກຄ້າ
+                    </div>
+                    <div style={{ color: '#A7F3D0', fontWeight: 700, fontSize: '1.05rem', marginBottom: 28 }}>
+                        Thank you! {'\uD83D\uDC9A'}
+                    </div>
+
+                    <div style={{ color: '#64748B', fontSize: '0.8rem', marginBottom: 24, lineHeight: 1.6 }}>
+                        {t('track_delivered_sub')}
+                    </div>
+
+                    {/* Order again button */}
+                    <a
+                        href={`/d/${tenantCode}`}
+                        style={{
+                            display: 'block',
+                            padding: '13px 20px',
+                            background: 'linear-gradient(135deg,#10B981,#059669)',
+                            color: '#fff',
+                            textDecoration: 'none',
+                            borderRadius: 14,
+                            fontWeight: 800,
+                            fontSize: '0.95rem',
+                            boxShadow: '0 6px 20px rgba(16,185,129,0.45)',
+                            marginBottom: 10,
+                        }}
+                    >
+                        {'\uD83D\uDED2'} {t('delivery_badge')}
+                    </a>
+                    <button
+                        onClick={() => setShowThanks(false)}
+                        style={{
+                            width: '100%', padding: '10px',
+                            background: 'transparent',
+                            color: '#475569',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 12,
+                            cursor: 'pointer',
+                            fontSize: '0.82rem',
+                            fontFamily: FONT,
+                        }}
+                    >
+                        {t('close')}
+                    </button>
+                </div>
+            </div>
+        )}
+    </>
     )
 }
