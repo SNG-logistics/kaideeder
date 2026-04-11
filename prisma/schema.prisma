@@ -1074,6 +1074,8 @@ enum Role {
   KITCHEN
   BAR
   CASHIER
+  WAITER
+  RIDER
   VIEWER
 }
 

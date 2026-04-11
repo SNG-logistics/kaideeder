@@ -17,6 +17,7 @@ export const PERMISSIONS = {
     POS_USE: 'POS_USE',
     KITCHEN_VIEW: 'KITCHEN_VIEW',
     DELIVERY_VIEW: 'DELIVERY_VIEW',
+    DELIVERY_UPDATE: 'DELIVERY_UPDATE',  // Rider อัปเดตสถานะ ASSIGNED→DELIVERED
 
     // Dashboard
     DASHBOARD_VIEW: 'DASHBOARD_VIEW',
@@ -129,6 +130,11 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     WAITER: [
         'WAITER_VIEW',
         'KITCHEN_VIEW',
+    ],
+
+    RIDER: [
+        'DELIVERY_VIEW',
+        'DELIVERY_UPDATE',
     ],
 
     VIEWER: [
