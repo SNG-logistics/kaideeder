@@ -30,7 +30,7 @@ const FONT = "'Outfit','Noto Sans Thai',system-ui,sans-serif"
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html,body { margin: 0; padding: 0; background: #0f172a; }
+  html,body { margin: 0; padding: 0; background: #140507; }
   ::-webkit-scrollbar { display: none; }
   @keyframes spin { to { transform: rotate(360deg) } }
   @keyframes fadeUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
@@ -42,7 +42,7 @@ const GLOBAL_CSS = `
 const STEPS: { key: DeliveryStatus; label: string; sub: string; icon: string; color: string }[] = [
     { key: 'RECEIVED',         label: 'รับออเดอร์แล้ว',       sub: 'ร้านได้รับออเดอร์ของคุณ',          icon: '📥', color: '#3B82F6' },
     { key: 'PREPARING',        label: 'กำลังเตรียมอาหาร',     sub: 'ครัวกำลังทำอาหารของคุณ',           icon: '🍳', color: '#F59E0B' },
-    { key: 'OUT_FOR_DELIVERY', label: 'กำลังจัดส่ง',           sub: 'ไรเดอร์กำลังเดินทางมาหาคุณ',       icon: '🛵', color: '#8B5CF6' },
+    { key: 'OUT_FOR_DELIVERY', label: 'กำลังจัดส่ง',           sub: 'ไรเดอร์กำลังเดินทางมาหาคุณ',       icon: '🛵', color: '#e11d48' },
     { key: 'DELIVERED',        label: 'ส่งสำเร็จแล้ว! 🎉',    sub: 'อาหารถึงมือคุณแล้ว ขอบคุณที่ใช้บริการ', icon: '✅', color: '#10B981' },
 ]
 
@@ -85,19 +85,19 @@ export default function TrackPage() {
     }, [fetchStatus, data?.deliveryStatus])
 
     if (loading) return (
-        <div style={{ minHeight: '100dvh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, fontFamily: FONT }}>
+        <div style={{ minHeight: '100dvh', background: '#140507', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, fontFamily: FONT }}>
             <style>{GLOBAL_CSS}</style>
-            <div style={{ width: 44, height: 44, border: '4px solid rgba(139,92,246,0.2)', borderTopColor: '#8B5CF6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            <div style={{ width: 44, height: 44, border: '4px solid rgba(225,29,72,0.2)', borderTopColor: '#e11d48', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
             <p style={{ color: '#94A3B8', margin: 0, fontSize: '0.9rem' }}>กำลังโหลดสถานะ…</p>
         </div>
     )
 
     if (error || !data) return (
-        <div style={{ minHeight: '100dvh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24, fontFamily: FONT, textAlign: 'center' }}>
+        <div style={{ minHeight: '100dvh', background: '#140507', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24, fontFamily: FONT, textAlign: 'center' }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ fontSize: '3.5rem' }}>😕</div>
             <p style={{ color: '#F87171', fontWeight: 600, margin: 0 }}>{error || 'ไม่พบออเดอร์'}</p>
-            <a href={`/d/${tenantCode}`} style={{ color: '#8B5CF6', fontSize: '0.9rem', marginTop: 8 }}>← สั่งอาหารใหม่</a>
+            <a href={`/d/${tenantCode}`} style={{ color: '#e11d48', fontSize: '0.9rem', marginTop: 8 }}>← สั่งอาหารใหม่</a>
         </div>
     )
 
@@ -108,12 +108,12 @@ export default function TrackPage() {
     const elapsed = elapsedMin(data.openedAt)
 
     return (
-        <div style={{ minHeight: '100dvh', background: '#0f172a', fontFamily: FONT, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ minHeight: '100dvh', background: '#140507', fontFamily: FONT, display: 'flex', justifyContent: 'center' }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
 
                 {/* ── Header ── */}
-                <div style={{ background: 'linear-gradient(135deg,#1e1b4b,#312e81)', padding: '20px 20px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ background: 'linear-gradient(135deg,#4c0519,#881337)', padding: '20px 20px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', inset: 0, opacity: 0.08, backgroundImage: 'radial-gradient(circle at 50% 50%,#fff 1px,transparent 1px)', backgroundSize: '24px 24px' }} />
                     {data.logoUrl && (
                         <img src={data.logoUrl} alt="logo" style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', marginBottom: 8, border: '2px solid rgba(255,255,255,0.2)' }} />
@@ -172,7 +172,7 @@ export default function TrackPage() {
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ color: done ? '#F1F5F9' : '#475569', fontWeight: done ? 700 : 400, fontSize: '0.88rem', transition: 'color 0.3s' }}>{step.label}</div>
-                                        {active && <div style={{ color: step.color, fontSize: '0.72rem', marginTop: 1, animation: 'pulse 2s infinite' }}>● กำลังดำเนินการ</div>}
+                                        {active && !isDone && <div style={{ color: step.color, fontSize: '0.72rem', marginTop: 1, animation: 'pulse 2s infinite' }}>● กำลังดำเนินการ</div>}
                                     </div>
                                     {done && !active && <div style={{ color: '#10B981', fontSize: '0.8rem', fontWeight: 700 }}>✓</div>}
                                 </div>
@@ -197,9 +197,9 @@ export default function TrackPage() {
                         <span style={{ color: '#64748B', fontSize: '0.8rem' }}>🛵 ค่าส่ง</span>
                         <span style={{ color: '#94A3B8', fontSize: '0.83rem', fontWeight: 600 }}>{fmt(data.deliveryFee, data.currency)}</span>
                     </div>
-                    <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', background: 'rgba(139,92,246,0.08)', borderTop: '1px solid rgba(139,92,246,0.15)' }}>
-                        <span style={{ color: '#C4B5FD', fontWeight: 700, fontSize: '0.9rem' }}>รวมทั้งหมด</span>
-                        <span style={{ color: '#A78BFA', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(data.totalAmount, data.currency)}</span>
+                    <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', background: 'rgba(225,29,72,0.08)', borderTop: '1px solid rgba(225,29,72,0.15)' }}>
+                        <span style={{ color: '#FECDD3', fontWeight: 700, fontSize: '0.9rem' }}>รวมทั้งหมด</span>
+                        <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '1.05rem' }}>{fmt(data.totalAmount, data.currency)}</span>
                     </div>
                     {data.isPrepaid && (
                         <div style={{ padding: '8px 16px', background: 'rgba(16,185,129,0.08)', textAlign: 'center' }}>
@@ -221,7 +221,7 @@ export default function TrackPage() {
                     <button onClick={fetchStatus} style={{ width: '100%', padding: '11px', background: 'rgba(255,255,255,0.06)', color: '#94A3B8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, cursor: 'pointer', fontSize: '0.85rem', fontFamily: FONT, fontWeight: 600 }}>
                         🔄 รีเฟรชสถานะ
                     </button>
-                    <a href={`/d/${tenantCode}`} style={{ display: 'block', textAlign: 'center', padding: '11px', background: 'linear-gradient(135deg,#7C3AED,#6D28D9)', color: '#fff', borderRadius: 12, textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>
+                    <a href={`/d/${tenantCode}`} style={{ display: 'block', textAlign: 'center', padding: '11px', background: 'linear-gradient(135deg,#E11D48,#9F1239)', color: '#fff', borderRadius: 12, textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>
                         🛵 สั่งอาหารเพิ่มเติม
                     </a>
                     <div style={{ textAlign: 'center', color: '#334155', fontSize: '0.7rem', marginTop: 4 }}>
