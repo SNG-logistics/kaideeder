@@ -660,7 +660,7 @@ export default function DeliveryOrderPage() {
                                 <div style={{ fontSize: '0.85rem', color: C.text, fontWeight: 700, marginBottom: 8 }}>💳 ชำระเงิน / Payment</div>
                                 {tenant?.qrBankingBase64 ? (
                                     <div style={{ textAlign: 'center', marginBottom: 12 }}>
-                                        <img src={tenant.qrBankingBase64} alt="QR Code" style={{ width: '100%', maxWidth: 220, borderRadius: 8 }} />
+                                        <img src={`data:image/jpeg;base64,${tenant.qrBankingBase64}`} alt="QR Code" style={{ width: '100%', maxWidth: 220, borderRadius: 8 }} />
                                     </div>
                                 ) : (
                                     <div style={{ color: C.sub, fontSize: '0.8rem', marginBottom: 12 }}>
