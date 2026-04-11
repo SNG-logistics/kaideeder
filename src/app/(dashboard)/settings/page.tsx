@@ -484,7 +484,193 @@ function QrBankingCard() {
     )
 }
 
+// ─── Payment Config Card ──────────────────────────────────────
+function PaymentConfigCard() {
+    const canManage = usePermission('SETTINGS_MANAGE')
+    const { settings } = useTenant()
+    const [config, setConfig] = useState({
+        provider: 'manual' as string,
+        accountName: '',
+        accountNumber: '',
+        promptpayId: '',
+        isActive: false,
+        acceptedMethods: ['BANK_TRANSFER', 'QR'] as string[],
+    })
+    const [loaded, setLoaded] = useState(false)
+    const [saving, setSaving] = useState(false)
+
+    const tenantCode = settings?.code ?? ''
+
+    useEffect(() => {
+        fetch('/api/tenant/payment/config')
+            .then(r => r.json())
+            .then(d => {
+                if (d.config) setConfig(prev => ({ ...prev, ...d.config }))
+                setLoaded(true)
+            })
+            .catch(() => setLoaded(true))
+    }, [])
+
+    async function save() {
+        setSaving(true)
+        const res = await fetch('/api/tenant/payment/config', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        })
+        const d = await res.json()
+        setSaving(false)
+        if (d.success) toast.success('✅ บันทึก Payment Config แล้ว')
+        else toast.error(d.error || 'เกิดข้อผิดพลาด')
+    }
+
+    function toggleMethod(method: string) {
+        setConfig(prev => ({
+            ...prev,
+            acceptedMethods: prev.acceptedMethods.includes(method)
+                ? prev.acceptedMethods.filter(m => m !== method)
+                : [...prev.acceptedMethods, method],
+        }))
+    }
+
+    if (!canManage) return null
+
+    const inputStyle: React.CSSProperties = {
+        width: '100%', padding: '9px 12px', borderRadius: 10,
+        border: '1.5px solid var(--border)', background: 'var(--bg)',
+        color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'inherit',
+        outline: 'none',
+    }
+
+    const methodBadge = (id: string, label: string, icon: string) => {
+        const active = config.acceptedMethods.includes(id)
+        return (
+            <button
+                key={id}
+                onClick={() => toggleMethod(id)}
+                style={{
+                    padding: '6px 14px', borderRadius: 20, border: `1.5px solid ${active ? 'rgba(99,102,241,0.6)' : 'var(--border)'}`,
+                    background: active ? 'rgba(99,102,241,0.1)' : 'var(--bg)',
+                    color: active ? '#6366F1' : 'var(--text-muted)',
+                    fontWeight: active ? 700 : 500, fontSize: '0.78rem', cursor: 'pointer',
+                    fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5,
+                    transition: 'all 0.15s',
+                }}
+            >
+                {icon} {label}
+            </button>
+        )
+    }
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(99,102,241,0.25)', background: 'rgba(99,102,241,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>💳</span> ตั้งค่าการรับชำระเงิน (Payment Config)
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 4 }}>
+                ข้อมูลบัญชีรับโอน และรองรับการเชื่อมต่อ Payment Gateway ในอนาคต
+            </p>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 16, padding: '6px 10px', background: 'rgba(99,102,241,0.06)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)' }}>
+                <span style={{ fontSize: '0.72rem', color: '#6366F1', fontWeight: 600 }}>📡 Webhook URL:</span>
+                <code style={{ fontSize: '0.7rem', color: '#4F46E5', wordBreak: 'break-all' }}>
+                    {typeof window !== 'undefined' ? window.location.origin : ''}/api/public/payment/notify?tenantCode={tenantCode}
+                </code>
+            </div>
+
+            {!loaded ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>⏳ กำลังโหลด...</p>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Provider */}
+                    <div>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+                            🏦 ช่องทางการชำระเงิน (Provider)
+                        </label>
+                        <select
+                            value={config.provider}
+                            onChange={e => setConfig(prev => ({ ...prev, provider: e.target.value }))}
+                            style={inputStyle}
+                        >
+                            <option value="manual">Manual (รับสลิปแล้วยืนยันเอง)</option>
+                            <option value="promptpay">PromptPay / พร้อมเพย์</option>
+                            <option value="gbprimepay">GBPrimePay</option>
+                            <option value="omise">Omise</option>
+                            <option value="stripe">Stripe</option>
+                        </select>
+                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                            {config.provider === 'manual' && '✅ รับสลิปลูกค้า → staff ยืนยันเองใน Delivery Dashboard'}
+                            {config.provider === 'promptpay' && '🏦 รับชำระผ่าน PromptPay — เชื่อมต่อผ่าน webhook ธนาคาร'}
+                            {['gbprimepay', 'omise', 'stripe'].includes(config.provider) && '🔌 ต้องตั้งค่า Merchant ID + Secret Key'}
+                        </p>
+                    </div>
+
+                    {/* Account Info */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+                                ชื่อบัญชี / PromptPay Alias
+                            </label>
+                            <input
+                                style={inputStyle}
+                                placeholder="ชื่อร้าน / ชื่อเจ้าของบัญชี"
+                                value={config.accountName}
+                                onChange={e => setConfig(prev => ({ ...prev, accountName: e.target.value }))}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+                                เลขบัญชี / PromptPay ID
+                            </label>
+                            <input
+                                style={inputStyle}
+                                placeholder="เลขบัญชีธนาคาร หรือ เบอร์โทรมือถือ"
+                                value={config.accountNumber}
+                                onChange={e => setConfig(prev => ({ ...prev, accountNumber: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Accepted Methods */}
+                    <div>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8, display: 'block' }}>
+                            วิธีชำระที่รองรับ
+                        </label>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {methodBadge('BANK_TRANSFER', 'โอนเงิน', '🏦')}
+                            {methodBadge('QR', 'QR Banking', '📲')}
+                            {methodBadge('PROMPTPAY', 'PromptPay', '⚡')}
+                            {methodBadge('CARD', 'บัตรเครดิต', '💳')}
+                        </div>
+                    </div>
+
+                    {/* Is Active Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: config.isActive ? 'rgba(34,197,94,0.06)' : 'var(--bg)', border: `1.5px solid ${config.isActive ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`, borderRadius: 12, cursor: 'pointer' }} onClick={() => setConfig(prev => ({ ...prev, isActive: !prev.isActive }))}>
+                        <div style={{ width: 40, height: 22, borderRadius: 11, background: config.isActive ? '#22C55E' : '#D1D5DB', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                            <div style={{ position: 'absolute', top: 3, left: config.isActive ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                        </div>
+                        <div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
+                                {config.isActive ? '✅ เปิดรับชำระออนไลน์' : '⏸ ปิดการรับชำระออนไลน์'}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ลูกค้าจะยังต้องแนบสลิปเพื่อยืนยัน</div>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={save}
+                        disabled={saving}
+                        style={{ alignSelf: 'flex-start', padding: '10px 22px', borderRadius: 11, border: 'none', background: saving ? '#d1d5db' : '#6366F1', color: '#fff', fontWeight: 700, fontSize: '0.88rem', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+                    >
+                        {saving ? '⏳ กำลังบันทึก...' : '💾 บันทึก Payment Config'}
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Delivery Link & QR Card ─────────────────────────────────
+
 function DeliveryLinkCard() {
     const canManage = usePermission('SETTINGS_MANAGE')
     const { settings } = useTenant()
@@ -1336,6 +1522,9 @@ export default function SettingsPage() {
 
                 {/* ── QR Banking ── */}
                 <QrBankingCard />
+
+                {/* ── Payment Config ── */}
+                <PaymentConfigCard />
 
                 {/* ── User Management ── */}
                 <div className="card" style={{ borderColor: 'rgba(59,130,246,0.25)', background: 'rgba(59,130,246,0.03)' }}>
