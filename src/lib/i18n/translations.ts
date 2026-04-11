@@ -134,6 +134,10 @@ const th: Dict = {
     delivery_profile_use: '✓ ใช้ข้อมูลเดิม',
     delivery_profile_new: 'ใส่ใหม่',
     delivery_map_pinned: '🗺️ แนบพิกัดแผนที่แล้ว',
+    delivery_note_placeholder: 'เช่น บอกทางไรเดอร์...',
+    delivery_btn_menu: 'เลือกเมนูอาหาร',
+    delivery_btn_back: '← แก้ที่อยู่',
+    delivery_check_details: 'ตรวจสอบรายละเอียดก่อนยืนยัน',
 
     // ── Order Tracking ───────────────────────────────────────────
     track_title: 'ติดตามออเดอร์',
@@ -294,6 +298,10 @@ const lo: Dict = {
     delivery_profile_use: '✓ ໃຊ້ຂໍ້ມູນເດິມ',
     delivery_profile_new: 'ໃສ່ໃຫມ່',
     delivery_map_pinned: '🗺️ ແນບພິກັດແຜນທີແລ້ວ',
+    delivery_note_placeholder: 'ເຊັ່ນ: ບອກທາງໄຣດ໌...',
+    delivery_btn_menu: 'ເລືອກເມນູອາຫານ',
+    delivery_btn_back: '← ແກ້ທີ່ຢູ່',
+    delivery_check_details: 'ກວດສອບລາຍລະອຽດກ່ອນຢືນຢັນ',
 
     // ── Order Tracking ───────────────────────────────────────────
     track_title: 'ຕິດຕາມອໍເດີ',
@@ -454,6 +462,10 @@ const en: Dict = {
     delivery_profile_use: '✓ Use saved info',
     delivery_profile_new: 'Enter new',
     delivery_map_pinned: '🗺️ Map pin saved',
+    delivery_note_placeholder: 'e.g. directions for rider...',
+    delivery_btn_menu: 'Choose food',
+    delivery_btn_back: '← Edit address',
+    delivery_check_details: 'Review your order before confirming',
 
     // ── Order Tracking ───────────────────────────────────────────
     track_title: 'Track Order',
