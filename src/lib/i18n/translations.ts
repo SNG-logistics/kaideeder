@@ -84,6 +84,19 @@ const th: Dict = {
     bill_no_order: 'ยังไม่มีออเดอร์',
     bill_pending_confirm: '⏳ รอยืนยัน',
     bill_staff_coming: 'พนักงานจะมาเก็บเงินในไม่ช้า',
+    bill_total: 'ยอดรวม',
+    bill_upload_slip: '📎 แนบสลิปโอนเงิน',
+
+    // ── Delivery Cart & Common ────────────────────────────────────
+    view_cart: '🛒 ดูตะกร้า',
+    cart_title: 'ตะกร้าสินค้า',
+    cart_confirm: 'ยืนยันสั่ง',
+    cart_add_more: 'เลือกเพิ่ม',
+    include_topping: 'รวมท็อปปิ้ง',
+    edit_menu: 'แก้ไขเมนู',
+    success: 'สำเร็จ',
+    menu_load_error: 'โหลดเมนูไม่สำเร็จ',
+    qr_instruction_2: 'ติดต่อร้านผ่านช่องทางที่แสดงไว้',
 
     // ── Delivery Checkout ────────────────────────────────────────
     delivery_badge: '🛵 สั่ง Delivery',
@@ -246,8 +259,21 @@ const lo: Dict = {
     bill_grand_total: 'ຍອດລວມທັງໝົດ',
     bill_round: 'ຮອບ',
     bill_no_order: 'ຍັງບໍ່ມີອໍເດີ',
-    bill_pending_confirm: '⏳ ລໍຖ້າຢືນຢັນ',
-    bill_staff_coming: 'ພະນັກງານຈະມາເກັບເງິນໄວໆ',
+    bill_pending_confirm: '⏳ ລໍຢືນຢັນ',
+    bill_staff_coming: 'ພະນັກງານຈະມາເກັບເງິນໃນໄວໆນີ້',
+    bill_total: 'ຍອດລວມ',
+    bill_upload_slip: '📎 ແນບສລິບໂອນເງິນ',
+
+    // ── Delivery Cart & Common ────────────────────────────────────
+    view_cart: '🛒 ເບິ່ງກະຕ່າ',
+    cart_title: 'ກະຕ່າສິນຄ້າ',
+    cart_confirm: 'ຢືນຢັນສັ່ງ',
+    cart_add_more: 'ເລືອກເພີ່ມ',
+    include_topping: 'ລວມທັອບປິ້ງ',
+    edit_menu: 'ແກ້ໄຂເມນູ',
+    success: 'ສຳເລັດ',
+    menu_load_error: 'ໂຫລດເມນູບໍ່ສຳເລັດ',
+    qr_instruction_2: 'ຕິດຕໍ່ຮ້ານຜ່ານຊ່ອງທາງທີ່ສະແດງໄວ້',
 
     // ── Delivery Checkout ────────────────────────────────────────
     delivery_badge: '🛵 ສັ່ງ Delivery',
@@ -407,11 +433,24 @@ const en: Dict = {
     bill_request: '📋 Request bill',
     bill_requesting: '⏳ Sending…',
     bill_requested: '✅ Bill requested',
-    bill_grand_total: 'Grand total',
+    bill_grand_total: 'Grand Total',
     bill_round: 'Round',
-    bill_no_order: 'No order yet',
-    bill_pending_confirm: '⏳ Pending confirmation',
-    bill_staff_coming: 'Staff will come to collect payment shortly',
+    bill_no_order: 'No orders yet',
+    bill_pending_confirm: '⏳ Pending',
+    bill_staff_coming: 'Staff will come to collect payment',
+    bill_total: 'Total',
+    bill_upload_slip: '📎 Attach payment slip',
+
+    // ── Delivery Cart & Common ────────────────────────────────────
+    view_cart: '🛒 View cart',
+    cart_title: 'Cart',
+    cart_confirm: 'Confirm order',
+    cart_add_more: 'Add more',
+    include_topping: 'incl. toppings',
+    edit_menu: 'Edit menu',
+    success: 'Success',
+    menu_load_error: 'Failed to load menu',
+    qr_instruction_2: 'Contact the store via the channels shown',
 
     // ── Delivery Checkout ────────────────────────────────────────
     delivery_badge: '🛵 Delivery Order',
