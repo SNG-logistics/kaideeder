@@ -10,12 +10,16 @@ export function middleware(request: NextRequest) {
     const { hostname, pathname } = request.nextUrl
 
     // ── Subdomain routing: delivery.kaideeder.com → /d/kaideeder ──────────────
-    // Works both in production (delivery.kaideeder.com) and
-    // if we ever run with custom hosts locally
-    const isDeliverySubdomain =
-        hostname.startsWith(`${DELIVERY_SUBDOMAIN}.`) &&
-        !hostname.startsWith('localhost') &&
-        !hostname.startsWith('127.')
+    // Works both in production (delivery.kaideeder.com) and locally
+    const hostHeader = request.headers.get('host') || ''
+    const xForwardedHost = request.headers.get('x-forwarded-host') || ''
+    const nextHostname = request.nextUrl.hostname || ''
+
+    // Detect if ANY of the host indicators contain the delivery subdomain
+    const effectiveHost = [xForwardedHost, hostHeader, nextHostname].find(h => 
+        h.startsWith(`${DELIVERY_SUBDOMAIN}.`)
+    )
+    const isDeliverySubdomain = !!effectiveHost
 
     if (isDeliverySubdomain) {
         // Already on a /d/ path — let it through (avoid redirect loop)
@@ -26,10 +30,17 @@ export function middleware(request: NextRequest) {
         if (pathname.startsWith('/api/')) {
             return NextResponse.next()
         }
-        // Everything else on delivery subdomain → redirect to /d/[tenantCode]
+        // Redirect everything else on delivery subdomain → /d/[tenantCode]
         const url = request.nextUrl.clone()
-        url.hostname = hostname.replace(`${DELIVERY_SUBDOMAIN}.`, '')
-        url.pathname = `/d/${DEFAULT_TENANT_CODE}${pathname === '/' ? '' : pathname}`
+        const baseDomain = effectiveHost.replace(`${DELIVERY_SUBDOMAIN}.`, '')
+        url.hostname = baseDomain || 'kaideeder.com'
+        url.port = '' // force default port for public facing URL
+        url.protocol = 'https:' // Upgrade to HTTPS
+        
+        // If they requested /dashboard or basic root, send to delivery root
+        const targetPath = (pathname === '/' || pathname === '/dashboard' || pathname === '/pos') ? '' : pathname
+        url.pathname = `/d/${DEFAULT_TENANT_CODE}${targetPath}`
+        
         return NextResponse.redirect(url, 301)
     }
 
