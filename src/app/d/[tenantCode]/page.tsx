@@ -127,6 +127,8 @@ export default function DeliveryOrderPage() {
     const [activeCategory, setActiveCategory] = useState('all')
     const [search, setSearch] = useState('')
     const [cartOpen, setCartOpen] = useState(false)
+    const [toppingProduct, setToppingProduct] = useState<Product | null>(null)
+    const [selectedToppings, setSelectedToppings] = useState<Topping[]>([])
 
     // ── Step 3 — Confirm ─────────────────────────────────────
     const [submitting, setSubmitting] = useState(false)
@@ -138,7 +140,7 @@ export default function DeliveryOrderPage() {
     const DELIVERY_FEE = 0
 
     const currency = tenant?.currency || 'LAK'
-    const subtotal = cart.reduce((s, i) => s + (i.price ?? 0) * i.quantity, 0)
+    const subtotal = cart.reduce((s, i) => s + ((i.price ?? 0) + (i.toppingsTotal ?? 0)) * i.quantity, 0)
     const totalAmount = subtotal + DELIVERY_FEE
     const totalItems = cart.reduce((s, i) => s + i.quantity, 0)
 
@@ -158,23 +160,41 @@ export default function DeliveryOrderPage() {
 
     // ── Cart helpers ──────────────────────────────────────────
     const addToCart = useCallback((p: Product) => {
+        if (p.toppingsJson) {
+            try {
+                const active = JSON.parse(p.toppingsJson as string).filter((t: Topping) => t.isActive !== false)
+                if (active.length > 0) {
+                    setToppingProduct(p)
+                    setSelectedToppings([])
+                    return
+                }
+            } catch {}
+        }
+        internalAddToCart(p, [], 0)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    const internalAddToCart = useCallback((p: Product, tops: Topping[], topTotal: number) => {
         setCart(prev => {
-            const ex = prev.find(i => i.id === p.id)
-            if (ex) return prev.map(i => i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i)
-            return [...prev, { ...p, cartId: Math.random().toString(36).substr(2, 9), quantity: 1, note: '' }]
+            const tJson = tops.length > 0 ? JSON.stringify(tops) : undefined
+            const cartId = p.id + (tJson || '')
+            const ex = prev.find(i => i.cartId === cartId)
+            if (ex) return prev.map(i => i.cartId === cartId ? { ...i, quantity: i.quantity + 1 } : i)
+            const topsNote = tops.length > 0 ? '(' + tops.map(t => t.name).join(', ') + ')' : ''
+            return [...prev, { ...p, cartId, quantity: 1, note: topsNote, toppingsJson: tJson, toppingsTotal: topTotal }]
         })
+        setToppingProduct(null)
     }, [])
 
-    const removeFromCart = useCallback((id: string) => {
+    const removeFromCart = useCallback((cartId: string) => {
         setCart(prev => {
-            const item = prev.find(i => i.id === id)
+            const item = prev.find(i => i.cartId === cartId)
             if (!item) return prev
-            if (item.quantity <= 1) return prev.filter(i => i.id !== id)
-            return prev.map(i => i.id === id ? { ...i, quantity: i.quantity - 1 } : i)
+            if (item.quantity <= 1) return prev.filter(i => i.cartId !== cartId)
+            return prev.map(i => i.cartId === cartId ? { ...i, quantity: i.quantity - 1 } : i)
         })
     }, [])
 
-    const cartQty = (id: string) => cart.find(i => i.id === id)?.quantity ?? 0
+    const cartQty = (id: string) => cart.filter(i => i.id === id).reduce((s, i) => s + i.quantity, 0)
 
     const filtered = products.filter(p => {
         const matchCat = activeCategory === 'all' || (activeCategory === 'featured' && p.isFeatured) || p.categoryId === activeCategory
@@ -228,7 +248,7 @@ export default function DeliveryOrderPage() {
                     customerName: name.trim(),
                     customerPhone: phone.trim(),
                     addressText: address.trim(),
-                    items: cart.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price ?? 0 })),
+                    items: cart.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: (i.price ?? 0) + (i.toppingsTotal ?? 0), toppingsJson: i.toppingsJson, toppingsTotal: i.toppingsTotal })),
                     deliveryFee: DELIVERY_FEE,
                     customerNote: note.trim() || undefined,
                     paymentSlipBase64,
@@ -262,6 +282,7 @@ export default function DeliveryOrderPage() {
     )
 
     return (
+        <>
         <div style={{ minHeight: '100dvh', background: C.bg, fontFamily: FONT, display: 'flex', justifyContent: 'center' }}>
             <style>{GLOBAL_CSS}</style>
             <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -369,16 +390,17 @@ export default function DeliveryOrderPage() {
                                             </div>
                                             <div style={{ padding: '9px 10px 10px' }}>
                                                 <div style={{ color: C.text, fontWeight: 700, fontSize: '0.83rem', lineHeight: 1.35, marginBottom: 4, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
-                                                <div style={{ color: '#FDA4AF', fontWeight: 800, fontSize: '0.88rem', marginBottom: 8 }}>{fmt(p.price, currency)}</div>
+                                                <div style={{ color: '#FDA4AF', fontWeight: 800, fontSize: '0.88rem', marginBottom: p.toppingsJson ? 2 : 8 }}>{fmt(p.price, currency)}</div>
+                                                {p.toppingsJson && <div style={{ color: '#fb923c', fontSize: '0.72rem', fontWeight: 700, marginBottom: 6 }}>+ เพิ่มท็อปปิ้งได้</div>}
                                                 {qty === 0 ? (
                                                     <button onClick={() => addToCart(p)} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: 'none', background: C.accentGrad, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: FONT, boxShadow: '0 3px 10px rgba(225,29,72,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 34 }}>
                                                         <span>+</span> เพิ่ม
                                                     </button>
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 10, padding: '2px 3px', minHeight: 34 }}>
-                                                        <button onClick={() => removeFromCart(p.id)} style={stepBtn}>−</button>
+                                                        <button onClick={() => { if(p.toppingsJson){alert('จัดการจากตะกร้า'); return} removeFromCart(cart.find(i=>i.id===p.id)?.cartId||'') }} style={stepBtn}>−</button>
                                                         <span style={{ color: '#FDA4AF', fontWeight: 900, fontSize: '0.95rem', minWidth: 20, textAlign: 'center' }}>{qty}</span>
-                                                        <button onClick={() => addToCart(p)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
+                                                        <button onClick={() => internalAddToCart(p, cart.find(i=>i.id===p.id)?.toppingsJson ? JSON.parse(cart.find(i=>i.id===p.id)!.toppingsJson as string) : [], cart.find(i=>i.id===p.id)?.toppingsTotal||0)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                                     </div>
                                                 )}
                                             </div>
@@ -412,15 +434,16 @@ export default function DeliveryOrderPage() {
                                     <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '14px auto 16px' }} />
                                     <h2 style={{ color: C.text, fontSize: '1rem', fontWeight: 800, margin: '0 0 16px' }}>🛒 รายการที่เลือก</h2>
                                     {cart.map(item => (
-                                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
+                                        <div key={item.cartId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ color: C.text, fontWeight: 600, fontSize: '0.87rem' }}>{item.name}</div>
-                                                <div style={{ color: '#FDA4AF', fontSize: '0.76rem', marginTop: 2 }}>{fmt(item.price, currency)} × {item.quantity}</div>
+                                                {item.note && <div style={{ color: '#fb923c', fontSize: '0.72rem', marginTop: 1 }}>{item.note}</div>}
+                                                <div style={{ color: '#FDA4AF', fontSize: '0.76rem', marginTop: 2 }}>{fmt((item.price ?? 0) + (item.toppingsTotal ?? 0), currency)} × {item.quantity}{item.toppingsTotal ? ' (รวมท็อปปิ้ง)' : ''}</div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.accentLight, borderRadius: 10, padding: '2px 3px' }}>
-                                                <button onClick={() => removeFromCart(item.id)} style={stepBtn}>−</button>
+                                                <button onClick={() => removeFromCart(item.cartId)} style={stepBtn}>−</button>
                                                 <span style={{ color: '#FDA4AF', fontWeight: 900, width: 20, textAlign: 'center', fontSize: '0.9rem' }}>{item.quantity}</span>
-                                                <button onClick={() => addToCart(item)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
+                                                <button onClick={() => internalAddToCart(item, item.toppingsJson ? JSON.parse(item.toppingsJson as string) : [], item.toppingsTotal || 0)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                             </div>
                                         </div>
                                     ))}
@@ -467,9 +490,12 @@ export default function DeliveryOrderPage() {
                                 <div style={{ fontSize: '0.72rem', color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🍽️ รายการอาหาร</div>
                             </div>
                             {cart.map((item, i) => (
-                                <div key={item.id} style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', borderBottom: i < cart.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                                    <span style={{ color: C.text, fontSize: '0.85rem' }}>{item.name} × {item.quantity}</span>
-                                    <span style={{ color: '#FDA4AF', fontWeight: 600, fontSize: '0.85rem' }}>{fmt((item.price ?? 0) * item.quantity, currency)}</span>
+                                <div key={item.cartId} style={{ padding: '9px 14px', borderBottom: i < cart.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ color: C.text, fontSize: '0.85rem' }}>{item.name} × {item.quantity}</span>
+                                        <span style={{ color: '#FDA4AF', fontWeight: 600, fontSize: '0.85rem' }}>{fmt(((item.price ?? 0) + (item.toppingsTotal ?? 0)) * item.quantity, currency)}</span>
+                                    </div>
+                                    {item.note && <div style={{ color: '#fb923c', fontSize: '0.72rem', marginTop: 2 }}>{item.note}</div>}
                                 </div>
                             ))}
                             {DELIVERY_FEE > 0 && (
@@ -532,6 +558,50 @@ export default function DeliveryOrderPage() {
 
             </div>
         </div>
+
+        {/* ── TOPPING MODAL ───────────────────────────────────────── */}
+        {toppingProduct && toppingProduct.toppingsJson && (() => {
+            let tops: Topping[] = []
+            try { tops = JSON.parse(toppingProduct.toppingsJson as string) } catch {}
+            tops = tops.filter(t => t.isActive !== false)
+            const toppingsTotal = selectedToppings.reduce((s, t) => s + t.price, 0)
+            return (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 100, fontFamily: FONT }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setToppingProduct(null)} />
+                    <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '20px 20px 40px', maxHeight: '85dvh', overflowY: 'auto', animation: 'slideUp 0.24s ease', boxShadow: '0 -16px 48px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
+                        <div style={{ color: C.text, fontWeight: 800, fontSize: '1rem', marginBottom: 4 }}>🧂 เพิ่มท็อปปิ้ง</div>
+                        <div style={{ color: C.sub, fontSize: '0.78rem', marginBottom: 16 }}>{toppingProduct.name}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                            {tops.map(t => {
+                                const isSel = selectedToppings.some(st => st.id === t.id)
+                                return (
+                                    <div key={t.id} onClick={() => {
+                                        if (isSel) setSelectedToppings(p => p.filter(st => st.id !== t.id))
+                                        else setSelectedToppings(p => [...p, t])
+                                    }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, border: `2px solid ${isSel ? C.accent : C.border}`, background: isSel ? C.accentLight : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                        <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSel ? C.accent : 'rgba(255,255,255,0.2)'}`, background: isSel ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', color: '#fff', fontWeight: 800 }}>{isSel ? '✓' : ''}</span>
+                                        <span style={{ flex: 1, color: C.text, fontWeight: 600, fontSize: '0.88rem' }}>{t.name}</span>
+                                        <span style={{ color: isSel ? '#FDA4AF' : C.sub, fontWeight: 700, fontSize: '0.83rem' }}>+{fmt(t.price, currency)}</span>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        {toppingsTotal > 0 && (
+                            <div style={{ background: C.accentLight, border: `1px solid ${C.accent}`, borderRadius: 12, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ color: C.text, fontSize: '0.82rem', fontWeight: 600 }}>ยอดท็อปปิ้ง</span>
+                                <span style={{ color: '#FDA4AF', fontWeight: 800, fontSize: '0.92rem' }}>+{fmt(toppingsTotal, currency)}</span>
+                            </div>
+                        )}
+                        <button onClick={() => internalAddToCart(toppingProduct, selectedToppings, toppingsTotal)} style={{ width: '100%', padding: '15px', borderRadius: 14, border: 'none', background: C.accentGrad, color: '#fff', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer', fontFamily: FONT, marginBottom: 8, boxShadow: '0 6px 20px rgba(225,29,72,0.45)' }}>
+                            ยืนยันใส่ตะกร้า {toppingsTotal > 0 ? `(${fmt((toppingProduct.price ?? 0) + toppingsTotal, currency)})` : ''}
+                        </button>
+                        <button onClick={() => setToppingProduct(null)} style={{ width: '100%', padding: '12px', borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.sub, fontWeight: 500, fontSize: '0.87rem', cursor: 'pointer', fontFamily: FONT }}>ยกเลิก</button>
+                    </div>
+                </div>
+            )
+        })()}
+        </>
     )
 }
 
