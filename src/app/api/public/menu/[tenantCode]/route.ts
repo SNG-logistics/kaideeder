@@ -23,7 +23,6 @@ export async function GET(
                 tenantId: tenant.id,
                 isActive: true,
                 salePrice: { gt: 0 },
-                productType: { in: ['SALE_ITEM', 'ENTERTAIN'] },
             },
             orderBy: { name: 'asc' },
             select: {
