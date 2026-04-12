@@ -11,18 +11,20 @@ type StoreUser = {
     createdAt: string
 }
 
-const ALL_ROLES = ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'KITCHEN', 'BAR', 'CASHIER', 'VIEWER'] as const
+const ALL_ROLES = ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'KITCHEN', 'BAR', 'CASHIER', 'WAITER', 'RIDER', 'VIEWER'] as const
 type Role = typeof ALL_ROLES[number]
 
 const ROLE_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
-    OWNER: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', label: '👑 Owner' },
-    MANAGER: { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.3)', label: '📊 Manager' },
-    PURCHASER: { color: '#06b6d4', bg: 'rgba(6,182,212,0.1)', border: 'rgba(6,182,212,0.3)', label: '🛒 Purchaser' },
+    OWNER:     { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',   border: 'rgba(245,158,11,0.3)',   label: '👑 Owner' },
+    MANAGER:   { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',   border: 'rgba(59,130,246,0.3)',   label: '📊 Manager' },
+    PURCHASER: { color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',    border: 'rgba(6,182,212,0.3)',    label: '🛒 Purchaser' },
     WAREHOUSE: { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)', label: '🏭 Warehouse' },
-    KITCHEN: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', label: '🍳 Kitchen' },
-    BAR: { color: '#a855f7', bg: 'rgba(168,85,247,0.1)', border: 'rgba(168,85,247,0.3)', label: '🍸 Bar' },
-    CASHIER: { color: '#10b981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.3)', label: '💰 Cashier' },
-    VIEWER: { color: '#64748b', bg: 'rgba(100,116,139,0.1)', border: 'rgba(100,116,139,0.3)', label: '👁 Viewer' },
+    KITCHEN:   { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    border: 'rgba(239,68,68,0.3)',    label: '🍳 Kitchen' },
+    BAR:       { color: '#a855f7', bg: 'rgba(168,85,247,0.1)',   border: 'rgba(168,85,247,0.3)',   label: '🍸 Bar' },
+    CASHIER:   { color: '#10b981', bg: 'rgba(16,185,129,0.1)',   border: 'rgba(16,185,129,0.3)',   label: '💰 Cashier' },
+    WAITER:    { color: '#f97316', bg: 'rgba(249,115,22,0.1)',   border: 'rgba(249,115,22,0.3)',   label: '🍽️ Waiter' },
+    RIDER:     { color: '#e11d48', bg: 'rgba(225,29,72,0.1)',    border: 'rgba(225,29,72,0.3)',    label: '🛵 Rider' },
+    VIEWER:    { color: '#64748b', bg: 'rgba(100,116,139,0.1)', border: 'rgba(100,116,139,0.3)', label: '👁 Viewer' },
 }
 
 const inp: React.CSSProperties = {
@@ -399,23 +401,25 @@ export default function UsersSettingsPage() {
                         </thead>
                         <tbody>
                             {([
-                                ['POS ขายหน้าร้าน', ['OWNER', 'MANAGER', 'CASHIER']],
-                                ['จอครัว KDS', ['OWNER', 'MANAGER', 'KITCHEN', 'BAR']],
-                                ['Dashboard', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'CASHIER', 'VIEWER']],
-                                ['เมนูร้าน', ['OWNER', 'MANAGER']],
-                                ['วัตถุดิบ / Stock', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'VIEWER']],
-                                ['สต็อคคลัง', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'VIEWER']],
-                                ['ใบซื้อ GR', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'VIEWER']],
-                                ['สร้างใบซื้อ', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE']],
-                                ['โอนคลัง', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE']],
-                                ['ปรับสต็อค', ['OWNER', 'MANAGER', 'WAREHOUSE']],
-                                ['บันทึก Waste', ['OWNER', 'MANAGER', 'WAREHOUSE', 'KITCHEN', 'BAR']],
-                                ['สูตรอาหาร BOM', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE']],
-                                ['นำเข้ายอดขาย', ['OWNER', 'MANAGER']],
-                                ['Reports', ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'CASHIER', 'VIEWER']],
-                                ['AI Chat', ['OWNER', 'MANAGER']],
-                                ['Settings/Users', ['OWNER']],
-                                ['Billing', ['OWNER']],
+                                ['POS ขายหน้าร้าน',    ['OWNER', 'MANAGER', 'CASHIER']],
+                                ['จอครัว KDS',         ['OWNER', 'MANAGER', 'KITCHEN', 'BAR', 'WAITER']],
+                                ['Delivery Queue',     ['OWNER', 'MANAGER', 'CASHIER']],
+                                ['🛵 Rider Queue',      ['OWNER', 'MANAGER', 'RIDER']],
+                                ['Dashboard',          ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'CASHIER', 'VIEWER']],
+                                ['เมนูร้าน',           ['OWNER', 'MANAGER']],
+                                ['วัตถุดิบ / Stock',   ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'VIEWER']],
+                                ['สต็อคคลัง',          ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'VIEWER']],
+                                ['ใบซื้อ GR',          ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'VIEWER']],
+                                ['สร้างใบซื้อ',        ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE']],
+                                ['โอนคลัง',            ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE']],
+                                ['ปรับสต็อค',          ['OWNER', 'MANAGER', 'WAREHOUSE']],
+                                ['บันทึก Waste',       ['OWNER', 'MANAGER', 'WAREHOUSE', 'KITCHEN', 'BAR']],
+                                ['สูตรอาหาร BOM',      ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE']],
+                                ['นำเข้ายอดขาย',      ['OWNER', 'MANAGER']],
+                                ['Reports',            ['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'CASHIER', 'VIEWER']],
+                                ['AI Chat',            ['OWNER', 'MANAGER']],
+                                ['Settings/Users',     ['OWNER']],
+                                ['Billing',            ['OWNER']],
                             ] as [string, string[]][]).map(([perm, roles], i) => (
                                 <tr key={perm} style={{ borderTop: '1px solid rgba(0,0,0,0.06)', background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)' }}>
                                     <td style={{ padding: '8px 16px 8px 0', color: '#475569', whiteSpace: 'nowrap' }}>{perm}</td>
