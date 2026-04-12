@@ -26,7 +26,7 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
 const createSchema = z.object({
     username: z.string().min(3).max(30).regex(/^[a-z0-9_]+$/, 'Lowercase letters, numbers, underscore only'),
     name: z.string().min(1).max(80),
-    role: z.enum(['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'KITCHEN', 'BAR', 'CASHIER', 'VIEWER']),
+    role: z.enum(['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'KITCHEN', 'BAR', 'CASHIER', 'WAITER', 'RIDER', 'VIEWER']),
     password: z.string().min(6),
 })
 

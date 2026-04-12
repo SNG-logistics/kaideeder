@@ -7,7 +7,7 @@ import { hashPassword } from '@/lib/auth'
 
 // PATCH /api/settings/users/[id] — change role / isActive / password
 const patchSchema = z.object({
-    role: z.enum(['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'KITCHEN', 'BAR', 'CASHIER', 'VIEWER']).optional(),
+    role: z.enum(['OWNER', 'MANAGER', 'PURCHASER', 'WAREHOUSE', 'KITCHEN', 'BAR', 'CASHIER', 'WAITER', 'RIDER', 'VIEWER']).optional(),
     isActive: z.boolean().optional(),
     name: z.string().min(1).optional(),
     password: z.string().min(6).optional(),
