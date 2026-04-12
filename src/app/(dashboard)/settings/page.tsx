@@ -343,7 +343,9 @@ function QrBankingCard() {
             .then(r => r.json())
             .then(d => {
                 if (d.settings?.qrBankingBase64) {
-                    setPreview(`data:image/jpeg;base64,${d.settings.qrBankingBase64}`)
+                    const b64 = d.settings.qrBankingBase64
+                    const mime = b64.startsWith('iVBOR') ? 'image/png' : 'image/jpeg'
+                    setPreview(`data:${mime};base64,${b64}`)
                 }
                 setLoaded(true)
             })
