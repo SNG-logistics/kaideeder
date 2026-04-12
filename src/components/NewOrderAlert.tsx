@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNotification } from './NotificationContext'
 
+
 // ── Types ──────────────────────────────────────────────────────────────────
 type OrderItem = { id: string; quantity: number; unitPrice: number; note: string | null; product: { name: string } }
 type PendingOrder = {
@@ -186,7 +187,7 @@ function BillRequestModal({ bill, onAck, onClose }: {
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function NewOrderAlert() {
     const router = useRouter()
-    const { notifications, removeNotification, refresh } = useNotification()
+    const { notifications, removeNotification, refresh, markAsSeen } = useNotification()
     const [viewingId, setViewingId] = useState<string | null>(null)
 
     // Derived states
@@ -199,26 +200,28 @@ export default function NewOrderAlert() {
 
     const handleConfirmOrder = useCallback(() => {
         if (currentOrderNode) {
+            markAsSeen(currentOrderNode.id)
             removeNotification(currentOrderNode.id)
             setViewingId(null)
             refresh()
         }
-    }, [currentOrderNode, removeNotification, refresh])
+    }, [currentOrderNode, markAsSeen, removeNotification, refresh])
 
     const handleAckBill = useCallback(() => {
         if (currentBillNode) {
+            markAsSeen(currentBillNode.id)
             removeNotification(currentBillNode.id)
             setViewingId(null)
             refresh()
         }
-    }, [currentBillNode, removeNotification, refresh])
+    }, [currentBillNode, markAsSeen, removeNotification, refresh])
 
     return (
         <>
             {/* 🟡 New order badge */}
             {orderNotifs.length > 0 && !currentOrderNode && (
                 <button
-                    onClick={() => setViewingId(orderNotifs[0].id)}
+            onClick={() => { markAsSeen(orderNotifs[0].id); setViewingId(orderNotifs[0].id) }}
                     style={{
                         position: 'fixed', bottom: 80, right: billNotifs.length > 0 ? 170 : 20, zIndex: 1000,
                         background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 14,
@@ -237,7 +240,7 @@ export default function NewOrderAlert() {
             {/* 🔴 Bill request badge */}
             {billNotifs.length > 0 && !currentBillNode && (
                 <button
-                    onClick={() => setViewingId(billNotifs[0].id)}
+                    onClick={() => { markAsSeen(billNotifs[0].id); setViewingId(billNotifs[0].id) }}
                     style={{
                         position: 'fixed', bottom: 80, right: 20, zIndex: 1001,
                         background: 'linear-gradient(135deg,#dc2626,#ef4444)',
