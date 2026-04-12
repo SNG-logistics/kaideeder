@@ -610,11 +610,31 @@ export default function ManualPage() {
             `}</style>
 
             {/* Header */}
-            <div className="manual-header" style={{ marginBottom: 24, borderBottom: '2px solid var(--border)', paddingBottom: 16 }}>
-                <h1 className="page-title" style={{ marginBottom: 4 }}>📖 คู่มือการใช้งาน KAIDEEDER</h1>
-                <p className="page-subtitle" style={{ margin: 0 }}>
-                    ฉบับสมบูรณ์ — ครอบคลุมทุก feature&nbsp;•&nbsp; อัปเดต มี.ค. 2568
-                </p>
+            <div className="manual-header" style={{ marginBottom: 24, borderBottom: '2px solid var(--border)', paddingBottom: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <h1 className="page-title" style={{ marginBottom: 4 }}>📖 คู่มือการใช้งาน KAIDEEDER</h1>
+                    <p className="page-subtitle" style={{ margin: 0 }}>
+                        ฉบับสมบูรณ์ — ครอบคลุมทุก feature&nbsp;•&nbsp; อัปเดต เม.ย. 2568
+                    </p>
+                </div>
+                <a
+                    href="/system-diagram-v2.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 7,
+                        padding: '9px 18px', borderRadius: 10, textDecoration: 'none',
+                        background: 'linear-gradient(135deg,#1E293B,#0F172A)',
+                        color: '#fff', fontWeight: 700, fontSize: '0.82rem',
+                        boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
+                        transition: 'all 0.15s', flexShrink: 0,
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-1px)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)' }}
+                >
+                    🗂️ System Diagram v2.0
+                    <span style={{ background: '#E8364E', borderRadius: 6, padding: '1px 7px', fontSize: '0.68rem' }}>NEW</span>
+                </a>
             </div>
 
             {/* Mobile Tab Bar */}

@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAIDEEDER — System Diagram v2.0</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  :root {
+    --red: #E8364E;
+    --red-light: rgba(232,54,78,0.1);
+    --blue: #3B82F6;
+    --blue-light: rgba(59,130,246,0.1);
+    --green: #10B981;
+    --green-light: rgba(16,185,129,0.1);
+    --amber: #F59E0B;
+    --amber-light: rgba(245,158,11,0.1);
+    --purple: #8B5CF6;
+    --purple-light: rgba(139,92,246,0.1);
+    --pink: #EC4899;
+    --pink-light: rgba(236,72,153,0.1);
+    --orange: #F97316;
+    --orange-light: rgba(249,115,22,0.1);
+    --cyan: #06B6D4;
+    --cyan-light: rgba(6,182,212,0.1);
+    --bg: #F8FAFC;
+    --card: #FFFFFF;
+    --text: #1E293B;
+    --muted: #64748B;
+    --border: #E2E8F0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Print styles ── */
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white; font-size: 11px; }
+    .page-break { page-break-before: always; }
+    .diagram-section { break-inside: avoid; }
+    .flow-card { break-inside: avoid; }
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+    color: white;
+    padding: 32px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .header-left { flex: 1; }
+  .header h1 { font-size: 1.9rem; font-weight: 900; letter-spacing: -0.5px; }
+  .header h1 span { color: var(--red); }
+  .header p { color: #94A3B8; font-size: 0.85rem; margin-top: 4px; }
+  .version-badge {
+    background: linear-gradient(135deg, var(--red), #C41230);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+  }
+  .btn-pdf {
+    background: linear-gradient(135deg, #16A34A, #15803D);
+    color: white;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 4px 14px rgba(22,163,74,0.4);
+  }
+  .btn-pdf:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(22,163,74,0.5); }
+
+  /* ── Container ── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ── Section title ── */
+  .section-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-title .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 28px;
+    padding: 16px 20px;
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .legend-dot { width: 12px; height: 12px; border-radius: 4px; }
+
+  /* ── Role Grid ── */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+  .role-card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .role-card .role-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .role-emoji { font-size: 1.3rem; }
+  .role-name { font-weight: 800; font-size: 0.85rem; }
+  .role-desc { font-size: 0.72rem; color: var(--muted); line-height: 1.5; }
+  .role-access { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .access-tag {
+    font-size: 0.62rem;
+    padding: 2px 7px;
+    border-radius: 99px;
+    font-weight: 700;
+    border: 1px solid;
+  }
+
+  /* ── Flow Diagram ── */
+  .flows-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .flow-card {
+    background: var(--card);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .flow-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .flow-icon { font-size: 1.4rem; }
+  .flow-title { font-weight: 800; font-size: 0.9rem; }
+  .flow-subtitle { font-size: 0.72rem; color: rgba(255,255,255,0.75); margin-top: 1px; }
+
+  .flow-steps { padding: 16px 18px; display: flex; flex-direction: column; gap: 0; }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+  }
+  .flow-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 13px;
+    top: 28px;
+    width: 2px;
+    height: calc(100% - 4px);
+    background: var(--border);
+  }
+  .step-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.68rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .step-body { padding: 3px 0 14px; flex: 1; }
+  .step-text { font-size: 0.78rem; font-weight: 600; color: var(--text); line-height: 1.4; }
+  .step-note { font-size: 0.7rem; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .step-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    padding: 1px 7px;
+    border-radius: 99px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+
+  /* ── Delivery Flow (full width) ── */
+  .delivery-flow {
+    background: var(--card);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin-bottom: 16px;
+  }
+  .delivery-row {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+  }
+  .delivery-stage {
+    flex: 1;
+    min-width: 130px;
+    padding: 20px 16px;
+    border-right: 1px dashed var(--border);
+    text-align: center;
+    position: relative;
+  }
+  .delivery-stage:last-child { border-right: none; }
+  .delivery-stage::after {
+    content: '→';
+    position: absolute;
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1rem;
+    color: var(--muted);
+    z-index: 2;
+  }
+  .delivery-stage:last-child::after { display: none; }
+  .stage-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    margin: 0 auto 8px;
+  }
+  .stage-icon { font-size: 1.5rem; margin-bottom: 6px; }
+  .stage-title { font-weight: 800; font-size: 0.78rem; margin-bottom: 4px; }
+  .stage-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.4; }
+  .stage-actor {
+    font-size: 0.63rem;
+    padding: 3px 9px;
+    border-radius: 99px;
+    font-weight: 700;
+    display: inline-block;
+    margin-top: 8px;
+    border: 1px solid;
+  }
+
+  /* ── Permission Matrix ── */
+  .matrix-wrap {
+    background: var(--card);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin-bottom: 32px;
+    overflow-x: auto;
+  }
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+    min-width: 700px;
+  }
+  .matrix-table th {
+    background: #F1F5F9;
+    padding: 8px 10px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--text);
+    border-bottom: 2px solid var(--border);
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .matrix-table th:first-child { text-align: left; min-width: 150px; }
+  .matrix-table td {
+    padding: 7px 10px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .matrix-table td:first-child { text-align: left; font-weight: 600; color: var(--text); }
+  .matrix-table tr:nth-child(even) td { background: #F8FAFC; }
+  .check { color: #10B981; font-weight: 800; font-size: 0.9rem; }
+  .cross { color: #D1D5DB; font-size: 0.9rem; }
+
+  /* ── API Map ── */
+  .api-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .api-card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+  }
+  .api-title { font-weight: 700; font-size: 0.82rem; margin-bottom: 8px; color: var(--text); }
+  .api-route {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 0.7rem;
+    border-bottom: 1px dotted var(--border);
+  }
+  .api-route:last-child { border-bottom: none; }
+  .method-badge {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-family: monospace;
+    flex-shrink: 0;
+  }
+  .GET { background: #DCFCE7; color: #15803D; }
+  .POST { background: #DBEAFE; color: #1D4ED8; }
+  .PATCH { background: #FEF9C3; color: #854D0E; }
+  .DELETE { background: #FEE2E2; color: #991B1B; }
+  .api-path { font-family: monospace; color: var(--muted); }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .footer strong { color: var(--red); }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 2px dashed var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<div class="header no-print" style="flex-wrap:wrap;">
+  <div class="header-left">
+    <h1>KAIDE<span>EDER</span></h1>
+    <p>🗂️ System Architecture & Workflow Diagram — ครอบคลุมทุก Flow และ Role</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span class="version-badge">v 2.0</span>
+    <button class="btn-pdf" onclick="window.print()">
+      📄 Download / Print PDF
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════ PRINT HEADER ═══════════ -->
+<div style="display:none;" class="print-header">
+  <div style="text-align:center;padding:20px 0 10px;border-bottom:3px solid #E8364E;margin-bottom:20px;">
+    <h1 style="font-size:1.8rem;font-weight:900;letter-spacing:-1px;">KAIDEEDER</h1>
+    <p style="color:#64748B;font-size:0.85rem;">System Architecture & Workflow Diagram v2.0</p>
+    <p style="color:#64748B;font-size:0.75rem;margin-top:4px;">พิมพ์วันที่: <script>document.write(new Date().toLocaleDateString('th-TH'))</script></p>
+  </div>
+</div>
+<style>@media print { .print-header { display:block !important; } }</style>
+
+<div class="container">
+
+<!-- ════════════════════════════════════
+     SECTION 1: บทบาทผู้ใช้ (Roles)
+════════════════════════════════════ -->
+<div class="section-title">
+  <span class="dot" style="background:var(--amber);"></span>
+  1. บทบาทผู้ใช้ (User Roles) — ทั้งหมด 10 บทบาท
+</div>
+
+<div class="roles-grid">
+
+  <div class="role-card" style="border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">👑</span>
+      <span class="role-name" style="color:#B45309;">OWNER</span>
+    </div>
+    <div class="role-desc">เจ้าของร้าน — เข้าถึงได้ทุกอย่างในระบบ</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#B45309;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.08);">POS</span>
+      <span class="access-tag" style="color:#B45309;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.08);">Stock</span>
+      <span class="access-tag" style="color:#B45309;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.08);">Settings</span>
+      <span class="access-tag" style="color:#B45309;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.08);">Delivery</span>
+      <span class="access-tag" style="color:#B45309;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.08);">Reports</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">📊</span>
+      <span class="role-name" style="color:#1D4ED8;">MANAGER</span>
+    </div>
+    <div class="role-desc">ผู้จัดการ — ทุกอย่างยกเว้น Billing, ลบ User</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#1D4ED8;border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.08);">POS</span>
+      <span class="access-tag" style="color:#1D4ED8;border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.08);">Stock</span>
+      <span class="access-tag" style="color:#1D4ED8;border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.08);">Reports</span>
+      <span class="access-tag" style="color:#1D4ED8;border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.08);">Delivery</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">💰</span>
+      <span class="role-name" style="color:#065F46;">CASHIER</span>
+    </div>
+    <div class="role-desc">แคชเชียร์ — ใช้ POS, รับชำระ, ดูยอดขาย</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#065F46;border-color:rgba(16,185,129,0.4);background:rgba(16,185,129,0.08);">POS</span>
+      <span class="access-tag" style="color:#065F46;border-color:rgba(16,185,129,0.4);background:rgba(16,185,129,0.08);">Dashboard</span>
+      <span class="access-tag" style="color:#065F46;border-color:rgba(16,185,129,0.4);background:rgba(16,185,129,0.08);">Delivery Queue</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">🍳</span>
+      <span class="role-name" style="color:#991B1B;">KITCHEN</span>
+    </div>
+    <div class="role-desc">ครัว — จอ KDS รับออเดอร์, ยืนยันสถานะ</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#991B1B;border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08);">KDS</span>
+      <span class="access-tag" style="color:#991B1B;border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08);">Waste Log</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(139,92,246,0.3);background:rgba(139,92,246,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">🍸</span>
+      <span class="role-name" style="color:#5B21B6;">BAR</span>
+    </div>
+    <div class="role-desc">บาร์ — จอ KDS สำหรับออเดอร์เครื่องดื่ม</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#5B21B6;border-color:rgba(139,92,246,0.4);background:rgba(139,92,246,0.08);">KDS</span>
+      <span class="access-tag" style="color:#5B21B6;border-color:rgba(139,92,246,0.4);background:rgba(139,92,246,0.08);">Waste Log</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(148,163,184,0.3);background:rgba(148,163,184,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">🏭</span>
+      <span class="role-name" style="color:#475569;">WAREHOUSE</span>
+    </div>
+    <div class="role-desc">คลัง — รับสินค้า, โอน, นับสต็อค</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#475569;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.08);">GR</span>
+      <span class="access-tag" style="color:#475569;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.08);">Transfer</span>
+      <span class="access-tag" style="color:#475569;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.08);">Count</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(6,182,212,0.3);background:rgba(6,182,212,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">🛒</span>
+      <span class="role-name" style="color:#0E7490;">PURCHASER</span>
+    </div>
+    <div class="role-desc">จัดซื้อ — สั่งซื้อสินค้า, GR, รายงานการซื้อ</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#0E7490;border-color:rgba(6,182,212,0.4);background:rgba(6,182,212,0.08);">GR</span>
+      <span class="access-tag" style="color:#0E7490;border-color:rgba(6,182,212,0.4);background:rgba(6,182,212,0.08);">Reports</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(249,115,22,0.3);background:rgba(249,115,22,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">🍽️</span>
+      <span class="role-name" style="color:#9A3412;">WAITER</span>
+    </div>
+    <div class="role-desc">พนักงานเสิร์ฟ — ดูสถานะออเดอร์, เสิร์ฟโต๊ะ</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#9A3412;border-color:rgba(249,115,22,0.4);background:rgba(249,115,22,0.08);">KDS View</span>
+      <span class="access-tag" style="color:#9A3412;border-color:rgba(249,115,22,0.4);background:rgba(249,115,22,0.08);">Tables</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(225,29,72,0.3);background:rgba(225,29,72,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">🛵</span>
+      <span class="role-name" style="color:#9F1239;">RIDER</span>
+    </div>
+    <div class="role-desc">ไรเดอร์ — รับงานส่ง, อัปเดตสถานะ Delivery</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#9F1239;border-color:rgba(225,29,72,0.4);background:rgba(225,29,72,0.08);">Rider Queue</span>
+      <span class="access-tag" style="color:#9F1239;border-color:rgba(225,29,72,0.4);background:rgba(225,29,72,0.08);">Delivery Status</span>
+    </div>
+  </div>
+
+  <div class="role-card" style="border-color:rgba(100,116,139,0.3);background:rgba(100,116,139,0.02);">
+    <div class="role-header">
+      <span class="role-emoji">👁️</span>
+      <span class="role-name" style="color:#475569;">VIEWER</span>
+    </div>
+    <div class="role-desc">ดูข้อมูลอย่างเดียว — ไม่สามารถแก้ไขได้</div>
+    <div class="role-access">
+      <span class="access-tag" style="color:#475569;border-color:rgba(100,116,139,0.4);background:rgba(100,116,139,0.08);">Dashboard</span>
+      <span class="access-tag" style="color:#475569;border-color:rgba(100,116,139,0.4);background:rgba(100,116,139,0.08);">Reports</span>
+    </div>
+  </div>
+
+</div>
+
+<hr>
+
+<!-- ════════════════════════════════════
+     SECTION 2: FLOW DIAGRAMS
+════════════════════════════════════ -->
+<div class="section-title">
+  <span class="dot" style="background:var(--blue);"></span>
+  2. Flow การทำงานหลัก
+</div>
+
+<div class="flows-grid">
+
+  <!-- POS Flow -->
+  <div class="flow-card">
+    <div class="flow-header" style="background:linear-gradient(135deg,#DC2626,#991B1B);color:white;">
+      <span class="flow-icon">💰</span>
+      <div>
+        <div class="flow-title">POS ขายหน้าร้าน</div>
+        <div class="flow-subtitle">Cashier · Manager · Owner</div>
+      </div>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEE2E2;color:#991B1B;">1</div>
+        <div class="step-body">
+          <div class="step-text">เลือกโต๊ะ หรือ Walk-in</div>
+          <div class="step-note">ระบบเปิด Session ใหม่สำหรับโต๊ะนั้น</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEE2E2;color:#991B1B;">2</div>
+        <div class="step-body">
+          <div class="step-text">เลือกเมนู / เพิ่ม Topping</div>
+          <div class="step-note">ค้นหาชื่อ หรือเลือกจากหมวดหมู่</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEE2E2;color:#991B1B;">3</div>
+        <div class="step-body">
+          <div class="step-text">📤 ส่งไปครัว (KDS)</div>
+          <div class="step-note">ออเดอร์ปรากฏที่จอครัว + จอบาร์ทันที</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEE2E2;color:#991B1B;">4</div>
+        <div class="step-body">
+          <div class="step-text">💰 ชำระเงิน</div>
+          <div class="step-note">เงินสด / QR / โอน — พิมพ์ใบเสร็จ</div>
+          <span class="step-badge" style="background:#DCFCE7;color:#15803D;">ตัดสต็อคอัตโนมัติ</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEE2E2;color:#991B1B;">5</div>
+        <div class="step-body">
+          <div class="step-text">🖨️ พิมพ์ใบเสร็จ + QR Banking</div>
+          <div class="step-note">Thermal printer — TCP/IP 9100</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KDS Flow -->
+  <div class="flow-card">
+    <div class="flow-header" style="background:linear-gradient(135deg,#D97706,#92400E);color:white;">
+      <span class="flow-icon">🍳</span>
+      <div>
+        <div class="flow-title">จอครัว (KDS)</div>
+        <div class="flow-subtitle">Kitchen · Bar</div>
+      </div>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEF3C7;color:#92400E;">1</div>
+        <div class="step-body">
+          <div class="step-text">ออเดอร์ใหม่ → Card สีเหลือง</div>
+          <div class="step-note">Auto-refresh ทุก 10 วินาที</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEF3C7;color:#92400E;">2</div>
+        <div class="step-body">
+          <div class="step-text">กด ✅ ที่แต่ละ Item เมื่อทำเสร็จ</div>
+          <div class="step-note">Item เปลี่ยนเป็นสีเขียว</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEF3C7;color:#92400E;">3</div>
+        <div class="step-body">
+          <div class="step-text">กด ✅ เสร็จแล้ว บน Card</div>
+          <div class="step-note">Status = READY → แจ้ง Waiter</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FEF3C7;color:#92400E;">4</div>
+        <div class="step-body">
+          <div class="step-text">Card หายออกหลัง 30 วิ</div>
+          <div class="step-note">Archive → ดูได้ใน History</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Menu Dine-In -->
+  <div class="flow-card">
+    <div class="flow-header" style="background:linear-gradient(135deg,#7C3AED,#4C1D95);color:white;">
+      <span class="flow-icon">📱</span>
+      <div>
+        <div class="flow-title">QR Menu (โต๊ะ)</div>
+        <div class="flow-subtitle">ลูกค้า — ไม่ต้อง Login</div>
+      </div>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num" style="background:#EDE9FE;color:#4C1D95;">1</div>
+        <div class="step-body">
+          <div class="step-text">ลูกค้าสแกน QR ที่โต๊ะ</div>
+          <div class="step-note">URL: /m/{tenant}/{table}</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#EDE9FE;color:#4C1D95;">2</div>
+        <div class="step-body">
+          <div class="step-text">เลือกเมนู + Topping + จำนวน</div>
+          <div class="step-note">ดูรูปภาพ + ราคา + Featured</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#EDE9FE;color:#4C1D95;">3</div>
+        <div class="step-body">
+          <div class="step-text">กด 🛒 สั่งอาหาร</div>
+          <div class="step-note">ออเดอร์ส่งไป POS + KDS โดยอัตโนมัติ</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#EDE9FE;color:#4C1D95;">4</div>
+        <div class="step-body">
+          <div class="step-text">ดูสถานะออเดอร์ Real-time</div>
+          <div class="step-note">⏳ รอ → 🔔 พร้อมเสิร์ฟ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock Flow -->
+  <div class="flow-card">
+    <div class="flow-header" style="background:linear-gradient(135deg,#0891B2,#164E63);color:white;">
+      <span class="flow-icon">📦</span>
+      <div>
+        <div class="flow-title">จัดการสต็อค</div>
+        <div class="flow-subtitle">Warehouse · Manager · Owner</div>
+      </div>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num" style="background:#CFFAFE;color:#164E63;">1</div>
+        <div class="step-body">
+          <div class="step-text">🛒 GR — รับสินค้าเข้าคลัง</div>
+          <div class="step-note">Avg Cost คำนวณ Moving Average</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#CFFAFE;color:#164E63;">2</div>
+        <div class="step-body">
+          <div class="step-text">🔄 Transfer — โอนระหว่างคลัง</div>
+          <div class="step-note">WH_MAIN → KIT_STOCK → BAR_STOCK</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#CFFAFE;color:#164E63;">3</div>
+        <div class="step-body">
+          <div class="step-text">💰 POS ขาย → ตัดสต็อค BOM</div>
+          <div class="step-note">ตามสูตรอาหาร — อัตโนมัติ</div>
+          <span class="step-badge" style="background:#DCFCE7;color:#15803D;">Real-time</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#CFFAFE;color:#164E63;">4</div>
+        <div class="step-body">
+          <div class="step-text">📋 Stock Count รอบสิ้นเดือน</div>
+          <div class="step-note">นับจริง → เปรียบเทียบ → Approve Adjust</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOM Flow -->
+  <div class="flow-card">
+    <div class="flow-header" style="background:linear-gradient(135deg,#059669,#064E3B);color:white;">
+      <span class="flow-icon">📋</span>
+      <div>
+        <div class="flow-title">BOM & Recipe</div>
+        <div class="flow-subtitle">Manager · Owner</div>
+      </div>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num" style="background:#D1FAE5;color:#064E3B;">1</div>
+        <div class="step-body">
+          <div class="step-text">สร้าง Recipe → เชื่อมกับเมนู</div>
+          <div class="step-note">ระบุ POS Menu Code เพื่อ Auto Match</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#D1FAE5;color:#064E3B;">2</div>
+        <div class="step-body">
+          <div class="step-text">เพิ่ม BOM Lines: วัตถุดิบ + จำนวน + คลัง</div>
+          <div class="step-note">รองรับ UOM Conversion (ถุง→กรัม)</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#D1FAE5;color:#064E3B;">3</div>
+        <div class="step-body">
+          <div class="step-text">ตรวจสอบ Badge ✅ ⚠️ ❌</div>
+          <div class="step-note">ช่วยระบุเมนูที่ยังขาด BOM</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#D1FAE5;color:#064E3B;">4</div>
+        <div class="step-body">
+          <div class="step-text">เมื่อ POS ขาย → ตัดสต็อครอบนั้น</div>
+          <div class="step-note">Fail → บันทึกใน Consume Fail Log</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer Memory Flow -->
+  <div class="flow-card">
+    <div class="flow-header" style="background:linear-gradient(135deg,#DB2777,#831843);color:white;">
+      <span class="flow-icon">🧠</span>
+      <div>
+        <div class="flow-title">จำข้อมูลลูกค้า (Smart Autofill)</div>
+        <div class="flow-subtitle">ลูกค้า Delivery — ครั้งที่ 2+</div>
+      </div>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num" style="background:#FCE7F3;color:#831843;">1</div>
+        <div class="step-body">
+          <div class="step-text">ครั้งแรก: กรอกชื่อ + ที่อยู่ + เบอร์</div>
+          <div class="step-note">ระบบบันทึก CustomerProfile จากเบอร์โทร</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FCE7F3;color:#831843;">2</div>
+        <div class="step-body">
+          <div class="step-text">ครั้งถัดไป: กรอกแค่เบอร์โทร</div>
+          <div class="step-note">ระบบ Autofill ชื่อ + ที่อยู่ให้อัตโนมัติ</div>
+          <span class="step-badge" style="background:#FCE7F3;color:#831843;">ประหยัดเวลา</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#FCE7F3;color:#831843;">3</div>
+        <div class="step-body">
+          <div class="step-text">ลูกค้าตรวจสอบ / แก้ไข ถ้าต้องการ</div>
+          <div class="step-note">ที่อยู่จะ update ครั้งต่อไปอัตโนมัติ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════
+     SECTION 3: DELIVERY FLOW (Full)
+════════════════════════════════════ -->
+<div class="section-title">
+  <span class="dot" style="background:var(--red);"></span>
+  3. Delivery Flow — ครบทุกขั้นตอน
+</div>
+
+<div class="delivery-flow" style="margin-bottom:16px;">
+  <div style="padding:14px 20px;border-bottom:1px solid var(--border);background:#FFF5F5;">
+    <div style="font-weight:800;font-size:0.88rem;color:#991B1B;">🛵 ระบบ Delivery ครบวงจร — ตั้งแต่ลูกค้าสั่งจนส่งถึงบ้าน</div>
+  </div>
+  <div class="delivery-row">
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#EDE9FE;color:#4C1D95;">1</div>
+      <div class="stage-icon">📱</div>
+      <div class="stage-title" style="color:#4C1D95;">สแกน QR</div>
+      <div class="stage-desc">ลูกค้าสแกน QR จากสติ๊กเกอร์/โฆษณา</div>
+      <div class="stage-actor" style="color:#4C1D95;border-color:rgba(139,92,246,0.3);background:rgba(139,92,246,0.08);">👤 ลูกค้า</div>
+    </div>
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#FCE7F3;color:#831843;">2</div>
+      <div class="stage-icon">📋</div>
+      <div class="stage-title" style="color:#831843;">กรอกข้อมูล</div>
+      <div class="stage-desc">กรอกชื่อ+ที่อยู่+เบอร์ (หรือ Autofill)</div>
+      <div class="stage-actor" style="color:#831843;border-color:rgba(219,39,119,0.3);background:rgba(219,39,119,0.08);">👤 ลูกค้า</div>
+    </div>
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#FEF3C7;color:#92400E;">3</div>
+      <div class="stage-icon">🛒</div>
+      <div class="stage-title" style="color:#92400E;">เลือกเมนู</div>
+      <div class="stage-desc">เลือก + Topping + จำนวน</div>
+      <div class="stage-actor" style="color:#92400E;border-color:rgba(217,119,6,0.3);background:rgba(217,119,6,0.08);">👤 ลูกค้า</div>
+    </div>
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#DBEAFE;color:#1D4ED8;">4</div>
+      <div class="stage-icon">💳</div>
+      <div class="stage-title" style="color:#1D4ED8;">ชำระเงิน</div>
+      <div class="stage-desc">QR Banking / โอน — Upload Slip</div>
+      <div class="stage-actor" style="color:#1D4ED8;border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.08);">👤 ลูกค้า</div>
+    </div>
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#FEE2E2;color:#991B1B;">5</div>
+      <div class="stage-icon">🔔</div>
+      <div class="stage-title" style="color:#991B1B;">รับออเดอร์</div>
+      <div class="stage-desc">Cashier เห็นออเดอร์ใหม่ใน Delivery Queue</div>
+      <div class="stage-actor" style="color:#991B1B;border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.08);">💰 Cashier</div>
+    </div>
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#D1FAE5;color:#064E3B;">6</div>
+      <div class="stage-icon">🍳</div>
+      <div class="stage-title" style="color:#064E3B;">ทำอาหาร</div>
+      <div class="stage-desc">ส่งไป KDS ครัวเริ่มทำ</div>
+      <div class="stage-actor" style="color:#064E3B;border-color:rgba(5,150,105,0.3);background:rgba(5,150,105,0.08);">🍳 Kitchen</div>
+    </div>
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#FEE2E2;color:#9F1239;">7</div>
+      <div class="stage-icon">🛵</div>
+      <div class="stage-title" style="color:#9F1239;">Rider รับงาน</div>
+      <div class="stage-desc">กด "รับงาน" → ASSIGNED→OUT_FOR_DELIVERY</div>
+      <div class="stage-actor" style="color:#9F1239;border-color:rgba(225,29,72,0.3);background:rgba(225,29,72,0.08);">🛵 Rider</div>
+    </div>
+    <div class="delivery-stage">
+      <div class="stage-num" style="background:#CFFAFE;color:#0E7490;">8</div>
+      <div class="stage-icon">✅</div>
+      <div class="stage-title" style="color:#0E7490;">ส่งสำเร็จ</div>
+      <div class="stage-desc">กด "ส่งแล้ว" → DELIVERED → Popup ขอบคุณลูกค้า</div>
+      <div class="stage-actor" style="color:#0E7490;border-color:rgba(6,182,212,0.3);background:rgba(6,182,212,0.08);">🛵 Rider + 👤 ลูกค้า</div>
+    </div>
+  </div>
+</div>
+
+<!-- Delivery Status Machine -->
+<div style="background:var(--card);border-radius:14px;overflow:hidden;border:1px solid var(--border);padding:20px;margin-bottom:32px;">
+  <div style="font-weight:800;font-size:0.85rem;color:var(--text);margin-bottom:16px;">🔄 Delivery Status Machine</div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <div style="background:#F1F5F9;border:1px solid var(--border);padding:8px 16px;border-radius:99px;font-size:0.78rem;font-weight:700;color:#475569;">PENDING</div>
+    <div style="color:#94A3B8;font-weight:700;">→</div>
+    <div style="background:#FEF3C7;border:1px solid #FDE68A;padding:8px 16px;border-radius:99px;font-size:0.78rem;font-weight:700;color:#92400E;">CONFIRMED</div>
+    <div style="color:#94A3B8;font-weight:700;">→</div>
+    <div style="background:#DBEAFE;border:1px solid #BFDBFE;padding:8px 16px;border-radius:99px;font-size:0.78rem;font-weight:700;color:#1D4ED8;">PREPARING</div>
+    <div style="color:#94A3B8;font-weight:700;">→</div>
+    <div style="background:#EDE9FE;border:1px solid #DDD6FE;padding:8px 16px;border-radius:99px;font-size:0.78rem;font-weight:700;color:#5B21B6;">ASSIGNED</div>
+    <div style="color:#9F1239;font-weight:800;font-size:1rem;">→ 🛵</div>
+    <div style="background:#FEE2E2;border:1px solid #FECACA;padding:8px 16px;border-radius:99px;font-size:0.78rem;font-weight:700;color:#991B1B;">OUT_FOR_DELIVERY</div>
+    <div style="color:#94A3B8;font-weight:700;">→</div>
+    <div style="background:#D1FAE5;border:1px solid #A7F3D0;padding:8px 16px;border-radius:99px;font-size:0.78rem;font-weight:700;color:#065F46;">DELIVERED ✅</div>
+  </div>
+  <div style="margin-top:12px;font-size:0.72rem;color:var(--muted);line-height:1.6;">
+    <strong>Rider สามารถอัปเดตได้เฉพาะ:</strong> ASSIGNED → OUT_FOR_DELIVERY → DELIVERED เท่านั้น (API Guard)
+  </div>
+</div>
+
+<hr class="page-break">
+
+<!-- ════════════════════════════════════
+     SECTION 4: Permission Matrix
+════════════════════════════════════ -->
+<div class="section-title">
+  <span class="dot" style="background:var(--purple);"></span>
+  4. Permission Matrix — สิทธิ์แต่ละ Role
+</div>
+
+<div class="matrix-wrap" style="margin-bottom:32px;">
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <th>ฟีเจอร์ / หน้า</th>
+        <th>👑 Owner</th>
+        <th>📊 Mgr</th>
+        <th>💰 Cashier</th>
+        <th>🍳 Kitchen</th>
+        <th>🍸 Bar</th>
+        <th>🏭 WH</th>
+        <th>🛒 Purch</th>
+        <th>🍽️ Waiter</th>
+        <th>🛵 Rider</th>
+        <th>👁️ Viewer</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>POS ขายหน้าร้าน</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>จอครัว KDS</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>Delivery Queue</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>🛵 Rider Dashboard</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="cross">–</td></tr>
+      <tr><td>อัปเดต Delivery Status</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓*</td><td class="cross">–</td></tr>
+      <tr><td>Dashboard (สรุป)</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td></tr>
+      <tr><td>เมนูร้าน</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>วัตถุดิบ / Inventory</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td></tr>
+      <tr><td>สต็อคคลัง</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td></tr>
+      <tr><td>GR ซื้อเข้า</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td></tr>
+      <tr><td>โอนคลัง / Transfer</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>ปรับสต็อค</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>Stock Count</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>สูตรอาหาร BOM</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>Waste Log</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>Reports</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="check">✓</td></tr>
+      <tr><td>AI Assistant</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>Settings / ตั้งค่า</td><td class="check">✓</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>จัดการ Users</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+      <tr><td>Billing</td><td class="check">✓</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td><td class="cross">–</td></tr>
+    </tbody>
+  </table>
+</div>
+<div style="font-size:0.7rem;color:var(--muted);margin-top:-24px;margin-bottom:28px;">
+  * Rider อัปเดต delivery status ได้เฉพาะ ASSIGNED→OUT_FOR_DELIVERY→DELIVERED เท่านั้น (API enforced)
+</div>
+
+<hr class="page-break">
+
+<!-- ════════════════════════════════════
+     SECTION 5: System Architecture
+════════════════════════════════════ -->
+<div class="section-title">
+  <span class="dot" style="background:var(--green);"></span>
+  5. System Architecture
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:32px;">
+
+  <div style="background:var(--card);border-radius:14px;padding:18px;border:1px solid var(--border);">
+    <div style="font-weight:800;font-size:0.85rem;margin-bottom:12px;color:#1D4ED8;">🌐 Frontend (Next.js 14)</div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:2;">
+      📁 src/app/(dashboard)/ — Admin UI<br>
+      📁 src/app/d/[tenant]/ — Delivery Checkout<br>
+      📁 src/app/m/[tenant]/ — QR Dine-in Menu<br>
+      📁 src/app/rider/ — Rider Dashboard<br>
+      📁 src/app/login/ — Login Page<br>
+      🎨 Vanilla CSS + CSS Variables
+    </div>
+  </div>
+
+  <div style="background:var(--card);border-radius:14px;padding:18px;border:1px solid var(--border);">
+    <div style="font-weight:800;font-size:0.85rem;margin-bottom:12px;color:#059669;">🗄️ Backend API (Next.js Route Handlers)</div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:2;">
+      /api/auth/ — Login / Me / Logout<br>
+      /api/pos/ — POS Orders, Delivery<br>
+      /api/public/ — Menu, Delivery Order (no auth)<br>
+      /api/settings/ — Store, Users, QR Banking<br>
+      /api/inventory/ — Products, Stock, GR<br>
+      /api/tenant/ — Tenant settings, QR
+    </div>
+  </div>
+
+  <div style="background:var(--card);border-radius:14px;padding:18px;border:1px solid var(--border);">
+    <div style="font-weight:800;font-size:0.85rem;margin-bottom:12px;color:#7C3AED;">🔒 Security (RBAC)</div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:2;">
+      JWT Token (httpOnly Cookie, 30d)<br>
+      withAuth() middleware — ทุก API<br>
+      Multi-tenant isolation — tenantId<br>
+      Role-permission mapping ที่ permissions.ts<br>
+      Rider transition guard (state machine)<br>
+      Owner bypass — ผ่านทุก guard เสมอ
+    </div>
+  </div>
+
+  <div style="background:var(--card);border-radius:14px;padding:18px;border:1px solid var(--border);">
+    <div style="font-weight:800;font-size:0.85rem;margin-bottom:12px;color:#DC2626;">🗃️ Database (MySQL + Prisma)</div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:2;">
+      Tenant, User, Product, Category<br>
+      MenuItem, Order, OrderItem<br>
+      DeliveryInfo, CustomerProfile<br>
+      Inventory, GoodsReceipt, Transfer<br>
+      StockCount, Recipe, BOM<br>
+      ConsumeLog, WasteLog, Movement
+    </div>
+  </div>
+
+  <div style="background:var(--card);border-radius:14px;padding:18px;border:1px solid var(--border);">
+    <div style="font-weight:800;font-size:0.85rem;margin-bottom:12px;color:#D97706;">☁️ Hosting (Hostinger)</div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:2;">
+      Domain: kaideeder.com<br>
+      Node.js runtime + PM2 process manager<br>
+      MySQL 8.x (127.0.0.1:3306)<br>
+      Nginx reverse proxy + SSL<br>
+      📂 .next/standalone — production build<br>
+      npm run deploy — build + db:push
+    </div>
+  </div>
+
+  <div style="background:var(--card);border-radius:14px;padding:18px;border:1px solid var(--border);">
+    <div style="font-weight:800;font-size:0.85rem;margin-bottom:12px;color:#0891B2;">🖨️ Hardware Integration</div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:2;">
+      Thermal Printer — TCP/IP 9100<br>
+      IP: กำหนดในหน้า Settings<br>
+      ESC/POS commands<br>
+      Kitchen ticket / Bar ticket / Receipt<br>
+      Auto paper cut<br>
+      QR Banking พิมพ์ใต้ยอดชำระ
+    </div>
+  </div>
+
+</div>
+
+<!-- URL Map -->
+<div class="section-title">
+  <span class="dot" style="background:var(--cyan);"></span>
+  6. URL & Access Map
+</div>
+
+<div class="api-grid" style="margin-bottom:32px;">
+
+  <div class="api-card" style="border-color:rgba(220,38,38,0.2);">
+    <div class="api-title" style="color:#DC2626;">🔐 Auth</div>
+    <div class="api-route"><span class="method-badge POST">POST</span><span class="api-path">/api/auth/login</span></div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/auth/me</span></div>
+    <div class="api-route"><span class="method-badge DELETE">DEL</span><span class="api-path">/api/auth/login (logout)</span></div>
+  </div>
+
+  <div class="api-card" style="border-color:rgba(59,130,246,0.2);">
+    <div class="api-title" style="color:#1D4ED8;">💰 POS</div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/pos/orders</span></div>
+    <div class="api-route"><span class="method-badge POST">POST</span><span class="api-path">/api/pos/orders</span></div>
+    <div class="api-route"><span class="method-badge PATCH">PATCH</span><span class="api-path">/api/pos/orders/[id]</span></div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/pos/delivery</span></div>
+    <div class="api-route"><span class="method-badge PATCH">PATCH</span><span class="api-path">/api/pos/delivery/[id]/status</span></div>
+  </div>
+
+  <div class="api-card" style="border-color:rgba(139,92,246,0.2);">
+    <div class="api-title" style="color:#7C3AED;">📱 Public (No Auth)</div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/public/menu/[tenant]</span></div>
+    <div class="api-route"><span class="method-badge POST">POST</span><span class="api-path">/api/public/delivery/orders</span></div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/public/payment/status/[id]</span></div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/public/customer/lookup</span></div>
+  </div>
+
+  <div class="api-card" style="border-color:rgba(16,185,129,0.2);">
+    <div class="api-title" style="color:#065F46;">📦 Inventory</div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/inventory/products</span></div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/inventory/stock</span></div>
+    <div class="api-route"><span class="method-badge POST">POST</span><span class="api-path">/api/inventory/gr</span></div>
+    <div class="api-route"><span class="method-badge POST">POST</span><span class="api-path">/api/inventory/transfer</span></div>
+  </div>
+
+  <div class="api-card" style="border-color:rgba(245,158,11,0.2);">
+    <div class="api-title" style="color:#92400E;">⚙️ Settings</div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/settings/store</span></div>
+    <div class="api-route"><span class="method-badge PATCH">PATCH</span><span class="api-path">/api/settings/store</span></div>
+    <div class="api-route"><span class="method-badge GET">GET</span><span class="api-path">/api/settings/users</span></div>
+    <div class="api-route"><span class="method-badge POST">POST</span><span class="api-path">/api/settings/users</span></div>
+    <div class="api-route"><span class="method-badge PATCH">PATCH</span><span class="api-path">/api/tenant/settings (QR Banking)</span></div>
+  </div>
+
+  <div class="api-card" style="border-color:rgba(219,39,119,0.2);">
+    <div class="api-title" style="color:#831843;">🌐 Pages</div>
+    <div class="api-route"><span style="font-size:0.65rem;color:#831843;font-weight:700;">PAGE</span>&nbsp;<span class="api-path">kaideeder.com/login</span></div>
+    <div class="api-route"><span style="font-size:0.65rem;color:#831843;font-weight:700;">PAGE</span>&nbsp;<span class="api-path">/d/{tenant} — Delivery</span></div>
+    <div class="api-route"><span style="font-size:0.65rem;color:#831843;font-weight:700;">PAGE</span>&nbsp;<span class="api-path">/m/{tenant}/{table} — QR Menu</span></div>
+    <div class="api-route"><span style="font-size:0.65rem;color:#831843;font-weight:700;">PAGE</span>&nbsp;<span class="api-path">/rider — Rider Dashboard</span></div>
+    <div class="api-route"><span style="font-size:0.65rem;color:#831843;font-weight:700;">PAGE</span>&nbsp;<span class="api-path">/settings/manual — คู่มือ</span></div>
+  </div>
+
+</div>
+
+<!-- ══ Footer ══ -->
+<div class="footer">
+  <strong>KAIDEEDER</strong> — System Architecture Diagram v2.0
+  &nbsp;•&nbsp; อัปเดต เมษายน 2568
+  &nbsp;•&nbsp; Multi-Tenant Restaurant POS & Stock Management
+  <br style="margin-top:4px;">
+  <span style="color:#94A3B8;font-size:0.7rem;">kaideeder.com &nbsp;|&nbsp; Powered by Next.js 14 + Prisma + MySQL</span>
+</div>
+
+</div><!-- /container -->
+
+<script>
+// Auto-detect print and show print header
+window.addEventListener('beforeprint', () => {
+  document.querySelector('.print-header').style.display = 'block';
+});
+window.addEventListener('afterprint', () => {
+  document.querySelector('.print-header').style.display = 'none';
+});
+</script>
+</body>
+</html>
