@@ -11,7 +11,7 @@ interface QueueItem {
 }
 interface QueueOrder {
     orderId: string; orderNumber: string; tableName: string; zone: string
-    openedAt: string; orderNote: string | null
+    openedAt: string; orderNote: string | null; isPendingConfirm?: boolean
     items: QueueItem[]
 }
 
@@ -184,7 +184,12 @@ export default function KitchenPage() {
                             }}
                             style={{ padding: '13px 14px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: isSelected ? 'rgba(232,54,78,0.07)' : '#fff', borderLeft: isSelected ? '4px solid #E8364E' : '4px solid transparent', transition: 'all 0.12s', position: 'relative' }}>
                             {hasPending && <div style={{ position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: '50%', background: '#EF4444', animation: 'pulse 1.5s infinite' }} />}
-                            <div style={{ fontWeight: 800, fontSize: '1rem', color: isSelected ? '#E8364E' : '#111827' }}>โต๊ะ {order.tableName}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ fontWeight: 800, fontSize: '1rem', color: isSelected ? '#E8364E' : '#111827' }}>โต๊ะ {order.tableName}</div>
+                                {order.isPendingConfirm && (
+                                    <span style={{ fontSize: '0.6rem', fontWeight: 800, padding: '2px 7px', borderRadius: 99, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>📱 QR</span>
+                                )}
+                            </div>
                             <div style={{ fontSize: '0.73rem', color: '#6B7280', marginTop: 2 }}>⏱ {timeSince(order.openedAt)} · {order.items.length} รายการ</div>
                             <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                 {order.items.slice(0, 3).map(item => (
@@ -218,6 +223,11 @@ export default function KitchenPage() {
             {selectedOrder.orderNote && (
                 <div style={{ padding: '7px 18px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', color: '#92400E', fontSize: '0.82rem' }}>
                     📌 {selectedOrder.orderNote}
+                </div>
+            )}
+            {selectedOrder.isPendingConfirm && (
+                <div style={{ padding: '8px 18px', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', color: '#2563EB', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    📱 ออเดอร์จากลูกค้า (QR) — รอแคชเชียร์ยืนยัน แต่ทำได้เลย!
                 </div>
             )}
             {/* Items */}

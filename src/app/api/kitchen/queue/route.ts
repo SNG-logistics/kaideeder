@@ -13,7 +13,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
     const where: Record<string, unknown> = {
         kitchenStatus: { in: statuses },
         isCancelled: false,
-        order: { tenantId, status: 'OPEN' },   // ← tenant scoped here
+        order: { tenantId, status: { in: ['OPEN', 'PENDING_CONFIRM'] } },   // ← include QR self-orders pending confirm
     }
     if (station === 'BAR') {
         where.stationId = 'BAR'
@@ -27,7 +27,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
             product: { select: { id: true, sku: true, name: true, category: true, imageUrl: true, imageBase64: true } },
             order: {
                 select: {
-                    id: true, orderNumber: true, openedAt: true, note: true,
+                    id: true, orderNumber: true, openedAt: true, note: true, status: true,
                     table: { select: { id: true, name: true, zone: true } },
                 },
             },
@@ -54,7 +54,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
     // Group by order for display
     const grouped: Record<string, {
         orderId: string; orderNumber: string; tableName: string; zone: string;
-        openedAt: Date; orderNote: string | null;
+        openedAt: Date; orderNote: string | null; isPendingConfirm: boolean;
         items: typeof itemsWithImages;
     }> = {}
 
@@ -68,6 +68,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
                 zone: item.order.table?.zone || '-',
                 openedAt: item.order.openedAt,
                 orderNote: item.order.note,
+                isPendingConfirm: item.order.status === 'PENDING_CONFIRM',
                 items: [],
             }
         }
