@@ -152,6 +152,35 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                     convMap,
                     productBaseUnit: item.product.unit,
                 })
+
+                // ✅ ตัดท็อปปิ้ง (เมนูหลักไม่มี BOM)
+                if (item.toppingsJson) {
+                    try {
+                        const _tops = JSON.parse(item.toppingsJson) as { id: string; name: string; price: number; productId?: string }[]
+                        for (const top of _tops) {
+                            if (!top.productId) continue
+                            const topBom = await prisma.recipeBOM.findMany({ where: { menuId: top.productId, tenantId }, include: { product: true } })
+                            if (topBom.length === 0) {
+                                const topProd = await prisma.product.findUnique({ where: { id: top.productId }, include: { category: true } })
+                                if (!topProd) continue
+                                const topLocId = getDefaultLocation(topProd.category?.code, locationMap)
+                                stockWarnings.push(`⚠️ ท็อปปิ้ง "${top.name}": ไม่มีสูตร BOM — ตัดโดยตรง`)
+                                await deductInventory({ tenantId, productId: top.productId, locationId: topLocId, quantity: item.quantity, unitCost: topProd.costPrice, orderId: id, userId: (ctx as any).user?.userId || null, warnings: stockWarnings, failEntries, menuId: item.productId, menuName: `${item.product.name} + ${top.name}`, bomUnit: topProd.unit, convMap, productBaseUnit: topProd.unit })
+                            } else {
+                                for (const bom of topBom) {
+                                    const baseUnit = bom.product.unit
+                                    let qty = item.quantity * bom.quantity
+                                    if (bom.unit !== baseUnit) {
+                                        const f = resolveConversion(bom.productId, bom.unit, baseUnit, convMap)
+                                        if (f === null) { stockWarnings.push(`❌ ท็อปปิ้ง "${top.name}" > "${bom.product.name}": ไม่มี UOM`); continue }
+                                        qty = item.quantity * bom.quantity * f
+                                    }
+                                    await deductInventory({ tenantId, productId: bom.productId, locationId: bom.locationId, quantity: qty, unitCost: bom.product.costPrice, orderId: id, userId: (ctx as any).user?.userId || null, warnings: stockWarnings, failEntries, menuId: item.productId, menuName: `${item.product.name} + ${top.name}`, bomUnit: baseUnit, convMap, productBaseUnit: baseUnit, locationMap })
+                                }
+                            }
+                        }
+                    } catch (e) { console.error('[close] Topping deduction error (no-BOM path):', e) }
+                }
                 continue
             }
 
@@ -199,6 +228,35 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                     productBaseUnit: baseUnit,
                     locationMap,
                 })
+            }
+
+            // ─── Topping BOM Deduction (เมนูหลักมี BOM) ──────────────────
+            if (item.toppingsJson) {
+                try {
+                    const _tops = JSON.parse(item.toppingsJson) as { id: string; name: string; price: number; productId?: string }[]
+                    for (const top of _tops) {
+                        if (!top.productId) continue
+                        const topBom = await prisma.recipeBOM.findMany({ where: { menuId: top.productId, tenantId }, include: { product: true } })
+                        if (topBom.length === 0) {
+                            const topProd = await prisma.product.findUnique({ where: { id: top.productId }, include: { category: true } })
+                            if (!topProd) continue
+                            const topLocId = getDefaultLocation(topProd.category?.code, locationMap)
+                            stockWarnings.push(`⚠️ ท็อปปิ้ง "${top.name}": ไม่มีสูตร BOM — ตัดโดยตรง`)
+                            await deductInventory({ tenantId, productId: top.productId, locationId: topLocId, quantity: item.quantity, unitCost: topProd.costPrice, orderId: id, userId: (ctx as any).user?.userId || null, warnings: stockWarnings, failEntries, menuId: item.productId, menuName: `${item.product.name} + ${top.name}`, bomUnit: topProd.unit, convMap, productBaseUnit: topProd.unit })
+                        } else {
+                            for (const bom of topBom) {
+                                const baseUnit = bom.product.unit
+                                let qty = item.quantity * bom.quantity
+                                if (bom.unit !== baseUnit) {
+                                    const f = resolveConversion(bom.productId, bom.unit, baseUnit, convMap)
+                                    if (f === null) { stockWarnings.push(`❌ ท็อปปิ้ง "${top.name}" > "${bom.product.name}": ไม่มี UOM`); continue }
+                                    qty = item.quantity * bom.quantity * f
+                                }
+                                await deductInventory({ tenantId, productId: bom.productId, locationId: bom.locationId, quantity: qty, unitCost: bom.product.costPrice, orderId: id, userId: (ctx as any).user?.userId || null, warnings: stockWarnings, failEntries, menuId: item.productId, menuName: `${item.product.name} + ${top.name}`, bomUnit: baseUnit, convMap, productBaseUnit: baseUnit, locationMap })
+                            }
+                        }
+                    }
+                } catch (e) { console.error('[close] Topping deduction error (has-BOM path):', e) }
             }
         }
 
@@ -324,6 +382,133 @@ function resolveConversion(
     const productConv = convMap.get(productId)
     if (!productConv) return null
     return productConv.get(`${fromUnit}|${toUnit}`) ?? null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: ตัดสต็อคสำหรับท็อปปิ้งทั้งหมดใน OrderItem
+// เรียกได้ทั้งเมื่อเมนูหลักมี BOM หรือไม่มี BOM
+// ─────────────────────────────────────────────────────────────────────────────
+interface DeductToppingParams {
+    item: {
+        toppingsJson: string | null
+        productId: string
+        quantity: number
+        product: { name: string }
+    }
+    tenantId: string
+    id: string               // orderId
+    ctx: any
+    stockWarnings: string[]
+    failEntries: FailEntry[]
+    convMap: Map<string, Map<string, number>>
+    locationMap: Record<string, string>
+}
+
+async function deductToppingStock(p: DeductToppingParams): Promise<void> {
+    if (!p.item.toppingsJson) return
+    try {
+        const selectedToppings = JSON.parse(p.item.toppingsJson) as {
+            id: string; name: string; price: number; productId?: string; isActive?: boolean
+        }[]
+
+        for (const topping of selectedToppings) {
+            if (!topping.productId) continue // ไม่ได้ link กับ product → ข้าม
+
+            const toppingBom = await prisma.recipeBOM.findMany({
+                where: { menuId: topping.productId, tenantId: p.tenantId },
+                include: { product: true },
+            })
+
+            if (toppingBom.length === 0) {
+                // ไม่มี BOM → fallback ตัด topping product โดยตรง
+                const toppingProduct = await prisma.product.findUnique({
+                    where: { id: topping.productId },
+                    include: { category: true },
+                })
+                if (!toppingProduct) continue
+
+                const toppingLocId = getDefaultLocation(toppingProduct.category?.code, p.locationMap)
+                p.stockWarnings.push(`⚠️ ท็อปปิ้ง "${topping.name}": ไม่มีสูตร BOM — ตัดโดยตรง`)
+                p.failEntries.push({
+                    menuId: p.item.productId,
+                    menuName: `${p.item.product.name} + ${topping.name}`,
+                    ingredientId: topping.productId,
+                    ingredientName: topping.name,
+                    locationId: toppingLocId || undefined,
+                    failReason: 'NO_BOM',
+                    requiredQty: p.item.quantity,
+                    requiredUnit: toppingProduct.unit,
+                    availableQty: 0,
+                    detail: `ท็อปปิ้ง "${topping.name}" ยังไม่มีสูตร BOM — ตัดตัว product โดยตรง`,
+                })
+
+                await deductInventory({
+                    tenantId: p.tenantId,
+                    productId: topping.productId,
+                    locationId: toppingLocId,
+                    quantity: p.item.quantity,
+                    unitCost: toppingProduct.costPrice,
+                    orderId: p.id,
+                    userId: p.ctx?.user?.userId || null,
+                    warnings: p.stockWarnings,
+                    failEntries: p.failEntries,
+                    menuId: p.item.productId,
+                    menuName: `${p.item.product.name} + ${topping.name}`,
+                    bomUnit: toppingProduct.unit,
+                    convMap: p.convMap,
+                    productBaseUnit: toppingProduct.unit,
+                })
+                continue
+            }
+
+            // มี BOM → ตัดแต่ละ ingredient ของ topping
+            for (const bom of toppingBom) {
+                const baseUnit = bom.product.unit
+                let actualQty = p.item.quantity * bom.quantity
+
+                if (bom.unit !== baseUnit) {
+                    const factor = resolveConversion(bom.productId, bom.unit, baseUnit, p.convMap)
+                    if (factor === null) {
+                        p.failEntries.push({
+                            menuId: p.item.productId,
+                            menuName: `${p.item.product.name} + ${topping.name}`,
+                            ingredientId: bom.productId,
+                            ingredientName: bom.product.name,
+                            locationId: bom.locationId,
+                            failReason: 'NO_UOM_CONV',
+                            requiredQty: bom.quantity,
+                            requiredUnit: bom.unit,
+                            availableQty: 0,
+                            detail: `ท็อปปิ้ง "${topping.name}": ไม่มีหน่วยแปลง "${bom.unit}" → "${baseUnit}" สำหรับ "${bom.product.name}"`,
+                        })
+                        p.stockWarnings.push(`❌ ท็อปปิ้ง "${topping.name}" > "${bom.product.name}": ไม่มี UOM`)
+                        continue
+                    }
+                    actualQty = p.item.quantity * bom.quantity * factor
+                }
+
+                await deductInventory({
+                    tenantId: p.tenantId,
+                    productId: bom.productId,
+                    locationId: bom.locationId,
+                    quantity: actualQty,
+                    unitCost: bom.product.costPrice,
+                    orderId: p.id,
+                    userId: p.ctx?.user?.userId || null,
+                    warnings: p.stockWarnings,
+                    failEntries: p.failEntries,
+                    menuId: p.item.productId,
+                    menuName: `${p.item.product.name} + ${topping.name}`,
+                    bomUnit: baseUnit,
+                    convMap: p.convMap,
+                    productBaseUnit: baseUnit,
+                    locationMap: p.locationMap,
+                })
+            }
+        }
+    } catch (toppingErr) {
+        console.error('[close] Topping BOM deduction error:', toppingErr)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -481,13 +481,18 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
     const [activeModalTab, setActiveModalTab] = useState<'basic' | 'topping'>('basic')
 
     // ── Topping state ────────────────────────────────────────────────
-    type Topping = { id: string; name: string; price: number; isActive: boolean }
+    type Topping = { id: string; name: string; price: number; isActive: boolean; productId?: string; productName?: string }
     const parseToppings = (json?: string | null): Topping[] => {
         try { return json ? JSON.parse(json) : [] } catch { return [] }
     }
     const [toppings, setToppings] = useState<Topping[]>(() => parseToppings(product?.toppingsJson))
     const [newToppingName, setNewToppingName] = useState('')
     const [newToppingPrice, setNewToppingPrice] = useState('')
+    const [toppingProductSearch, setToppingProductSearch] = useState('')
+    const [toppingProductDropdown, setToppingProductDropdown] = useState<string | null>(null) // topping id showing dropdown
+
+    // Stock products for linking toppings
+    const stockProducts = allProducts.filter(p => !['SALE_ITEM', 'ENTERTAIN'].includes(p.productType))
 
     function addTopping() {
         const name = newToppingName.trim()
@@ -505,6 +510,14 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
     }
     function updateToppingPrice(id: string, price: number) {
         setToppings(prev => prev.map(t => t.id === id ? { ...t, price } : t))
+    }
+    function linkToppingProduct(toppingId: string, productId: string, productName: string) {
+        setToppings(prev => prev.map(t => t.id === toppingId ? { ...t, productId, productName } : t))
+        setToppingProductDropdown(null)
+        setToppingProductSearch('')
+    }
+    function unlinkToppingProduct(toppingId: string) {
+        setToppings(prev => prev.map(t => t.id === toppingId ? { ...t, productId: undefined, productName: undefined } : t))
     }
 
     // ── Combobox state for category ──────────────────────────────────
@@ -862,31 +875,69 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {toppings.map(t => (
                                     <div key={t.id} style={{
-                                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                                        display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 10px',
                                         borderRadius: 10, background: t.isActive ? '#FFFBEB' : '#F9FAFB',
                                         border: `1px solid ${t.isActive ? '#FDE68A' : '#E5E7EB'}`,
                                     }}>
-                                        <button onClick={() => toggleTopping(t.id)} title={t.isActive ? 'ปิดชั่วคราว' : 'เปิดใช้งาน'}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0, flexShrink: 0 }}>
-                                            {t.isActive ? '🟡' : '⚫'}
-                                        </button>
-                                        <span style={{ flex: 1, fontWeight: 600, fontSize: '0.88rem', color: t.isActive ? '#92400E' : '#9CA3AF' }}>
-                                            {t.name}
-                                        </span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>+</span>
-                                            <input type="number" value={t.price}
-                                                onChange={e => updateToppingPrice(t.id, parseFloat(e.target.value) || 0)}
-                                                style={{
-                                                    width: 90, padding: '4px 8px', borderRadius: 6,
-                                                    border: '1px solid #FDE68A', fontFamily: 'inherit',
-                                                    fontSize: '0.85rem', fontWeight: 700, color: '#D97706',
-                                                    background: '#FFFBEB', outline: 'none', textAlign: 'right',
-                                                }} />
-                                            <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>₭</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <button onClick={() => toggleTopping(t.id)} title={t.isActive ? 'ปิดชั่วคราว' : 'เปิดใช้งาน'}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0, flexShrink: 0 }}>
+                                                {t.isActive ? '🟡' : '⚫'}
+                                            </button>
+                                            <span style={{ flex: 1, fontWeight: 600, fontSize: '0.88rem', color: t.isActive ? '#92400E' : '#9CA3AF' }}>
+                                                {t.name}
+                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>+</span>
+                                                <input type="number" value={t.price}
+                                                    onChange={e => updateToppingPrice(t.id, parseFloat(e.target.value) || 0)}
+                                                    style={{
+                                                        width: 90, padding: '4px 8px', borderRadius: 6,
+                                                        border: '1px solid #FDE68A', fontFamily: 'inherit',
+                                                        fontSize: '0.85rem', fontWeight: 700, color: '#D97706',
+                                                        background: '#FFFBEB', outline: 'none', textAlign: 'right',
+                                                    }} />
+                                                <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>₭</span>
+                                            </div>
+                                            <button onClick={() => removeTopping(t.id)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '1rem', padding: 0, flexShrink: 0 }}>✕</button>
                                         </div>
-                                        <button onClick={() => removeTopping(t.id)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '1rem', padding: 0, flexShrink: 0 }}>✕</button>
+                                        {/* ── Product Link for Stock Deduction ── */}
+                                        <div style={{ marginLeft: 28, display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+                                            {t.productId ? (
+                                                <>
+                                                    <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>📦 {t.productName || t.productId}</span>
+                                                    <button onClick={() => unlinkToppingProduct(t.id)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '0.7rem', padding: 0 }}>✕ ยกเลิก</button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button onClick={() => { setToppingProductDropdown(toppingProductDropdown === t.id ? null : t.id); setToppingProductSearch('') }}
+                                                        style={{ background: 'none', border: '1px dashed #BBF7D0', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: '0.7rem', color: '#059669', fontWeight: 600, fontFamily: 'inherit' }}>
+                                                        📦 เลือกสินค้าตัดสต็อค
+                                                    </button>
+                                                    {toppingProductDropdown === t.id && (
+                                                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, background: '#fff', border: '1px solid #BBF7D0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', width: 280, maxHeight: 200, overflowY: 'auto' }}>
+                                                            <input value={toppingProductSearch} onChange={e => setToppingProductSearch(e.target.value)}
+                                                                placeholder="ค้นหา SKU / ชื่อ..."
+                                                                autoFocus
+                                                                style={{ width: '100%', padding: '8px 12px', border: 'none', borderBottom: '1px solid #E5E7EB', outline: 'none', fontSize: '0.82rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                                            {stockProducts.filter(p => p.sku.toLowerCase().includes(toppingProductSearch.toLowerCase()) || p.name.toLowerCase().includes(toppingProductSearch.toLowerCase())).slice(0, 15).map(p => (
+                                                                <div key={p.id} onClick={() => linkToppingProduct(t.id, p.id, `${p.sku} — ${p.name}`)}
+                                                                    style={{ padding: '7px 12px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #F3F4F6' }}
+                                                                    onMouseEnter={e => e.currentTarget.style.background = '#F0FDF4'}
+                                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                                    <span style={{ fontWeight: 700, color: '#059669' }}>{p.sku}</span> — {p.name}
+                                                                </div>
+                                                            ))}
+                                                            {stockProducts.filter(p => p.sku.toLowerCase().includes(toppingProductSearch.toLowerCase()) || p.name.toLowerCase().includes(toppingProductSearch.toLowerCase())).length === 0 && (
+                                                                <div style={{ padding: '12px', color: '#9CA3AF', textAlign: 'center', fontSize: '0.8rem' }}>ไม่พบสินค้า</div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
