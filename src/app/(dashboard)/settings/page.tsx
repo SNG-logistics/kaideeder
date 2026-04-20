@@ -676,17 +676,18 @@ function PaymentConfigCard() {
 function DeliveryLinkCard() {
     const canManage = usePermission('SETTINGS_MANAGE')
     const { settings } = useTenant()
-    const canvasRef = useRef<HTMLCanvasElement>(null)
+    const [qrDataUrl, setQrDataUrl] = useState<string>('')
 
     // The host might vary by environments, for now hardcoding delivery domain or using location context.
     const deliveryUrl = settings?.code ? `https://delivery.kaideeder.com/d/${settings.code}` : ''
 
     useEffect(() => {
-        if (!canvasRef.current || !deliveryUrl) return
-        QRCode.toCanvas(canvasRef.current, deliveryUrl, {
+        if (!deliveryUrl) return
+        QRCode.toDataURL(deliveryUrl, {
             width: 140, margin: 1,
             color: { dark: '#000000', light: '#FFFFFF' },
-        })
+        }).then(url => setQrDataUrl(url))
+        .catch(err => console.error('QR Generate Error:', err))
     }, [deliveryUrl])
 
     function copyLink() {
@@ -696,27 +697,37 @@ function DeliveryLinkCard() {
     }
 
     function downloadQR() {
-        if (!canvasRef.current || !settings) return
+        if (!qrDataUrl || !settings) return
+        
         const canvas = document.createElement('canvas')
         canvas.width = 180; canvas.height = 220
         const ctx = canvas.getContext('2d')!
+        
+        // พื้นหลังขาว
         ctx.fillStyle = '#ffffff'
         ctx.fillRect(0, 0, 180, 220)
-        ctx.drawImage(canvasRef.current, 20, 16)
         
-        ctx.fillStyle = '#1f2937'
-        ctx.font = 'bold 12px system-ui'
-        ctx.textAlign = 'center'
-        ctx.fillText(settings.displayName || settings.name || 'Delivery', 90, 175)
-        
-        ctx.font = '10px system-ui'
-        ctx.fillStyle = '#6b7280'
-        ctx.fillText('สแกนสั่งเดลิเวอรี่', 90, 195)
-        
-        const link = document.createElement('a')
-        link.download = `delivery-qr-${settings.code}.png`
-        link.href = canvas.toDataURL()
-        link.click()
+        // วาดรูปลงไป
+        const img = new Image()
+        img.onload = () => {
+            ctx.drawImage(img, 20, 16, 140, 140)
+            
+            // วาดตัวหนังสือ
+            ctx.fillStyle = '#1f2937'
+            ctx.font = 'bold 12px system-ui, -apple-system, sans-serif'
+            ctx.textAlign = 'center'
+            ctx.fillText(settings.displayName || settings.name || 'Delivery', 90, 175)
+            
+            ctx.font = '10px system-ui, -apple-system, sans-serif'
+            ctx.fillStyle = '#6b7280'
+            ctx.fillText('สแกนสั่งเดลิเวอรี่', 90, 195)
+            
+            const link = document.createElement('a')
+            link.download = `delivery-qr-${settings.code}.png`
+            link.href = canvas.toDataURL('image/png')
+            link.click()
+        }
+        img.src = qrDataUrl
     }
 
     if (!canManage || !settings) return null
@@ -732,8 +743,8 @@ function DeliveryLinkCard() {
 
             <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* QR Code */}
-                <div style={{ background: '#fff', padding: 8, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', flexShrink: 0 }}>
-                    <canvas ref={canvasRef} style={{ display: 'block' }} />
+                <div style={{ background: '#fff', padding: 8, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', flexShrink: 0, width: 156, height: 156, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {qrDataUrl ? <img src={qrDataUrl} alt="Delivery QR" style={{ width: 140, height: 140, display: 'block' }} /> : <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Loading QR...</div>}
                 </div>
 
                 {/* Link & Actions */}
@@ -767,110 +778,6 @@ function DeliveryLinkCard() {
                     <button 
                         onClick={downloadQR}
                         style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(236,72,153,0.3)', background: 'rgba(236,72,153,0.06)', color: '#DB2777', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                    >
-                        ⬇️ ดาวน์โหลดรูป QR Code
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-// ─── Rider Link & QR Card ─────────────────────────────────
-
-function RiderLinkCard() {
-    const canManage = usePermission('SETTINGS_MANAGE')
-    const { settings } = useTenant()
-    const canvasRef = useRef<HTMLCanvasElement>(null)
-
-    const riderUrl = settings?.code ? `https://rider.kaideeder.com/r/${settings.code}` : ''
-
-    useEffect(() => {
-        if (!canvasRef.current || !riderUrl) return
-        QRCode.toCanvas(canvasRef.current, riderUrl, {
-            width: 140, margin: 1,
-            color: { dark: '#000000', light: '#FFFFFF' },
-        })
-    }, [riderUrl])
-
-    function copyLink() {
-        if (!riderUrl) return
-        navigator.clipboard.writeText(riderUrl)
-        toast.success('📋 คัดลอกลิงก์แล้ว')
-    }
-
-    function downloadQR() {
-        if (!canvasRef.current || !settings) return
-        const canvas = document.createElement('canvas')
-        canvas.width = 180; canvas.height = 220
-        const ctx = canvas.getContext('2d')!
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, 180, 220)
-        ctx.drawImage(canvasRef.current, 20, 16)
-        
-        ctx.fillStyle = '#1f2937'
-        ctx.font = 'bold 12px system-ui'
-        ctx.textAlign = 'center'
-        ctx.fillText(settings.displayName || settings.name || 'Rider App', 90, 175)
-        
-        ctx.font = '10px system-ui'
-        ctx.fillStyle = '#6b7280'
-        ctx.fillText('สแกนเปิดแอป Rider', 90, 195)
-        
-        const link = document.createElement('a')
-        link.download = `rider-qr-${settings.code}.png`
-        link.href = canvas.toDataURL()
-        link.click()
-    }
-
-    if (!canManage || !settings) return null
-
-    return (
-        <div className="card" style={{ borderColor: 'rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.02)' }}>
-            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>🛵</span> ลิงก์ระบบไรเดอร์ (Rider Link & QR)
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
-                คัดลอกลิงก์หรือดาวน์โหลด QR Code สำหรับให้พนักงานไรเดอร์เข้าสู่ระบบ
-            </p>
-
-            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                {/* QR Code */}
-                <div style={{ background: '#fff', padding: 8, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', flexShrink: 0 }}>
-                    <canvas ref={canvasRef} style={{ display: 'block' }} />
-                </div>
-
-                {/* Link & Actions */}
-                <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
-                            🔗 URL สำหรับเข้าแอปไรเดอร์
-                        </label>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <input 
-                                readOnly 
-                                value={riderUrl} 
-                                className="input" 
-                                style={{ flex: 1, color: '#DC2626', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }} 
-                                onClick={e => e.currentTarget.select()}
-                            />
-                            <button 
-                                onClick={copyLink}
-                                style={{ padding: '0 14px', borderRadius: 10, background: '#EF4444', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem' }}
-                            >
-                                📋 คัดลอก
-                            </button>
-                        </div>
-                    </div>
-
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                        • ส่งให้พนักงานไรเดอร์เพื่อรับงานเดลิเวอรี่<br/>
-                        • แจ้งให้สร้างบุ๊กมาร์กไว้ในมือถือ
-                    </div>
-
-                    <button 
-                        onClick={downloadQR}
-                        style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', color: '#DC2626', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                     >
                         ⬇️ ดาวน์โหลดรูป QR Code
                     </button>
@@ -1324,6 +1231,14 @@ function PrinterSettingsCard() {
 
 
 // ─── Module-level constants ───────────────────────────────────────────────
+const sysInfo = [
+    { label: 'Framework', value: 'Next.js 14', icon: '⚡' },
+    { label: 'Database', value: 'MySQL 9', icon: '🗄️' },
+    { label: 'ORM', value: 'Prisma 5', icon: '🔷' },
+    { label: 'Currency', value: 'LAK (ກີບ)', icon: '💱' },
+    { label: 'Font', value: 'Noto Sans Lao/Thai', icon: '🔤' },
+    { label: 'Version', value: 'v1.0.0', icon: '🏷️' },
+]
 
 const POS_PROVIDERS = [
     { id: 'none', name: '— ไม่ใช้ POS Integration —', icon: '❌' },
@@ -1646,10 +1561,7 @@ export default function SettingsPage() {
                 <MenuBannerCard />
 
                 {/* ── Delivery Link ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20 }}>
-                    <DeliveryLinkCard />
-                    <RiderLinkCard />
-                </div>
+                <DeliveryLinkCard />
 
                 {/* ── QR Banking ── */}
                 <QrBankingCard />
