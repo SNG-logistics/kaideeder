@@ -152,11 +152,14 @@ export default function LocationsPage() {
     }
 
     async function handleDeactivate(loc: Location) {
-        if (!confirm(`ปิดใช้งานคลัง "${loc.name}"?\nสินค้าที่อยู่ในคลังนี้จะยังคงอยู่ในระบบ`)) return
+        if (!confirm(`🗑️ ลบคลัง "${loc.name}" (${loc.code}) ถาวร?\n\n⚠️ จะลบ inventory, stock movement ที่เกี่ยวข้องทั้งหมด\nดำเนินการต่อ?`)) return
         const res = await fetch(`/api/locations/${loc.id}`, { method: 'DELETE' })
         const json = await res.json()
-        if (json.success) await load()
-        else alert(json.error || 'เกิดข้อผิดพลาด')
+        if (json.success) {
+            const c = json.data?.cleaned || {}
+            alert(`✅ ลบคลัง "${loc.name}" แล้ว\n\nล้าง:\n• Inventory: ${c.inventory || 0} รายการ\n• Stock Movements: ${(c.stockMovementsFrom || 0) + (c.stockMovementsTo || 0)} รายการ\n• BOM อัปเดต: ${c.bomUpdated || 0} รายการ`)
+            await load()
+        } else alert(json.error || 'เกิดข้อผิดพลาด')
     }
 
     const active = locations.filter(l => l.isActive)
