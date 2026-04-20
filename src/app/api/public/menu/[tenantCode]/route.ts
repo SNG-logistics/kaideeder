@@ -29,6 +29,7 @@ export async function GET(
                 id: true, name: true, sku: true,
                 salePrice: true, unit: true, categoryId: true,
                 imageUrl: true, isFeatured: true,
+                toppingsJson: true,
                 // check if base64 exists (boolean only) — actual bytes loaded per-product
                 imageBase64: true,
             },

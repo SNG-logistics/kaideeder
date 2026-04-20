@@ -11,6 +11,8 @@ const schema = z.object({
         quantity: z.number().int().positive(),
         unitPrice: z.number().min(0),
         note: z.string().optional(),
+        toppingsJson: z.string().nullable().optional(),
+        toppingsTotal: z.number().optional(),
     })).min(1, 'Please add at least one item'),
     customerNote: z.string().optional(),
 })
@@ -107,6 +109,8 @@ export async function POST(req: Request) {
                             quantity: item.quantity,
                             unitPrice: item.unitPrice,
                             note: item.note || data.customerNote || null,
+                            toppingsJson: item.toppingsJson || null,
+                            toppingsTotal: item.toppingsTotal || 0,
                             stationId: isBar ? 'BAR' : 'KITCHEN',
                             kitchenStatus: 'PENDING',
                         }
