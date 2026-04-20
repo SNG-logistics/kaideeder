@@ -1,0 +1,3 @@
+# 
+
+{"tenant":{"id":"tenant_kaideeder_01","code":"KAIDEEDER","name":"43Garden cafè & Restaurant","displayName":"43Garden cafè & Restaurant","logoUrl":null,"currency":"LAK","qrBankingBase64":null},"categories":[],"products":[]}

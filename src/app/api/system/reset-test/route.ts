@@ -2,39 +2,108 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth } from '@/lib/api'
 
-// POST /api/system/reset-test — เฉพาะ OWNER
+// POST /api/system/reset-test — OWNER only
+// Clears ALL transactional data, keeps master data (products, categories, users, recipes, locations, suppliers)
 export const POST = withAuth<any>(async (_req, { user }) => {
-    // Authorization handled by withAuth(['OWNER']) below — no need to re-check here
     try {
         const result = await prisma.$transaction(async (tx) => {
-            // ลำดับต้องถูก (foreign key)
+            // ════════════════════════════════════════════════════════════
+            // DELETE ORDER: children first → parents last (FK constraints)
+            // ════════════════════════════════════════════════════════════
 
-            // 1. Stock movements
+            // ── 1. POS Order tree ─────────────────────────────────────
+            const deliveryInfos  = await tx.deliveryInfo.deleteMany({})
+            const consumeFailLog = await tx.consumeFailLog.deleteMany({})
+            const salesEvents    = await tx.salesEvent.deleteMany({})
+            const orderItems     = await tx.orderItem.deleteMany({})
+            const payments       = await tx.payment.deleteMany({})
+            const orders         = await tx.order.deleteMany({})
+
+            // ── 2. Stock movements ────────────────────────────────────
             const movements = await tx.stockMovement.deleteMany({})
 
-            // 2. POS order children (must delete before orders — FK constraints)
-            const salesEvents = await tx.salesEvent.deleteMany({})   // ← SalesEvent.orderId refs Order
-            const orderItems = await tx.orderItem.deleteMany({})
-            const payments = await tx.payment.deleteMany({})
-            const orders = await tx.order.deleteMany({})
+            // ── 3. Purchasing ─────────────────────────────────────────
+            const purchaseItems  = await tx.purchaseItem.deleteMany({})
+            const purchaseOrders = await tx.purchaseOrder.deleteMany({})
 
-            // 3. Reset inventory quantity → 0 (เก็บ record แต่เคลียร์ยอด)
+            // ── 4. Transfers ──────────────────────────────────────────
+            const transferItems  = await tx.transferItem.deleteMany({})
+            const stockTransfers = await tx.stockTransfer.deleteMany({})
+
+            // ── 5. Adjustments ────────────────────────────────────────
+            const adjustmentItems  = await tx.adjustmentItem.deleteMany({})
+            const stockAdjustments = await tx.stockAdjustment.deleteMany({})
+
+            // ── 6. Stock count sheets ─────────────────────────────────
+            const stockCountItems = await tx.stockCountItem.deleteMany({})
+            const stockCounts     = await tx.stockCount.deleteMany({})
+
+            // ── 7. Prep productions (keep recipes, delete production logs) ──
+            const prepProductions = await tx.prepProduction.deleteMany({})
+
+            // ── 8. Sales imports ───────────────────────────────────────
+            const salesImportItems = await tx.salesImportItem.deleteMany({})
+            const salesImports     = await tx.salesImport.deleteMany({})
+
+            // ── 9. SKU suggestion queue ───────────────────────────────
+            const skuSuggestions = await tx.skuSuggestion.deleteMany({})
+
+            // ── 10. AI / catalog metadata (optional — clear stale data) ──
+            const aiClassifications = await tx.aiItemClassification.deleteMany({})
+            const validationIssues  = await tx.validationIssue.deleteMany({})
+            const aiRecommendations = await tx.aiRecommendation.deleteMany({})
+            const entityUsage       = await tx.entityUsageSummary.deleteMany({})
+
+            // ════════════════════════════════════════════════════════════
+            // RESET (keep records, zero out values)
+            // ════════════════════════════════════════════════════════════
+
+            // ── Inventory quantities → 0 ──────────────────────────────
             const invReset = await tx.inventory.updateMany({
-                data: { quantity: 0, avgCost: 0 },
+                data: { quantity: 0, reservedQty: 0, avgCost: 0 },
+            })
+
+            // ── Dining tables → AVAILABLE ─────────────────────────────
+            const tablesReset = await tx.diningTable.updateMany({
+                data: { status: 'AVAILABLE' },
             })
 
             return {
-                movements: movements.count,
+                // POS
                 orders: orders.count,
                 orderItems: orderItems.count,
                 payments: payments.count,
+                deliveryInfos: deliveryInfos.count,
+                salesEvents: salesEvents.count,
+                consumeFailLogs: consumeFailLog.count,
+                // Stock
+                movements: movements.count,
                 inventoryReset: invReset.count,
+                // Purchasing
+                purchaseOrders: purchaseOrders.count,
+                purchaseItems: purchaseItems.count,
+                // Transfers & Adjustments
+                stockTransfers: stockTransfers.count,
+                stockAdjustments: stockAdjustments.count,
+                // Stock counts
+                stockCounts: stockCounts.count,
+                // Prep
+                prepProductions: prepProductions.count,
+                // Sales imports
+                salesImports: salesImports.count,
+                // SKU / AI
+                skuSuggestions: skuSuggestions.count,
+                aiClassifications: aiClassifications.count,
+                aiRecommendations: aiRecommendations.count,
+                validationIssues: validationIssues.count,
+                // Tables
+                tablesReset: tablesReset.count,
             }
-        }, { timeout: 30000 })
+        }, { timeout: 60000 })
 
         return NextResponse.json({
             success: true,
-            message: 'รีเซ็ตข้อมูลทดสอบสำเร็จ',
+            message: 'รีเซ็ตข้อมูลทดสอบสำเร็จ — ครบทุกตาราง',
             data: result,
         })
     } catch (e: any) {

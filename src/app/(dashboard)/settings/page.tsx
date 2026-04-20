@@ -1272,20 +1272,41 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
     }
 
     const willClear = [
-        { icon: '📦', label: 'การเคลื่อนไหวสต็อค', key: 'movements' },
         { icon: '🧾', label: 'คำสั่งซื้อ POS', key: 'orders' },
-        { icon: '📊', label: 'ยอดสต็อค → 0', key: 'inventoryReset' },
+        { icon: '📋', label: 'รายการสินค้าในออเดอร์', key: 'orderItems' },
+        { icon: '💳', label: 'การชำระเงิน', key: 'payments' },
+        { icon: '🚚', label: 'ข้อมูล Delivery', key: 'deliveryInfos' },
+        { icon: '📦', label: 'การเคลื่อนไหวสต็อค', key: 'movements' },
+        { icon: '🛒', label: 'ใบสั่งซื้อ (PO)', key: 'purchaseOrders' },
+        { icon: '🔄', label: 'โอนย้ายสินค้า', key: 'stockTransfers' },
+        { icon: '📝', label: 'ปรับปรุงสต็อค', key: 'stockAdjustments' },
+        { icon: '📊', label: 'นับสต็อค', key: 'stockCounts' },
+        { icon: '🍳', label: 'บันทึกแปรรูป', key: 'prepProductions' },
+        { icon: '📥', label: 'Import ยอดขาย', key: 'salesImports' },
+        { icon: '🏷️', label: 'คิว SKU', key: 'skuSuggestions' },
+        { icon: '🤖', label: 'AI/Validation', key: 'aiRecommendations' },
+        { icon: '📈', label: 'ยอดสต็อค → 0', key: 'inventoryReset' },
+        { icon: '🪑', label: 'โต๊ะ → ว่าง', key: 'tablesReset' },
     ]
 
-    const willKeep = ['🥩 สินค้า / วัตถุดิบ', '🏷️ หมวดหมู่', '👤 บัญชีผู้ใช้', '📋 สูตรอาหาร (BOM)', '📍 คลังสินค้า']
+    const willKeep = [
+        '🥩 สินค้า / วัตถุดิบ',
+        '🏷️ หมวดหมู่',
+        '👤 บัญชีผู้ใช้',
+        '📋 สูตรอาหาร (BOM)',
+        '🍳 สูตรแปรรูป (Prep Recipe)',
+        '📍 คลังสินค้า',
+        '🏢 Supplier',
+        '🪑 โต๊ะ (เก็บไว้ set เป็นว่าง)',
+    ]
 
     return (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' }}
             onClick={step === 'running' ? undefined : onClose}>
-            <div style={{ background: 'var(--white)', borderRadius: 20, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}
+            <div style={{ background: 'var(--white)', borderRadius: 20, width: '100%', maxWidth: 520, maxHeight: '90vh', boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
                 onClick={e => e.stopPropagation()}>
-                <div style={{ height: 4, background: step === 'done' ? '#16a34a' : '#DC2626' }} />
-                <div style={{ padding: '1.25rem 1.5rem' }}>
+                <div style={{ height: 4, background: step === 'done' ? '#16a34a' : '#DC2626', flexShrink: 0 }} />
+                <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
 
                     {step === 'confirm' && (<>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -1297,13 +1318,17 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
                         </div>
 
                         <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 14px', marginBottom: 10, border: '1px solid #FECACA' }}>
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#DC2626', marginBottom: 6 }}>❌ จะถูกลบ</div>
-                            {willClear.map(w => <div key={w.key} style={{ fontSize: '0.78rem', color: '#7F1D1D', marginBottom: 3 }}>{w.icon} {w.label}</div>)}
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#DC2626', marginBottom: 6 }}>❌ จะถูกลบ / รีเซ็ต</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '2px 12px' }}>
+                                {willClear.map(w => <div key={w.key} style={{ fontSize: '0.75rem', color: '#7F1D1D', lineHeight: 1.6 }}>{w.icon} {w.label}</div>)}
+                            </div>
                         </div>
 
                         <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '10px 14px', marginBottom: 14, border: '1px solid #BBF7D0' }}>
                             <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#16a34a', marginBottom: 6 }}>✅ ยังคงไว้</div>
-                            {willKeep.map(w => <div key={w} style={{ fontSize: '0.78rem', color: '#065F46', marginBottom: 3 }}>{w}</div>)}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '2px 12px' }}>
+                                {willKeep.map(w => <div key={w} style={{ fontSize: '0.75rem', color: '#065F46', lineHeight: 1.6 }}>{w}</div>)}
+                            </div>
                         </div>
 
                         <div style={{ marginBottom: 14 }}>
@@ -1328,7 +1353,7 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem 0', gap: 14 }}>
                             <div style={{ width: 44, height: 44, border: '4px solid #FCA5A5', borderTopColor: '#DC2626', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                             <div style={{ fontWeight: 700, color: '#DC2626' }}>กำลังรีเซ็ต...</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>กรุณารอสักครู่</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>กรุณารอสักครู่ (อาจใช้เวลา 10-30 วินาที)</div>
                         </div>
                     )}
 
@@ -1340,13 +1365,18 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>ระบบพร้อมสำหรับการทดสอบรอบใหม่</div>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 16 }}>
-                                {willClear.map(w => (
+                                {willClear.filter(w => (result[w.key] ?? 0) > 0).map(w => (
                                     <div key={w.key} style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
                                         <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#16a34a' }}>{result[w.key] ?? 0}</div>
-                                        <div style={{ fontSize: '0.62rem', color: '#047857', fontWeight: 600, marginTop: 2 }}>{w.icon} {w.label}</div>
+                                        <div style={{ fontSize: '0.6rem', color: '#047857', fontWeight: 600, marginTop: 2 }}>{w.icon} {w.label}</div>
                                     </div>
                                 ))}
                             </div>
+                            {willClear.filter(w => (result[w.key] ?? 0) === 0).length > 0 && (
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 12, textAlign: 'center' }}>
+                                    {willClear.filter(w => (result[w.key] ?? 0) === 0).map(w => w.label).join(', ')} — ไม่มีข้อมูลที่ต้องลบ
+                                </div>
+                            )}
                             <button onClick={onClose} style={{ width: '100%', minHeight: 44, borderRadius: 12, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>
                                 เสร็จสิ้น
                             </button>
