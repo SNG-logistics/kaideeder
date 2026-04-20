@@ -6,8 +6,8 @@ import { withAuth, ok, err } from '@/lib/api'
 export const GET = withAuth(async (_req, context) => {
     const { tenantId } = context as any
     const locations = await prisma.location.findMany({
-        where: { tenantId, isActive: true },
-        orderBy: { sortOrder: 'asc' },
+        where: { tenantId },
+        orderBy: [{ isActive: 'desc' }, { sortOrder: 'asc' }],
         include: {
             _count: { select: { inventory: true } },
         },

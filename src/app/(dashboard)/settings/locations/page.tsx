@@ -162,8 +162,6 @@ export default function LocationsPage() {
         } else alert(json.error || 'เกิดข้อผิดพลาด')
     }
 
-    const active = locations.filter(l => l.isActive)
-
     return (
         <div className="page-container" style={{ maxWidth: 960 }}>
             {/* Header */}
@@ -216,12 +214,12 @@ export default function LocationsPage() {
             {/* Current Locations */}
             <div>
                 <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#6B7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>
-                    📦 คลังที่มีอยู่ ({active.length} แห่ง)
+                    📦 คลังในระบบทั้งหมด ({locations.length} แห่ง)
                 </div>
 
                 {loading ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: '#9CA3AF' }}>กำลังโหลด...</div>
-                ) : active.length === 0 ? (
+                ) : locations.length === 0 ? (
                     <div style={{ padding: '3rem', textAlign: 'center', background: '#fff', borderRadius: 16, border: '1.5px dashed #E5E7EB' }}>
                         <div style={{ fontSize: '3rem', marginBottom: 12 }}>🏭</div>
                         <div style={{ fontWeight: 700, color: '#1A1D26', marginBottom: 4 }}>ยังไม่มีคลังสินค้า</div>
@@ -229,14 +227,23 @@ export default function LocationsPage() {
                     </div>
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-                        {active.map(loc => {
+                        {locations.map(loc => {
                             const cfg = TYPE_LABEL[loc.type] || { label: loc.type, color: '#6B7280', icon: '📦' }
+                            const isInactive = !loc.isActive
                             return (
-                                <div key={loc.id} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <div key={loc.id} style={{ 
+                                    background: isInactive ? '#F9FAFB' : '#fff', 
+                                    border: isInactive ? '1px dashed #D1D5DB' : '1px solid var(--border)', 
+                                    borderRadius: 14, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: 10,
+                                    opacity: isInactive ? 0.75 : 1
+                                }}>
                                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                                         <div>
                                             <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>{cfg.icon}</div>
-                                            <div style={{ fontWeight: 700, color: '#1A1D26', fontSize: '0.95rem' }}>{loc.name}</div>
+                                            <div style={{ fontWeight: 700, color: isInactive ? '#6B7280' : '#1A1D26', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                {loc.name}
+                                                {isInactive && <span style={{ fontSize: '0.65rem', background: '#E5E7EB', color: '#4B5563', padding: '2px 4px', borderRadius: 4 }}>ถูกปิดใช้งาน</span>}
+                                            </div>
                                             <code style={{ fontSize: '0.7rem', color: '#9CA3AF', background: '#F3F4F6', padding: '2px 6px', borderRadius: 4 }}>{loc.code}</code>
                                         </div>
                                         <span style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}40`, borderRadius: 8, padding: '3px 8px', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
@@ -259,9 +266,10 @@ export default function LocationsPage() {
                                         </button>
                                         <button
                                             onClick={() => handleDeactivate(loc)}
+                                            title="ลบถาวร"
                                             style={{ padding: '7px 12px', borderRadius: 9, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}
                                         >
-                                            🚫
+                                            🗑️ ลบถาวร
                                         </button>
                                     </div>
                                 </div>
