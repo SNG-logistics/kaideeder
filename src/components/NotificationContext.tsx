@@ -65,34 +65,51 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
     const [notifications, setNotifications] = useState<NotificationInfo[]>([])
     const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
+    const [audioUnlocked, setAudioUnlocked] = useState(false)
     const user = useCurrentUser()
 
-    const audioUnlocked = useRef(false)
     const audioCtxRef = useRef<AudioContext | null>(null)
     const alarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const prevHighIdsRef = useRef<Set<string>>(new Set())
 
-    // Unlock audio on first user interaction (browser policy)
+    // Create AudioContext eagerly — will be in 'suspended' until user gesture
     useEffect(() => {
-        function unlock() {
-            audioUnlocked.current = true
+        if (typeof window !== 'undefined' && !audioCtxRef.current) {
+            try {
+                audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+            } catch { }
+        }
+    }, [])
+
+    // Unlock audio on EVERY user interaction until confirmed unlocked
+    const unlockAudio = useCallback(() => {
+        if (audioUnlocked) return
+        try {
             if (!audioCtxRef.current) {
                 audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
             }
-            if ('speechSynthesis' in window) {
-                // Initializing speech synthesis engine
-                const u = new SpeechSynthesisUtterance('');
-                u.volume = 0;
-                window.speechSynthesis.speak(u);
-            }
+            // Must call resume() — AudioContext starts suspended on Chrome/Safari
+            audioCtxRef.current.resume().then(() => {
+                setAudioUnlocked(true)
+            }).catch(() => setAudioUnlocked(true))
+        } catch { setAudioUnlocked(true) }
+        // Warm up speech synthesis
+        if ('speechSynthesis' in window) {
+            const u = new SpeechSynthesisUtterance('')
+            u.volume = 0
+            window.speechSynthesis.speak(u)
         }
-        document.addEventListener('click', unlock, { once: true })
-        document.addEventListener('touchstart', unlock, { once: true })
+    }, [audioUnlocked])
+
+    useEffect(() => {
+        document.addEventListener('click', unlockAudio)
+        document.addEventListener('touchstart', unlockAudio)
         return () => {
-            document.removeEventListener('click', unlock)
-            document.removeEventListener('touchstart', unlock)
+            document.removeEventListener('click', unlockAudio)
+            document.removeEventListener('touchstart', unlockAudio)
         }
-    }, [])
+    }, [unlockAudio])
+
 
     const isCashierRole = user?.role === 'cashier' || user?.role === 'owner' || user?.role === 'manager';
     const isKitchenRole = user?.role === 'kitchen' || user?.role === 'bar';
@@ -124,12 +141,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     : latestHigh.type === 'ORDER_NEW' ? `ออเดอร์ใหม่ ${latestHigh.message}` : undefined;
                 
                 // Play first chime immediately
-                if (audioUnlocked.current && audioCtxRef.current) {
+                if (audioUnlocked && audioCtxRef.current) {
                     playBellChime(audioCtxRef.current, 1.0, msg)
                 }
                 // Repeat every 10 seconds until acknowledged
                 alarmIntervalRef.current = setInterval(() => {
-                    if (audioUnlocked.current && audioCtxRef.current) {
+                    if (audioUnlocked && audioCtxRef.current) {
                         playBellChime(audioCtxRef.current, 0.7) // without speech on repeats
                     }
                 }, 10000)
@@ -144,7 +161,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 }
             }
         }
-    }, [isCashierRole, isKitchenRole])
+    }, [isCashierRole, isKitchenRole, audioUnlocked])
 
     useEffect(() => {
         return () => {
@@ -170,7 +187,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             )
 
             // Play immediately when a new order arrives (before interval kicks in)
-            if (hasNewHigh && (isCashierRole || isKitchenRole) && audioUnlocked.current && audioCtxRef.current) {
+            if (hasNewHigh && (isCashierRole || isKitchenRole) && audioUnlocked && audioCtxRef.current) {
                 const latestHigh = newHighNotifs[0];
                 // Kitchen/bar: only announce ORDER_NEW, not bill requests
                 const shouldAnnounce = isCashierRole || latestHigh.type === 'ORDER_NEW';
@@ -194,7 +211,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } catch (e) {
             console.error('Failed to fetch notifications', e)
         }
-    }, [updateAlarm, isCashierRole, isKitchenRole])
+    }, [updateAlarm, isCashierRole, isKitchenRole, audioUnlocked])
 
     useEffect(() => {
         fetchNotifications()
@@ -242,15 +259,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             {children}
 
             {/* Prompt user to tap once so browser unlocks audio */}
-            {!audioUnlocked.current && notifications.some(n => n.priority === 'HIGH') && (
+            {!audioUnlocked && notifications.some(n => n.priority === 'HIGH') && (
                 <div
-                    onClick={() => {
-                        audioUnlocked.current = true
-                        if (!audioCtxRef.current) {
-                            audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
-                        }
-                        fetchNotifications()
-                    }}
+                    onClick={unlockAudio}
                     style={{
                         position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
                         zIndex: 10000, background: '#1e293b', border: '1px solid rgba(245,158,11,0.5)',
