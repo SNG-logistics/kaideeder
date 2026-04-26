@@ -16,7 +16,7 @@ type NotificationContextType = {
 const NotificationContext = createContext<NotificationContextType | null>(null)
 
 // ── Web Audio bell synthesizer ────────────────────────────────────────────
-function playBellChime(audioCtx: AudioContext, vol = 1.0, message?: string) {
+function playBellChime(audioCtx: AudioContext, vol = 1.0, message?: string, onFail?: () => void) {
     // Always resume — context may slip back to 'suspended' after tab inactivity
     const doPlay = () => {
         try {
@@ -50,7 +50,10 @@ function playBellChime(audioCtx: AudioContext, vol = 1.0, message?: string) {
 
     // Resume if suspended, then play
     if (audioCtx.state === 'suspended') {
-        audioCtx.resume().then(doPlay).catch(() => console.warn('[Notification] AudioContext resume failed'))
+        audioCtx.resume().then(doPlay).catch((e) => {
+            console.warn('[Notification] AudioContext resume failed', e)
+            if (onFail) onFail()
+        })
     } else {
         doPlay()
     }
@@ -78,6 +81,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const [notifications, setNotifications] = useState<NotificationInfo[]>([])
     const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
     const [audioUnlocked, setAudioUnlocked] = useState(false)
+    const audioUnlockedRef = useRef(false)
+    useEffect(() => { audioUnlockedRef.current = audioUnlocked }, [audioUnlocked])
     const user = useCurrentUser()
 
     const audioCtxRef = useRef<AudioContext | null>(null)
@@ -134,15 +139,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const isCashierRole = user?.role === 'cashier' || user?.role === 'owner' || user?.role === 'manager';
     const isKitchenRole = user?.role === 'kitchen' || user?.role === 'bar';
 
-    // Reset seen-IDs when role loads so existing notifications trigger sound
-    // Without this: first fetch (no role) remembers IDs → role arrives → refetch
-    // → same IDs → hasNewHigh=false → no sound!
+    // Reset seen-IDs when role loads OR when audio unlocks
+    // This ensures any orders that arrived while audio was locked (or role was loading)
+    // will be treated as "new" on the next poll, triggering the first chime + speech!
     useEffect(() => {
-        if (isCashierRole || isKitchenRole) {
-            console.log('[Notification] Role ready:', user?.role, '— resetting seen IDs for fresh detection')
+        if ((isCashierRole || isKitchenRole) && audioUnlocked) {
+            console.log('[Notification] Role & Audio ready — resetting seen IDs for fresh detection')
             prevHighIdsRef.current = new Set()
         }
-    }, [isCashierRole, isKitchenRole, user?.role])
+    }, [isCashierRole, isKitchenRole, user?.role, audioUnlocked])
 
     // Start/stop repeating alarm based on unacknowledged HIGH-priority count
     const updateAlarm = useCallback((notifs: NotificationInfo[], seen: Set<string>) => {
@@ -178,12 +183,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 
                 // Play first chime immediately
                 if (audioUnlocked && audioCtxRef.current) {
-                    playBellChime(audioCtxRef.current, 1.0, msg)
+                    playBellChime(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
                 }
                 // Repeat every 10 seconds until acknowledged
                 alarmIntervalRef.current = setInterval(() => {
-                    if (audioUnlocked && audioCtxRef.current) {
-                        playBellChime(audioCtxRef.current, 0.7) // without speech on repeats
+                    // Use audioUnlockedRef to avoid stale closure (in case interval was created when it was false)
+                    if (audioUnlockedRef.current && audioCtxRef.current) {
+                        playBellChime(audioCtxRef.current, 0.7, undefined, () => setAudioUnlocked(false)) // without speech on repeats
                     }
                 }, 10000)
             }
@@ -247,7 +253,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                             ? `${tablePart}${zonePart} เรียกเช็คบิล`
                             : 'ลูกค้าเรียกเช็คบิล'
                     }
-                    playBellChime(audioCtxRef.current, 1.0, msg)
+                    playBellChime(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
                 } else {
                     console.log('[Notification] Skipped sound: shouldAnnounce=false for', latestHigh.type)
                 }
