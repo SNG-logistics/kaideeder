@@ -91,4 +91,4 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
         console.error('Notification API err:', e)
         return err(e.message)
     }
-}, ['OWNER', 'MANAGER', 'CASHIER'])
+}, ['OWNER', 'MANAGER', 'CASHIER', 'KITCHEN', 'BAR'])

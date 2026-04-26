@@ -74,6 +74,8 @@ export async function GET(
         return NextResponse.json({
             hasOrder: true,
             tableNumber,
+            tableName: table.name,
+            tableZone: table.zone,
             currency: tenant.currency,
             storeName: tenant.displayName || tenant.name,
             totalRounds: rounds.length,

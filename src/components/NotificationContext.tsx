@@ -16,32 +16,56 @@ type NotificationContextType = {
 const NotificationContext = createContext<NotificationContextType | null>(null)
 
 // ── Web Audio bell synthesizer ────────────────────────────────────────────
-function playBellChime(audioCtx: AudioContext, vol = 0.65) {
+function playBellChime(audioCtx: AudioContext, vol = 1.0, message?: string) {
     const t = audioCtx.currentTime
     // Two-tone chime: high ding + lower dong
     const tones: [number, number, number][] = [
         [1046, 0,    vol],       // C6 — first ding
         [880,  0.3,  vol * 0.8], // A5 — second ding
         [698,  0.65, vol * 0.6], // F5 — softer dong
+        [1046, 1.0,  vol],       // Repeats for more urgency
+        [880,  1.3,  vol * 0.8]
     ]
     tones.forEach(([freq, delay, gain]) => {
         const osc = audioCtx.createOscillator()
         const gainNode = audioCtx.createGain()
         osc.connect(gainNode)
         gainNode.connect(audioCtx.destination)
-        osc.type = 'sine'
+        osc.type = 'triangle' // Using triangle instead of sine for a sharper, louder sound
         osc.frequency.value = freq
         gainNode.gain.setValueAtTime(0, t + delay)
-        gainNode.gain.linearRampToValueAtTime(gain, t + delay + 0.015)
-        gainNode.gain.exponentialRampToValueAtTime(0.001, t + delay + 1.6)
+        gainNode.gain.linearRampToValueAtTime(gain, t + delay + 0.02)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, t + delay + 1.2)
         osc.start(t + delay)
-        osc.stop(t + delay + 1.7)
+        osc.stop(t + delay + 1.3)
     })
+
+    // Text to Speech for clear announcement if a message is provided
+    if (message && 'speechSynthesis' in window) {
+        setTimeout(() => {
+            // Cancel any ongoing speech so it doesn't queue up too long
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(message);
+            utterance.lang = 'th-TH'; // Thai language
+            utterance.rate = 1.0;
+            utterance.volume = 1.0;
+            
+            // Prioritize Thai voices if available, falling back to default
+            const voices = window.speechSynthesis.getVoices();
+            const thaiVoice = voices.find(v => v.lang === 'th-TH' || v.lang === 'th');
+            if (thaiVoice) utterance.voice = thaiVoice;
+
+            window.speechSynthesis.speak(utterance);
+        }, 1500); // 1.5 second delay to let the chime play first
+    }
 }
+
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
     const [notifications, setNotifications] = useState<NotificationInfo[]>([])
     const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
+    const user = useCurrentUser()
 
     const audioUnlocked = useRef(false)
     const audioCtxRef = useRef<AudioContext | null>(null)
@@ -55,6 +79,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             if (!audioCtxRef.current) {
                 audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
             }
+            if ('speechSynthesis' in window) {
+                // Initializing speech synthesis engine
+                const u = new SpeechSynthesisUtterance('');
+                u.volume = 0;
+                window.speechSynthesis.speak(u);
+            }
         }
         document.addEventListener('click', unlock, { once: true })
         document.addEventListener('touchstart', unlock, { once: true })
@@ -64,31 +94,57 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
     }, [])
 
+    const isCashierRole = user?.role === 'cashier' || user?.role === 'owner' || user?.role === 'manager';
+    const isKitchenRole = user?.role === 'kitchen' || user?.role === 'bar';
+
     // Start/stop repeating alarm based on unacknowledged HIGH-priority count
     const updateAlarm = useCallback((notifs: NotificationInfo[], seen: Set<string>) => {
-        const hasUnacked = notifs.some(n => n.priority === 'HIGH' && !seen.has(n.id))
+        const unackedHigh = notifs.filter(n => n.priority === 'HIGH' && !seen.has(n.id))
+        const hasUnacked = unackedHigh.length > 0
+
+        // Play alarms for cashier roles AND kitchen/bar (so kitchen hears new orders too)
+        if (!isCashierRole && !isKitchenRole) {
+            if (alarmIntervalRef.current) {
+                clearInterval(alarmIntervalRef.current)
+                alarmIntervalRef.current = null
+            }
+            return
+        }
 
         if (hasUnacked) {
             if (!alarmIntervalRef.current) {
+                const latestHigh = unackedHigh[0];
+                // Kitchen/bar only hear ORDER_NEW (not bill requests)
+                const isBillOnly = latestHigh.type === 'BILL_REQUEST';
+                if (isKitchenRole && isBillOnly) return;
+
+                const msg = isCashierRole
+                    ? (latestHigh.type === 'ORDER_NEW' ? `ออเดอร์ใหม่ ${latestHigh.message}` :
+                       latestHigh.type === 'BILL_REQUEST' ? `เรียกเช็คบิล ${latestHigh.message}` : undefined)
+                    : latestHigh.type === 'ORDER_NEW' ? `ออเดอร์ใหม่ ${latestHigh.message}` : undefined;
+                
                 // Play first chime immediately
                 if (audioUnlocked.current && audioCtxRef.current) {
-                    playBellChime(audioCtxRef.current)
+                    playBellChime(audioCtxRef.current, 1.0, msg)
                 }
-                // Repeat every 5 seconds until acknowledged
+                // Repeat every 10 seconds until acknowledged
                 alarmIntervalRef.current = setInterval(() => {
                     if (audioUnlocked.current && audioCtxRef.current) {
-                        playBellChime(audioCtxRef.current)
+                        playBellChime(audioCtxRef.current, 0.7) // without speech on repeats
                     }
-                }, 5000)
+                }, 10000)
             }
         } else {
             // All HIGH alerts cleared — stop ringing
             if (alarmIntervalRef.current) {
                 clearInterval(alarmIntervalRef.current)
                 alarmIntervalRef.current = null
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                }
             }
         }
-    }, [])
+    }, [isCashierRole])
 
     useEffect(() => {
         return () => {
@@ -104,16 +160,30 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             const notifs: NotificationInfo[] = data.data ?? []
 
             // Detect brand-new HIGH alerts (not seen in previous poll)
-            const hasNewHigh = notifs.some(
+            const newHighNotifs = notifs.filter(
                 n => n.priority === 'HIGH' && !prevHighIdsRef.current.has(n.id)
             )
+            const hasNewHigh = newHighNotifs.length > 0;
+            
             prevHighIdsRef.current = new Set(
                 notifs.filter(n => n.priority === 'HIGH').map(n => n.id)
             )
 
             // Play immediately when a new order arrives (before interval kicks in)
-            if (hasNewHigh && audioUnlocked.current && audioCtxRef.current) {
-                playBellChime(audioCtxRef.current)
+            if (hasNewHigh && (isCashierRole || isKitchenRole) && audioUnlocked.current && audioCtxRef.current) {
+                const latestHigh = newHighNotifs[0];
+                // Kitchen/bar: only announce ORDER_NEW, not bill requests
+                const shouldAnnounce = isCashierRole || latestHigh.type === 'ORDER_NEW';
+                if (shouldAnnounce) {
+                    const msg = isCashierRole
+                        ? (latestHigh.type === 'ORDER_NEW'
+                            ? `ออเดอร์ใหม่ ${latestHigh.message.replace('—', '').replace('โต๊ะ', 'โต๊ะ ')}`
+                            : latestHigh.type === 'BILL_REQUEST'
+                                ? `ลูกค้าเรียกเช็คบิล ${latestHigh.message.replace('—', '').replace('โต๊ะ', 'โต๊ะ ')}`
+                                : undefined)
+                        : `ออเดอร์ใหม่ ${latestHigh.message.replace('—', '').replace('โต๊ะ', 'โต๊ะ ')}`;
+                    playBellChime(audioCtxRef.current, 1.0, msg)
+                }
             }
 
             setNotifications(notifs)
@@ -124,7 +194,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } catch (e) {
             console.error('Failed to fetch notifications', e)
         }
-    }, [updateAlarm])
+    }, [updateAlarm, isCashierRole])
 
     useEffect(() => {
         fetchNotifications()

@@ -18,6 +18,7 @@ type BillRound = {
 }
 type BillData = {
     hasOrder: boolean; currency: string; tableNumber?: number; storeName?: string
+    tableName?: string; tableZone?: string
     totalRounds?: number; hasOpenRound?: boolean; hasPending?: boolean
     billRequested?: boolean; rounds?: BillRound[]; grandTotal?: number
 }
@@ -149,6 +150,10 @@ export default function MenuPage() {
                 setTenant(d.tenant ? { ...d.tenant, hasBanner } : null)
                 setCategories(d.categories)
                 setProducts(d.products)
+                // Auto-select "featured" tab if any featured products exist
+                if (d.products.some((p: Product) => p.isFeatured)) {
+                    setActiveCategory('featured')
+                }
             })
             .catch(() => setError(t('menu_load_error')))
             .finally(() => setLoading(false))
@@ -177,6 +182,10 @@ export default function MenuPage() {
     const totalRounds = bill?.totalRounds ?? 0
     const hasOpenRound = bill?.hasOpenRound ?? false
     const hasPending = bill?.hasPending ?? false
+
+    // Resolved table display — prefer name from bill API, fall back to number
+    const tableLabel = bill?.tableName ?? `${tableNum}`
+    const zoneLabel = bill?.tableZone ?? ''
 
     const addToCart = useCallback((p: Product) => {
         if (p.toppingsJson) {
@@ -308,7 +317,9 @@ export default function MenuPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <button onClick={() => setViewBill(false)} style={{ background: C.accentLight, border: 'none', borderRadius: 10, padding: '8px 14px', color: C.accent, cursor: 'pointer', fontFamily: FONT, fontSize: '0.83rem', fontWeight: 600 }}>← {t('back')}</button>
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.62rem', color: C.muted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('qr_table')} {tableNum}</div>
+                            <div style={{ fontSize: '0.62rem', color: C.muted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                {zoneLabel ? `${zoneLabel} · ` : ''}{t('qr_table')} {tableLabel}
+                            </div>
                             <div style={{ color: C.text, fontWeight: 800, fontSize: '1.05rem' }}>{t('bill_title')}</div>
                         </div>
                         {totalRounds > 0 && (
@@ -474,13 +485,15 @@ export default function MenuPage() {
                                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', borderRadius: 99, padding: '5px 12px 5px 8px', display: 'flex', alignItems: 'center', gap: 5, border: '1px solid rgba(255,255,255,0.25)' }}>
                                         <span style={{ fontSize: '0.8rem' }}>🪑</span>
-                                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>{t('qr_table')} {tableNum}</span>
+                                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>
+                                            {zoneLabel ? `${zoneLabel} · ` : ''}{t('qr_table')} {tableLabel}
+                                        </span>
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                         {showLangSwitcher && <LangSwitcher lang={lang} setLang={setLang} theme="dark" />}
-                                        {hasAnyOrder && (
+                                        {hasAnyOrder && (bill?.grandTotal ?? 0) > 0 && (
                                             <button onClick={() => setViewBill(true)} style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 99, padding: '6px 12px', cursor: 'pointer', color: '#fff', fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
-                                                🧾 {t('bill_title').replace('🧾 ','')}{billDone && ' ✓'}
+                                                🧾 {t('bill_title').replace('🧾 ',"")}{billDone && ' ✓'}
                                             </button>
                                         )}
                                     </div>
@@ -505,11 +518,13 @@ export default function MenuPage() {
                                             {tenant?.displayName || tenant?.name || 'MENU'}
                                             {tenant?.storeNameLao && lang === 'lo' && <span style={{ fontSize: '0.9rem', color: C.accentDark, marginLeft: 6 }}>({tenant.storeNameLao})</span>}
                                         </div>
-                                        <div style={{ color: C.muted, fontSize: '0.72rem', marginTop: 1 }}>🪑 {t('qr_table')} {tableNum}</div>
+                                        <div style={{ color: C.muted, fontSize: '0.72rem', marginTop: 1 }}>
+                                            🪑 {zoneLabel ? `${zoneLabel} · ` : ''}{t('qr_table')} {tableLabel}
+                                        </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                         {showLangSwitcher && <LangSwitcher lang={lang} setLang={setLang} theme="light" />}
-                                        {hasAnyOrder && (
+                                        {hasAnyOrder && (bill?.grandTotal ?? 0) > 0 && (
                                             <button onClick={() => setViewBill(true)} style={{ background: C.accentLight, border: `1.5px solid ${C.accent}`, borderRadius: 12, padding: '7px 14px', cursor: 'pointer', color: C.accent, fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT }}>
                                                 🧾 {billDone ? '✓' : ''}
                                             </button>
@@ -687,7 +702,7 @@ export default function MenuPage() {
                 {/* ── BOTTOM BAR ────────────────────────────────────── */}
                 <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, zIndex: 40, pointerEvents: 'none' }}>
                     <div style={{ padding: '0 12px 20px', display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'auto' }}>
-                        {hasOpenRound && totalItems === 0 && (
+                        {hasOpenRound && totalItems === 0 && (bill?.grandTotal ?? 0) > 0 && (
                             billDone || bill?.billRequested ? (
                                 <div style={{ background: '#fff', borderRadius: 18, padding: '14px 18px', textAlign: 'center', color: C.accent, fontWeight: 600, fontSize: '0.88rem', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: `1.5px solid rgba(42,157,80,0.2)` }}>
                                     {t('bill_requested')}
@@ -723,7 +738,7 @@ export default function MenuPage() {
                         <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '0 20px 40px', maxHeight: '84dvh', overflowY: 'auto', animation: 'slideUp 0.26s ease', boxShadow: '0 -12px 48px rgba(0,0,0,0.18)' }}>
                             <div style={{ width: 36, height: 4, background: '#dde1e0', borderRadius: 2, margin: '14px auto 16px' }} />
                             <h2 style={{ color: C.text, fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px' }}>
-                                {hasAnyOrder ? `➕ ${t('qr_add_more_items')}` : t('qr_cart_title')} — {t('qr_table')} {tableNum}
+                                {hasAnyOrder ? `➕ ${t('qr_add_more_items')}` : t('qr_cart_title')} — {zoneLabel ? `${zoneLabel} · ` : ''}{t('qr_table')} {tableLabel}
                             </h2>
                             {hasAnyOrder && (
                                 <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: 14 }}>{t('total')} {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>

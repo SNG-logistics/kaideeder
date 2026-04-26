@@ -226,8 +226,8 @@ export default function KitchenPage() {
                 </div>
             )}
             {selectedOrder.isPendingConfirm && (
-                <div style={{ padding: '8px 18px', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', color: '#2563EB', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    📱 ออเดอร์จากลูกค้า (QR) — รอแคชเชียร์ยืนยัน แต่ทำได้เลย!
+                <div style={{ padding: '8px 18px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', color: '#92400E', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    ⏳ รอแคชเชียร์ยืนยันก่อน — ยังไม่สามารถเริ่มทำได้
                 </div>
             )}
             {/* Items */}
@@ -261,10 +261,17 @@ export default function KitchenPage() {
                                 {isBar && <div style={{ fontSize: '0.65rem', color: '#8B5CF6', fontWeight: 700, marginTop: 2 }}>🍹 บาร์</div>}
                             </div>
                             {next && (
-                                <button onClick={() => updateStatus(item.id, next)} disabled={isWorking}
-                                    style={{ padding: isMobile ? '8px 10px' : '8px 16px', borderRadius: 10, border: 'none', background: btnBg, color: '#fff', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.83rem', cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', opacity: isWorking ? 0.6 : 1, boxShadow: hasPending ? '0 4px 10px rgba(232,54,78,0.4)' : 'none', whiteSpace: 'nowrap' }}>
-                                    {isWorking ? '⏳' : nextLabel}
-                                </button>
+                                selectedOrder.isPendingConfirm ? (
+                                    // Locked: cashier hasn't confirmed yet
+                                    <div title="รอแคชเชียร์ยืนยันก่อน" style={{ padding: isMobile ? '7px 8px' : '7px 14px', borderRadius: 10, background: '#FEF3C7', color: '#92400E', fontWeight: 700, fontSize: isMobile ? '0.72rem' : '0.8rem', flexShrink: 0, whiteSpace: 'nowrap', border: '1px solid #FDE68A', cursor: 'not-allowed' }}>
+                                        🔒 รอยืนยัน
+                                    </div>
+                                ) : (
+                                    <button onClick={() => updateStatus(item.id, next)} disabled={isWorking}
+                                        style={{ padding: isMobile ? '8px 10px' : '8px 16px', borderRadius: 10, border: 'none', background: btnBg, color: '#fff', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.83rem', cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', opacity: isWorking ? 0.6 : 1, boxShadow: hasPending ? '0 4px 10px rgba(232,54,78,0.4)' : 'none', whiteSpace: 'nowrap' }}>
+                                        {isWorking ? '⏳' : nextLabel}
+                                    </button>
+                                )
                             )}
                             <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: isServed ? '#10B981' : '#F3F4F6', border: `2px solid ${isServed ? '#10B981' : '#D1D5DB'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.82rem', color: '#fff' }}>
                                 {isServed ? '✓' : ''}
