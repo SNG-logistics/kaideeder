@@ -733,11 +733,37 @@ export default function POSPage() {
     }
 
     const closeEmptyTable = async () => {
-        if (!currentOrder || orderItems.length > 0 || loading) return
-        if (!confirm(`ยืนยันปิดโต๊ะ ${selectedTable?.name}?\n(Order ที่ยังไม่มีรายการจะถูกยกเลิก)`)) return
+        if (loading) return
+        if (orderItems.length > 0) {
+            setToast({ message: 'ยังมีรายการอาหาร กรุณาเช็คบิลก่อนปิดโต๊ะ', type: 'warning' })
+            return
+        }
+        if (!confirm(`ยืนยันปิดโต๊ะ ${selectedTable?.name}?\n(Order ทั้งหมดของโต๊ะนี้จะถูกยกเลิก)`)) return
         setLoading(true)
         try {
-            const res = await fetch(`/api/pos/orders/${currentOrder.id}`, { method: 'DELETE' })
+            // Step 1: ถ้ายังไม่มี currentOrder (เช่น consolidate ก่อนหน้าล้มเหลว) → ลอง consolidate ใหม่
+            let orderId = currentOrder?.id
+            if (!orderId && selectedTable) {
+                const cr = await fetch('/api/pos/orders/consolidate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tableId: selectedTable.id }),
+                })
+                const cj = await cr.json()
+                if (cj.success && cj.data?.id) {
+                    orderId = cj.data.id
+                }
+            }
+            if (!orderId) {
+                // ไม่มี order เลย → reset table state ตรงๆ
+                setCurrentOrder(null)
+                setOrderItems([])
+                setSelectedTable(null)
+                fetchTables()
+                return
+            }
+            // Step 2: ลบ order ที่ได้
+            const res = await fetch(`/api/pos/orders/${orderId}`, { method: 'DELETE' })
             const json = await res.json()
             if (json.success) {
                 setCurrentOrder(null)
@@ -1313,7 +1339,7 @@ export default function POSPage() {
                                         </div>
                                     )}
                                     {/* Already open — show QR hint */}
-                                    {currentOrder && (
+                                    {(currentOrder || (selectedTable?.orders && selectedTable.orders.length > 0)) && (
                                         <div style={{
                                             borderRadius: 14, border: '1.5px solid #A7F3D0',
                                             background: '#ECFDF5', padding: '0.9rem 1rem',

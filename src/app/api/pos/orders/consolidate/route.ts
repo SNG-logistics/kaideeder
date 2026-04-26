@@ -115,4 +115,4 @@ export const POST = withAuth(async (req: NextRequest, context) => {
     })
 
     return ok(merged)
-}, ['owner', 'manager', 'cashier'])
+}, ['OWNER', 'MANAGER', 'CASHIER'])
