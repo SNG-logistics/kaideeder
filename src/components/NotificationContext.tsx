@@ -134,6 +134,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const isCashierRole = user?.role === 'cashier' || user?.role === 'owner' || user?.role === 'manager';
     const isKitchenRole = user?.role === 'kitchen' || user?.role === 'bar';
 
+    // Reset seen-IDs when role loads so existing notifications trigger sound
+    // Without this: first fetch (no role) remembers IDs → role arrives → refetch
+    // → same IDs → hasNewHigh=false → no sound!
+    useEffect(() => {
+        if (isCashierRole || isKitchenRole) {
+            console.log('[Notification] Role ready:', user?.role, '— resetting seen IDs for fresh detection')
+            prevHighIdsRef.current = new Set()
+        }
+    }, [isCashierRole, isKitchenRole, user?.role])
+
     // Start/stop repeating alarm based on unacknowledged HIGH-priority count
     const updateAlarm = useCallback((notifs: NotificationInfo[], seen: Set<string>) => {
         const unackedHigh = notifs.filter(n => n.priority === 'HIGH' && !seen.has(n.id))
@@ -212,13 +222,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 notifs.filter(n => n.priority === 'HIGH').map(n => n.id)
             )
 
+            // Debug logging
+            if (notifs.length > 0) {
+                console.log(`[Notification] Poll: ${notifs.length} total, ${newHighNotifs.length} new HIGH | role=${user?.role} cashier=${isCashierRole} kitchen=${isKitchenRole} audioOK=${audioUnlocked} ctxOK=${!!audioCtxRef.current}`)
+            }
+
             // Play immediately when a new order arrives (before interval kicks in)
             if (hasNewHigh && (isCashierRole || isKitchenRole) && audioUnlocked && audioCtxRef.current) {
                 const latestHigh = newHighNotifs[0];
                 // Kitchen/bar: only announce ORDER_NEW, not bill requests
                 const shouldAnnounce = isCashierRole || latestHigh.type === 'ORDER_NEW';
                 if (shouldAnnounce) {
-                    // Build clear Thai speech: "โต๊ะ{name} โซน{zone} สั่งอาหาร"
                     const tbl = latestHigh.metadata?.table
                     const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
                     const zonePart = tbl?.zone ? ` โซน${tbl.zone}` : ''
@@ -234,7 +248,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                             : 'ลูกค้าเรียกเช็คบิล'
                     }
                     playBellChime(audioCtxRef.current, 1.0, msg)
+                } else {
+                    console.log('[Notification] Skipped sound: shouldAnnounce=false for', latestHigh.type)
                 }
+            } else if (hasNewHigh) {
+                console.log(`[Notification] ⚠️ New HIGH but no sound: cashier=${isCashierRole} kitchen=${isKitchenRole} audio=${audioUnlocked} ctx=${!!audioCtxRef.current}`)
             }
 
             setNotifications(notifs)
@@ -245,7 +263,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } catch (e) {
             console.error('Failed to fetch notifications', e)
         }
-    }, [updateAlarm, isCashierRole, isKitchenRole, audioUnlocked])
+    }, [updateAlarm, isCashierRole, isKitchenRole, audioUnlocked, user?.role])
 
     useEffect(() => {
         fetchNotifications()
