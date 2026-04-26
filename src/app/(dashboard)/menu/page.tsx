@@ -10,6 +10,8 @@ interface Product {
     costPrice: number; salePrice: number
     productType: string; note?: string; imageUrl?: string
     isFeatured?: boolean
+    showInQrMenu?: boolean
+    showInQrDelivery?: boolean
     toppingsJson?: string | null
     category: { id: string; code: string; name: string; icon: string; color: string }
 }
@@ -475,6 +477,8 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
         note: product?.note || '',
         reorderPoint: 0,
         minQty: 0,
+        showInQrMenu: product?.showInQrMenu ?? true,
+        showInQrDelivery: product?.showInQrDelivery ?? true,
     })
     const [saving, setSaving] = useState(false)
     const [skuLoading, setSkuLoading] = useState(false)
@@ -844,6 +848,46 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
                         <label className="label">หมายเหตุ</label>
                         <input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
                             className="input" style={{ minHeight: 40 }} />
+                    </div>
+
+                    {/* ── QR Visibility Toggles ── */}
+                    <div style={{ background: 'rgba(5,150,105,0.06)', borderRadius: 12, padding: '12px 14px', border: '1px solid #BBF7D0' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', marginBottom: 10, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                            📱 การแสดงผลบนหน้า QR
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {[
+                                { key: 'showInQrMenu' as const, label: '🪑 QR สั่งอาหาร (สแกนโต๊ะ)', desc: 'สั่งผ่านหน้าเมนูลูกค้า QR' },
+                                { key: 'showInQrDelivery' as const, label: '🛯️ QR Delivery (สั่งออนไลน์)', desc: 'แสดงในหน้า Delivery' },
+                            ].map(({ key, label, desc }) => (
+                                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.83rem', fontWeight: 600, color: '#065f46' }}>{label}</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#6B7280' }}>{desc}</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm(f => ({ ...f, [key]: !f[key] }))}
+                                        style={{
+                                            width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                                            background: form[key] ? 'linear-gradient(135deg,#059669,#10B981)' : '#D1D5DB',
+                                            position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                                            boxShadow: form[key] ? '0 2px 6px rgba(5,150,105,0.4)' : 'none',
+                                        }}
+                                    >
+                                        <span style={{
+                                            position: 'absolute', top: 3, left: form[key] ? 24 : 3,
+                                            width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                                            transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '0.6rem',
+                                        }}>
+                                            {form[key] ? '✓' : '✕'}
+                                        </span>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
 

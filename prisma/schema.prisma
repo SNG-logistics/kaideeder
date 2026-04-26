@@ -186,6 +186,8 @@ model Product {
   minQty          Float       @default(0)
   isActive        Boolean     @default(true)
   isFeatured      Boolean     @default(false)
+  showInQrMenu    Boolean     @default(true)  // แสดงในหน้า QR สั่งอาหาร (ลูกค้าสแกนโต๊ะ)
+  showInQrDelivery Boolean    @default(true)  // แสดงในหน้า QR Delivery
   note            String?
   toppingsJson    String?     @db.Text // JSON: [{id,name,price,isActive}]
   createdAt       DateTime    @default(now())

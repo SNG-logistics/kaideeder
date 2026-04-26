@@ -35,8 +35,9 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
         const {
             sku, name, nameTh, nameLao, categoryId, productType,
             unit, unitAlt, convFactor, costPrice, salePrice,
-            reorderPoint, minQty, isActive, isFeatured, note,
-            imageUrl, inventoryItemId, toppingsJson,
+            reorderPoint, minQty, isActive, isFeatured,
+            showInQrMenu, showInQrDelivery,
+            note, imageUrl, inventoryItemId, toppingsJson,
         } = body
         const updateData: Record<string, unknown> = {}
         if (sku !== undefined) updateData.sku = sku
@@ -54,6 +55,8 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
         if (minQty !== undefined) updateData.minQty = minQty
         if (isActive !== undefined) updateData.isActive = isActive
         if (isFeatured !== undefined) updateData.isFeatured = isFeatured
+        if (showInQrMenu !== undefined) updateData.showInQrMenu = showInQrMenu
+        if (showInQrDelivery !== undefined) updateData.showInQrDelivery = showInQrDelivery
         if (note !== undefined) updateData.note = note
         if (imageUrl !== undefined) updateData.imageUrl = imageUrl
         if (inventoryItemId !== undefined) updateData.inventoryItemId = inventoryItemId

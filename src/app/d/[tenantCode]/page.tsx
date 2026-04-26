@@ -174,7 +174,7 @@ export default function DeliveryOrderPage() {
 
     // ── Fetch menu ────────────────────────────────────────────
     useEffect(() => {
-        fetch(`/api/public/menu/${tenantCode}`)
+        fetch(`/api/public/menu/${tenantCode}?mode=delivery`)
             .then(r => r.json())
             .then(d => {
                 if (d.error) { setError(d.error); return }

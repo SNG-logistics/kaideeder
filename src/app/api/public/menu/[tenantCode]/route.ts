@@ -5,10 +5,12 @@ import { prisma } from '@/lib/prisma'
 // Returns sale products (SALE_ITEM/ENTERTAIN, salePrice>0) grouped by non-stock categories.
 // Images are NOT embedded — use /api/public/img/[productId] for lazy-loading.
 export async function GET(
-    _req: Request,
+    req: Request,
     { params }: { params: Promise<{ tenantCode: string }> }
 ) {
     const { tenantCode } = await params
+    const { searchParams } = new URL(req.url)
+    const mode = searchParams.get('mode') // 'delivery' | null
 
     try {
         const tenant = await prisma.tenant.findFirst({
@@ -23,6 +25,9 @@ export async function GET(
                 tenantId: tenant.id,
                 isActive: true,
                 salePrice: { gt: 0 },
+                ...(mode === 'delivery'
+                    ? { showInQrDelivery: true }   // ซ่อนเมนูที่ปิดสำหรับ Delivery
+                    : { showInQrMenu: true }),      // ซ่อนเมนูที่ปิดจากหน้า QR โต๊ะ
             },
             orderBy: { name: 'asc' },
             select: {
