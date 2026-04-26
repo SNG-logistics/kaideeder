@@ -17,46 +17,58 @@ const NotificationContext = createContext<NotificationContextType | null>(null)
 
 // ── Web Audio bell synthesizer ────────────────────────────────────────────
 function playBellChime(audioCtx: AudioContext, vol = 1.0, message?: string) {
-    const t = audioCtx.currentTime
-    // Two-tone chime: high ding + lower dong
-    const tones: [number, number, number][] = [
-        [1046, 0,    vol],       // C6 — first ding
-        [880,  0.3,  vol * 0.8], // A5 — second ding
-        [698,  0.65, vol * 0.6], // F5 — softer dong
-        [1046, 1.0,  vol],       // Repeats for more urgency
-        [880,  1.3,  vol * 0.8]
-    ]
-    tones.forEach(([freq, delay, gain]) => {
-        const osc = audioCtx.createOscillator()
-        const gainNode = audioCtx.createGain()
-        osc.connect(gainNode)
-        gainNode.connect(audioCtx.destination)
-        osc.type = 'triangle' // Using triangle instead of sine for a sharper, louder sound
-        osc.frequency.value = freq
-        gainNode.gain.setValueAtTime(0, t + delay)
-        gainNode.gain.linearRampToValueAtTime(gain, t + delay + 0.02)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, t + delay + 1.2)
-        osc.start(t + delay)
-        osc.stop(t + delay + 1.3)
-    })
+    // Always resume — context may slip back to 'suspended' after tab inactivity
+    const doPlay = () => {
+        try {
+            const t = audioCtx.currentTime
+            // Two-tone chime: high ding + lower dong
+            const tones: [number, number, number][] = [
+                [1046, 0,    vol],       // C6 — first ding
+                [880,  0.3,  vol * 0.8], // A5 — second ding
+                [698,  0.65, vol * 0.6], // F5 — softer dong
+                [1046, 1.0,  vol],       // Repeats for more urgency
+                [880,  1.3,  vol * 0.8]
+            ]
+            tones.forEach(([freq, delay, gain]) => {
+                const osc = audioCtx.createOscillator()
+                const gainNode = audioCtx.createGain()
+                osc.connect(gainNode)
+                gainNode.connect(audioCtx.destination)
+                osc.type = 'triangle'
+                osc.frequency.value = freq
+                gainNode.gain.setValueAtTime(0, t + delay)
+                gainNode.gain.linearRampToValueAtTime(gain, t + delay + 0.02)
+                gainNode.gain.exponentialRampToValueAtTime(0.01, t + delay + 1.2)
+                osc.start(t + delay)
+                osc.stop(t + delay + 1.3)
+            })
+            console.log('[Notification] 🔔 Bell chime played', message ?? '')
+        } catch (e) {
+            console.error('[Notification] Failed to play bell chime', e)
+        }
+    }
+
+    // Resume if suspended, then play
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().then(doPlay).catch(() => console.warn('[Notification] AudioContext resume failed'))
+    } else {
+        doPlay()
+    }
 
     // Text to Speech for clear announcement if a message is provided
     if (message && 'speechSynthesis' in window) {
         setTimeout(() => {
-            // Cancel any ongoing speech so it doesn't queue up too long
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(message);
-            utterance.lang = 'th-TH'; // Thai language
+            utterance.lang = 'th-TH';
             utterance.rate = 1.0;
             utterance.volume = 1.0;
-            
-            // Prioritize Thai voices if available, falling back to default
             const voices = window.speechSynthesis.getVoices();
             const thaiVoice = voices.find(v => v.lang === 'th-TH' || v.lang === 'th');
             if (thaiVoice) utterance.voice = thaiVoice;
-
             window.speechSynthesis.speak(utterance);
-        }, 1500); // 1.5 second delay to let the chime play first
+            console.log('[Notification] 🗣️ Speech:', message)
+        }, 1500);
     }
 }
 
@@ -87,12 +99,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         try {
             if (!audioCtxRef.current) {
                 audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+                console.log('[Notification] AudioContext created, state:', audioCtxRef.current.state)
             }
             // Must call resume() — AudioContext starts suspended on Chrome/Safari
             audioCtxRef.current.resume().then(() => {
+                console.log('[Notification] ✅ Audio unlocked, state:', audioCtxRef.current?.state)
                 setAudioUnlocked(true)
-            }).catch(() => setAudioUnlocked(true))
-        } catch { setAudioUnlocked(true) }
+            }).catch((e) => {
+                console.warn('[Notification] ⚠️ AudioContext resume failed:', e)
+                // Still mark as unlocked — some browsers don't support resume() but audio works
+                setAudioUnlocked(true)
+            })
+        } catch (e) {
+            console.error('[Notification] ❌ AudioContext creation failed:', e)
+        }
         // Warm up speech synthesis
         if ('speechSynthesis' in window) {
             const u = new SpeechSynthesisUtterance('')
