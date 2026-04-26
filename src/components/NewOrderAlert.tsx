@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNotification } from './NotificationContext'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -95,8 +96,9 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
 }
 
 // ── Bill Request Modal ─────────────────────────────────────────────────────
-function BillRequestModal({ bill, onAck, onClose }: {
+function BillRequestModal({ bill, onAck, onClose, onCancel, canCancel }: {
     bill: BillRequest; onAck: () => void; onClose: () => void
+    onCancel?: () => void; canCancel?: boolean
 }) {
     const total = bill.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
     const timeMatch = bill.note?.match(/(\d{2}:\d{2})/)
@@ -160,20 +162,35 @@ function BillRequestModal({ bill, onAck, onClose }: {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        รอก่อน
-                    </button>
-                    <button onClick={onAck} style={{
-                        flex: 2, padding: '12px', borderRadius: 10, border: 'none',
-                        background: 'linear-gradient(135deg,#dc2626,#ef4444)',
-                        color: '#fff', fontWeight: 800, fontSize: '0.9rem',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        boxShadow: '0 4px 16px rgba(220,38,38,0.45)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    }}>
-                        🧾 รับทราบ — เตรียมบิล
-                    </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            รอก่อน
+                        </button>
+                        <button onClick={onAck} style={{
+                            flex: 2, padding: '12px', borderRadius: 10, border: 'none',
+                            background: 'linear-gradient(135deg,#dc2626,#ef4444)',
+                            color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            boxShadow: '0 4px 16px rgba(220,38,38,0.45)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}>
+                            🧾 รับทราบ — เตรียมบิล
+                        </button>
+                    </div>
+                    {/* Cancel — OWNER/MANAGER only */}
+                    {canCancel && onCancel && (
+                        <button onClick={onCancel} style={{
+                            width: '100%', padding: '10px', borderRadius: 10,
+                            border: '1.5px solid rgba(251,191,36,0.4)',
+                            background: 'rgba(251,191,36,0.08)',
+                            color: '#fbbf24', fontWeight: 700, fontSize: '0.82rem',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}>
+                            ❌ ยกเลิกคำขอเช็คบิล (Owner)
+                        </button>
+                    )}
                 </div>
             </div>
             <style>{`
@@ -187,8 +204,10 @@ function BillRequestModal({ bill, onAck, onClose }: {
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function NewOrderAlert() {
     const router = useRouter()
+    const user = useCurrentUser()
     const { notifications, removeNotification, refresh, markAsSeen } = useNotification()
     const [viewingId, setViewingId] = useState<string | null>(null)
+    const canCancel = user?.role === 'OWNER' || user?.role === 'MANAGER' || user?.role === 'owner' || user?.role === 'manager'
 
     // Derived states
     const orderNotifs = notifications.filter(n => n.type === 'ORDER_NEW')
@@ -214,6 +233,19 @@ export default function NewOrderAlert() {
             setViewingId(null)
             refresh()
         }
+    }, [currentBillNode, markAsSeen, removeNotification, refresh])
+
+    const handleCancelBill = useCallback(async () => {
+        if (!currentBillNode) return
+        const orderId = currentBillNode.metadata?.id
+        if (!orderId) return
+        try {
+            await fetch(`/api/pos/bill-requests?orderId=${orderId}`, { method: 'DELETE' })
+        } catch { }
+        markAsSeen(currentBillNode.id)
+        removeNotification(currentBillNode.id)
+        setViewingId(null)
+        refresh()
     }, [currentBillNode, markAsSeen, removeNotification, refresh])
 
     return (
@@ -290,6 +322,8 @@ export default function NewOrderAlert() {
                     bill={currentBillNode.metadata}
                     onAck={handleAckBill}
                     onClose={() => setViewingId(null)}
+                    onCancel={handleCancelBill}
+                    canCancel={canCancel}
                 />
             )}
 

@@ -27,3 +27,35 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
         return err(e.message)
     }
 }, ['OWNER', 'MANAGER', 'CASHIER'])
+
+// DELETE /api/pos/bill-requests?orderId=xxx
+// OWNER/MANAGER only — cancels a bill request by removing the marker from order note
+export const DELETE = withAuth(async (req: NextRequest, ctx: any) => {
+    const { tenantId } = ctx
+    const { searchParams } = new URL(req.url)
+    const orderId = searchParams.get('orderId')
+    if (!orderId) return err('orderId is required', 400)
+
+    try {
+        const order = await prisma.order.findFirst({
+            where: { id: orderId, tenantId, note: { contains: 'เรียกเช็คบิล' } },
+        })
+        if (!order) return err('Bill request not found', 404)
+
+        // Strip the bill-request marker — keep any other note text intact
+        const cleanedNote = (order.note ?? '')
+            .split('\n')
+            .filter(line => !line.includes('เรียกเช็คบิล'))
+            .join('\n')
+            .trim() || null
+
+        await prisma.order.update({
+            where: { id: orderId },
+            data: { note: cleanedNote },
+        })
+        return ok({ message: 'Bill request cancelled' })
+    } catch (e: any) {
+        return err(e.message)
+    }
+}, ['OWNER', 'MANAGER'])
+
