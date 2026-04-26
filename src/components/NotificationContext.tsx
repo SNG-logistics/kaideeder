@@ -144,7 +144,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 }
             }
         }
-    }, [isCashierRole])
+    }, [isCashierRole, isKitchenRole])
 
     useEffect(() => {
         return () => {
@@ -194,7 +194,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } catch (e) {
             console.error('Failed to fetch notifications', e)
         }
-    }, [updateAlarm, isCashierRole])
+    }, [updateAlarm, isCashierRole, isKitchenRole])
 
     useEffect(() => {
         fetchNotifications()

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, type CSSProperties } from 're
 import { useStoreBranding } from '@/hooks/useStoreBranding'
 import { useCurrency } from '@/context/TenantContext'
 import NewOrderAlert from '@/components/NewOrderAlert'
+import { useNotification } from '@/components/NotificationContext'
 import { getPrinterSettings } from '@/lib/printerSettings'
 
 // ─── Types ───────────────────────────────────────────────────
@@ -317,6 +318,25 @@ export default function POSPage() {
         fetchTables()
         fetchProducts()
     }, [fetchTables, fetchProducts, authChecked])
+
+    // ─── Auto-refresh tables every 5s (cashier sees new QR orders without manual refresh) ──
+    useEffect(() => {
+        if (!authChecked) return
+        const iv = setInterval(() => fetchTables(), 5000)
+        return () => clearInterval(iv)
+    }, [authChecked, fetchTables])
+
+    // ─── Refresh tables immediately when a new ORDER_NEW notification arrives ──
+    const { notifications } = useNotification()
+    const prevNotifCountRef = useRef(0)
+    useEffect(() => {
+        const orderNotifs = notifications.filter(n => n.type === 'ORDER_NEW')
+        if (orderNotifs.length > prevNotifCountRef.current) {
+            // New order arrived — refresh table list so pending badge updates
+            fetchTables()
+        }
+        prevNotifCountRef.current = orderNotifs.length
+    }, [notifications, fetchTables])
 
     // ─── Table Selection ──────────────────────────────────────
     const selectTable = async (table: DiningTable) => {
