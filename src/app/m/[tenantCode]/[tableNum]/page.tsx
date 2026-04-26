@@ -348,10 +348,14 @@ export default function MenuPage() {
                                     <div style={{ padding: '10px 16px', background: round.status === 'PENDING_CONFIRM' ? 'rgba(245,158,11,0.06)' : 'rgba(42,157,80,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}` }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <span style={{ fontSize: '1rem' }}>{round.status === 'OPEN' ? '✅' : '🕐'}</span>
-                                            <div>
-                                                <div style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>{t('bill_round')} {round.round}</div>
-                                                <div style={{ color: C.muted, fontSize: '0.65rem', fontFamily: 'monospace' }}>{round.orderNumber}</div>
+                                        <div>
+                                            <div style={{ color: C.text, fontWeight: 700, fontSize: '0.85rem' }}>
+                                                {round.status === 'PENDING_CONFIRM'
+                                                    ? `⏳ ${t('bill_pending_confirm')}`
+                                                    : `✅ ${t('bill_round')} ${round.round}`}
                                             </div>
+                                            <div style={{ color: C.muted, fontSize: '0.65rem', fontFamily: 'monospace' }}>{round.orderNumber}</div>
+                                        </div>
                                         </div>
                                         <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '4px 10px', borderRadius: 99, color: round.status === 'OPEN' ? '#fff' : C.gold, background: round.status === 'OPEN' ? C.accent : C.goldLight }}>
                                             {round.status === 'OPEN' ? t('confirm') : t('bill_pending_confirm')}
@@ -445,16 +449,15 @@ export default function MenuPage() {
                 <div style={{ color: C.muted, fontSize: '0.7rem', marginBottom: 4, fontWeight: 600, letterSpacing: '0.06em' }}>{t('qr_order_number')}</div>
                 <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.3rem', fontFamily: 'monospace' }}>{orderNumber}</div>
             </div>
-            {totalRounds > 0 && (
-                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: C.shadow, width: '100%', maxWidth: 320 }}>
-                    <span style={{ fontSize: '1.3rem' }}>📋</span>
-                    <div style={{ textAlign: 'left' }}>
-                        <div style={{ color: C.accent, fontWeight: 700, fontSize: '0.88rem' }}>{t('bill_round')} {totalRounds}</div>
-                        <div style={{ color: C.muted, fontSize: '0.75rem' }}>{t('total')} {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
-                    </div>
+            {/* ผู้ใช้ส่งออเดอร์เสร็จ——แสดงแค่ pending badge ไม่เห็น "รอบ" */}
+            <div style={{ background: C.card, border: `1px solid rgba(245,158,11,0.35)`, borderRadius: 14, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: C.shadow, width: '100%', maxWidth: 320 }}>
+                <span style={{ fontSize: '1.3rem' }}>⏳</span>
+                <div style={{ textAlign: 'left' }}>
+                    <div style={{ color: '#D97706', fontWeight: 700, fontSize: '0.88rem' }}>{t('bill_pending_confirm')}</div>
+                    <div style={{ color: C.muted, fontSize: '0.75rem' }}>{t('total')} {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
                 </div>
-            )}
-            <p style={{ color: C.muted, fontSize: '0.75rem', margin: 0 }}>{t('qr_table')} {tableNum}</p>
+            </div>
+            <p style={{ color: C.muted, fontSize: '0.75rem', margin: 0 }}>{t('qr_table')} {tableLabel}{zoneLabel ? ` · ${zoneLabel}` : ''}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
                 <button onClick={() => { setSubmitted(false); setViewBill(true) }} style={{ width: '100%', background: `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, fontSize: '0.92rem', boxShadow: C.shadowGreen }}>
                     {t('qr_view_bill')}

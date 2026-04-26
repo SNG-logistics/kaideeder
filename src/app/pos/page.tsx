@@ -1131,9 +1131,9 @@ export default function POSPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{table.name}</div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        {roundCount > 1 && (
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, background: '#F59E0B', color: '#fff', borderRadius: 99, padding: '1px 6px' }}>
-                                                {roundCount} รอบ
+                                        {hasPending && (
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, background: '#F59E0B', color: '#fff', borderRadius: 99, padding: '1px 6px', animation: 'pulse-badge 1.5s ease-in-out infinite' }}>
+                                                ⏳ รอยืนยัน
                                             </span>
                                         )}
                                         <div style={{ width: 9, height: 9, borderRadius: '50%', background: hasPending ? '#F59E0B' : hasOrder ? '#FB7185' : '#4ADE80' }} />
