@@ -135,10 +135,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 const isBillOnly = latestHigh.type === 'BILL_REQUEST';
                 if (isKitchenRole && isBillOnly) return;
 
-                const msg = isCashierRole
-                    ? (latestHigh.type === 'ORDER_NEW' ? `ออเดอร์ใหม่ ${latestHigh.message}` :
-                       latestHigh.type === 'BILL_REQUEST' ? `เรียกเช็คบิล ${latestHigh.message}` : undefined)
-                    : latestHigh.type === 'ORDER_NEW' ? `ออเดอร์ใหม่ ${latestHigh.message}` : undefined;
+                const tbl = latestHigh.metadata?.table
+                const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
+                const zonePart = tbl?.zone ? ` โซน${tbl.zone}` : ''
+
+                let msg: string | undefined
+                if (latestHigh.type === 'ORDER_NEW') {
+                    msg = tablePart ? `${tablePart}${zonePart} สั่งอาหาร` : 'มีออเดอร์ใหม่'
+                } else if (latestHigh.type === 'BILL_REQUEST' && isCashierRole) {
+                    msg = tablePart ? `${tablePart}${zonePart} เรียกเช็คบิล` : 'ลูกค้าเรียกเช็คบิล'
+                }
                 
                 // Play first chime immediately
                 if (audioUnlocked && audioCtxRef.current) {
@@ -192,13 +198,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 // Kitchen/bar: only announce ORDER_NEW, not bill requests
                 const shouldAnnounce = isCashierRole || latestHigh.type === 'ORDER_NEW';
                 if (shouldAnnounce) {
-                    const msg = isCashierRole
-                        ? (latestHigh.type === 'ORDER_NEW'
-                            ? `ออเดอร์ใหม่ ${latestHigh.message.replace('—', '').replace('โต๊ะ', 'โต๊ะ ')}`
-                            : latestHigh.type === 'BILL_REQUEST'
-                                ? `ลูกค้าเรียกเช็คบิล ${latestHigh.message.replace('—', '').replace('โต๊ะ', 'โต๊ะ ')}`
-                                : undefined)
-                        : `ออเดอร์ใหม่ ${latestHigh.message.replace('—', '').replace('โต๊ะ', 'โต๊ะ ')}`;
+                    // Build clear Thai speech: "โต๊ะ{name} โซน{zone} สั่งอาหาร"
+                    const tbl = latestHigh.metadata?.table
+                    const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
+                    const zonePart = tbl?.zone ? ` โซน${tbl.zone}` : ''
+
+                    let msg: string | undefined
+                    if (latestHigh.type === 'ORDER_NEW') {
+                        msg = tablePart
+                            ? `${tablePart}${zonePart} สั่งอาหาร`
+                            : 'มีออเดอร์ใหม่'
+                    } else if (latestHigh.type === 'BILL_REQUEST' && isCashierRole) {
+                        msg = tablePart
+                            ? `${tablePart}${zonePart} เรียกเช็คบิล`
+                            : 'ลูกค้าเรียกเช็คบิล'
+                    }
                     playBellChime(audioCtxRef.current, 1.0, msg)
                 }
             }
