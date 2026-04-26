@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useCurrency, useTenant } from '@/context/TenantContext'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
@@ -33,8 +33,8 @@ function payLabel(m: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-export default function ReceiptPage({ params }: { params: Promise<{ orderId: string }> }) {
-    const { orderId } = use(params)
+// Inner component — must be inside <Suspense> because it uses useSearchParams()
+function ReceiptContent({ orderId }: { orderId: string }) {
     const [order, setOrder] = useState<OrderData | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
@@ -64,7 +64,6 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
     useEffect(() => {
         if (order && !printed && !isPreview) {
             const t = setTimeout(() => {
-                // ปิดหน้าต่างอัตโนมัติหลังพิมพ์เสร็จ (กด Print หรือ Cancel)
                 window.addEventListener('afterprint', () => window.close(), { once: true })
                 window.print()
                 setPrinted(true)
@@ -89,22 +88,18 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
         </div>
     )
 
-    const activeItems   = order.items.filter(i => !i.isCancelled)
-    const payment       = order.payments?.[0] ?? null
-    const discountAmt   = order.discountType === 'PERCENT' ? order.subtotal * order.discount / 100 : order.discount
-    const isPaid        = !!payment
-    const initials      = storeName.slice(0, 2).toUpperCase()
+    const activeItems = order.items.filter(i => !i.isCancelled)
+    const payment     = order.payments?.[0] ?? null
+    const discountAmt = order.discountType === 'PERCENT' ? order.subtotal * order.discount / 100 : order.discount
+    const isPaid      = !!payment
+    const initials    = storeName.slice(0, 2).toUpperCase()
 
     return (
         <>
-            {/* ── Global Styles ─────────────────────────────────────── */}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap');
                 * { margin:0; padding:0; box-sizing:border-box; }
-                body {
-                    font-family: 'Noto Sans Lao','Noto Sans Thai', 'Sarabun', sans-serif;
-                    background: #F0F2F5;
-                }
+                body { font-family: 'Noto Sans Lao','Noto Sans Thai', 'Sarabun', sans-serif; background: #F0F2F5; }
                 @media print {
                     @page { size: 80mm auto; margin: 0; }
                     html, body { height: fit-content !important; overflow: hidden !important; }
@@ -119,14 +114,12 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                 .row { display:flex; justify-content:space-between; align-items:center; }
             `}</style>
 
-            {/* ── Preview Banner ─────────────────────────────────────── */}
             {isPreview && (
                 <div className="no-print" style={{ position:'fixed', top:0, left:0, right:0, background:'linear-gradient(135deg,#1d4ed8,#2563eb)', color:'#fff', textAlign:'center', padding:'8px 16px', fontSize:12, fontWeight:700, zIndex:200 }}>
                     👁️ ຕົວຢ່າງ · ยังไม่ได้ชำระ | Please confirm with staff
                 </div>
             )}
 
-            {/* ── Action Buttons ──────────────────────────────────────── */}
             <div className="no-print" style={{ display:'flex', gap:8, marginTop: isPreview ? 44 : 0, animation:'fadeIn 0.4s ease' }}>
                 <button onClick={() => { setPrinted(false); window.print() }} style={{ padding:'9px 20px', background:'#E8364E', color:'#fff', border:'none', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700, boxShadow:'0 4px 12px rgba(232,54,78,0.35)', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5 }}>
                     🖨️ ພິມ · พิมพ์
@@ -136,16 +129,11 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                 </button>
             </div>
 
-            {/* ═══════════════════ RECEIPT CARD ═══════════════════════ */}
             <div className="receipt-card" style={{ width:302, background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 6px 32px rgba(0,0,0,0.13)', animation:'fadeIn 0.5s ease' }}>
-
-                {/* ── Accent bar top ─────────────────────────────────── */}
                 <div style={{ height:4, background:'linear-gradient(90deg,#E8364E,#FF6B35,#F59E0B)' }} />
 
-                {/* ── Store Header ────────────────────────────────────── */}
                 <div style={{ background:'#1A1D26', color:'#fff', padding:'10px 14px 9px', textAlign:'center' }}>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:9, marginBottom:6 }}>
-                        {/* Logo */}
                         <div style={{ width:38, height:38, borderRadius:'50%', background: logoUrl ? 'transparent' : 'linear-gradient(135deg,#E8364E,#FF6B35)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 8px rgba(232,54,78,0.4)' }}>
                             {logoUrl
                                 ? <img src={logoUrl} alt="logo" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
@@ -157,14 +145,11 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                             {storeNameLo && <div style={{ fontSize:11, fontWeight:600, color:'#CBD5E1', marginTop:1 }}>{storeNameLo}</div>}
                         </div>
                     </div>
-
                     {receiptHeader ? (
                         <div style={{ fontSize:10.5, color:'#94A3B8', whiteSpace:'pre-wrap', lineHeight:1.5, fontWeight:500 }}>{receiptHeader}</div>
                     ) : storePhone ? (
                         <div style={{ fontSize:10.5, color:'#94A3B8', fontWeight:600 }}>📞 {storePhone}</div>
                     ) : null}
-
-                    {/* Status badge */}
                     <div style={{ marginTop:7, display:'inline-flex', alignItems:'center', gap:5, background: isPaid ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', borderRadius:16, padding:'3px 10px' }}>
                         <div style={{ width:6, height:6, borderRadius:'50%', background: isPaid ? '#10B981' : '#F59E0B' }} />
                         <span style={{ fontSize:10, fontWeight:700, color: isPaid ? '#10B981' : '#F59E0B' }}>
@@ -173,7 +158,6 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     </div>
                 </div>
 
-                {/* ── Order Meta ──────────────────────────────────────── */}
                 <div style={{ padding:'8px 12px 4px' }}>
                     {([
                         ['📅', fmtDate(order.closedAt || order.openedAt)],
@@ -188,17 +172,13 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     ))}
                 </div>
 
-                {/* ── Divider ── */}
                 <div style={{ margin:'6px 12px', borderTop:'1.5px dashed #E5E7EB' }} />
 
-                {/* ── Items ───────────────────────────────────────────── */}
                 <div style={{ padding:'0 12px' }}>
-                    {/* Column header */}
                     <div className="row" style={{ marginBottom:5 }}>
                         <span style={{ fontSize:9, fontWeight:800, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:1 }}>ລາຍການ · รายการ</span>
                         <span style={{ fontSize:9, fontWeight:800, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:1 }}>ຍອດ · ยอด</span>
                     </div>
-
                     {activeItems.map((item, idx) => (
                         <div key={idx} style={{ marginBottom:5, paddingBottom:5, borderBottom: idx < activeItems.length-1 ? '1px dashed #F3F4F6' : 'none' }}>
                             <div className="row" style={{ alignItems:'flex-start', gap:6 }}>
@@ -213,7 +193,6 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     ))}
                 </div>
 
-                {/* ── Totals ──────────────────────────────────────────── */}
                 <div style={{ margin:'4px 12px 0', borderTop:'1.5px dashed #E5E7EB', paddingTop:8 }}>
                     {([
                         ['ລວມ · รวม', fmt(order.subtotal)],
@@ -228,7 +207,6 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     ))}
                 </div>
 
-                {/* Grand total */}
                 <div style={{ margin:'6px 12px 10px', background:'linear-gradient(135deg,#0F1117,#1A1D26)', borderRadius:10, padding:'9px 14px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                     <div>
                         <div style={{ fontSize:9, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:0.8 }}>ຍອດສຸດທ້າຍ · ยอดสุทธิ</div>
@@ -237,7 +215,6 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     <span style={{ fontSize:22, fontWeight:900, color:'#FBBF24', letterSpacing:0.3, textShadow:'0 0 16px rgba(251,191,36,0.4)' }}>{fmt(order.totalAmount)}</span>
                 </div>
 
-                {/* ── Payment ─────────────────────────────────────────── */}
                 {payment ? (
                     <div style={{ margin:'0 12px 10px', background:'#F0FDF4', borderRadius:8, padding:'7px 10px', border:'1px solid #BBF7D0' }}>
                         <div style={{ fontSize:11, fontWeight:800, color:'#059669', marginBottom:4 }}>✅ {payLabel(payment.method)}</div>
@@ -259,12 +236,9 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     </div>
                 )}
 
-                {/* ── QR Banking ─────────────────────────────── */}
                 {qrBankingBase64 && (
                     <div style={{ margin:'0 12px 10px', textAlign:'center' }}>
-                        <div style={{ fontSize:10, color:'#374151', fontWeight:700, marginBottom:5 }}>
-                            📲 สแกนเพื่อจ่าย · ສະແກນຈ່າຍ
-                        </div>
+                        <div style={{ fontSize:10, color:'#374151', fontWeight:700, marginBottom:5 }}>📲 สแกนเพื่อจ่าย · ສະແກນຈ່າຍ</div>
                         <img
                             src={`data:image/jpeg;base64,${qrBankingBase64}`}
                             alt="QR Banking"
@@ -273,7 +247,6 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     </div>
                 )}
 
-                {/* ── Footer ──────────────────────────────────────────── */}
                 <div style={{ background:'#F8F9FC', padding:'10px 14px 12px', textAlign:'center', borderTop:'1px dashed #E5E7EB' }}>
                     {receiptFooter ? (
                         <div style={{ fontSize:11, color:'#4B5563', whiteSpace:'pre-wrap', lineHeight:1.6, fontWeight:500 }}>{receiptFooter}</div>
@@ -286,9 +259,26 @@ export default function ReceiptPage({ params }: { params: Promise<{ orderId: str
                     <div style={{ marginTop:8, fontSize:8.5, color:'#D1D5DB', letterSpacing:0.6, fontWeight:600 }}>KAIDEEDER POS · {order.orderNumber}</div>
                 </div>
 
-                {/* ── Accent bar bottom ───────────────────────────────── */}
                 <div style={{ height:3, background:'linear-gradient(90deg,#F59E0B,#FF6B35,#E8364E)' }} />
             </div>
         </>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Default export wraps ReceiptContent in <Suspense>
+// Required by Next.js 15: useSearchParams() must be inside Suspense
+export default function ReceiptPage({ params }: { params: Promise<{ orderId: string }> }) {
+    const { orderId } = use(params)
+    return (
+        <Suspense fallback={
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontFamily:'sans-serif', flexDirection:'column', gap:12, color:'#666' }}>
+                <div style={{ width:32, height:32, border:'3px solid #eee', borderTopColor:'#E8364E', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+                <span style={{ fontSize:13 }}>ກຳລັງໂຫລດ...</span>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+        }>
+            <ReceiptContent orderId={orderId} />
+        </Suspense>
     )
 }
