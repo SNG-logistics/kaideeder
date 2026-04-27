@@ -13,12 +13,12 @@ async function fetchNotifs(tenantId: string): Promise<NotificationInfo[]> {
     const [pendingOrders, billRequests, newDeliveries] = await Promise.all([
         prisma.order.findMany({
             where: { tenantId, status: 'PENDING_CONFIRM', note: { not: { contains: 'เรียกเช็คบิล' } } },
-            include: { table: true },
+            include: { table: true, items: { include: { product: true } } },
             orderBy: { openedAt: 'asc' },
         }),
         prisma.order.findMany({
             where: { tenantId, status: { in: ['OPEN', 'PENDING_CONFIRM'] }, note: { contains: 'เรียกเช็คบิล' } },
-            include: { table: true },
+            include: { table: true, items: { include: { product: true } } },
             orderBy: { openedAt: 'asc' },
         }),
         prisma.order.findMany({
