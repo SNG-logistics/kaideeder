@@ -634,6 +634,74 @@ export default function MenuPage() {
                             </div>
                         )}
                     </div>
+
+                    {/* ── Quick Filter Chips ─────────────────────── */}
+                    <div style={{ background: '#fff', borderBottom: '1px solid rgba(0,0,0,0.06)', padding: '6px 14px 10px', display: 'flex', gap: 8, overflowX: 'auto' }}>
+                        {/* ⭐ เมนูแนะนำ — แสดงเฉพาะมีสินค้า featured */}
+                        {products.some(p => p.isFeatured) && (
+                            <button
+                                onClick={() => { setActiveCategory('featured'); setCatDropdownOpen(false) }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    padding: '7px 16px', borderRadius: 99, border: 'none',
+                                    fontFamily: FONT, fontSize: '0.82rem', fontWeight: 700,
+                                    whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s',
+                                    background: activeCategory === 'featured'
+                                        ? 'linear-gradient(135deg,#f59e0b,#d97706)'
+                                        : 'rgba(245,158,11,0.10)',
+                                    color: activeCategory === 'featured' ? '#fff' : '#92400e',
+                                    boxShadow: activeCategory === 'featured'
+                                        ? '0 4px 14px rgba(245,158,11,0.45)' : 'none',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                ⭐ {t('featured')}
+                            </button>
+                        )}
+                        {/* 🍽️ เมนูทั้งหมด */}
+                        <button
+                            onClick={() => { setActiveCategory('all'); setCatDropdownOpen(false) }}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                padding: '7px 16px', borderRadius: 99, border: 'none',
+                                fontFamily: FONT, fontSize: '0.82rem', fontWeight: 700,
+                                whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s',
+                                background: activeCategory === 'all'
+                                    ? `linear-gradient(135deg,${C.accent},${C.accentDark})`
+                                    : C.accentLight,
+                                color: activeCategory === 'all' ? '#fff' : C.accentDark,
+                                boxShadow: activeCategory === 'all'
+                                    ? `0 4px 14px rgba(42,157,80,0.4)` : 'none',
+                                flexShrink: 0,
+                            }}
+                        >
+                            🍽️ {t('all_menu')}
+                        </button>
+                        {/* หมวดหมู่อื่นๆ */}
+                        {categories.map(c => (
+                            <button
+                                key={c.id}
+                                onClick={() => { setActiveCategory(c.id); setCatDropdownOpen(false) }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 5,
+                                    padding: '7px 14px', borderRadius: 99, border: 'none',
+                                    fontFamily: FONT, fontSize: '0.82rem', fontWeight: 600,
+                                    whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s',
+                                    background: activeCategory === c.id
+                                        ? `linear-gradient(135deg,${C.accent},${C.accentDark})`
+                                        : '#f3f4f6',
+                                    color: activeCategory === c.id ? '#fff' : C.subtext,
+                                    boxShadow: activeCategory === c.id
+                                        ? `0 4px 14px rgba(42,157,80,0.4)` : 'none',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                {c.icon && <span>{c.icon}</span>}
+                                {c.name}
+                            </button>
+                        ))}
+                    </div>
+
                 </div>
 
                 {/* ── PRODUCT GRID ───────────────────────────────────── */}
