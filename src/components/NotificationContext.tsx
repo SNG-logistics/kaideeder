@@ -152,9 +152,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
     }, [isCashierRole, isKitchenRole, user?.role, audioUnlocked])
 
-    // Start/stop repeating alarm based on unacknowledged HIGH-priority count
+    // Start/stop repeating alarm based on unacknowledged ORDER_NEW / BILL_REQUEST only
     const updateAlarm = useCallback((notifs: NotificationInfo[], seen: Set<string>) => {
-        const unackedHigh = notifs.filter(n => n.priority === 'HIGH' && !seen.has(n.id))
+        // Only alarm for ORDER_NEW and BILL_REQUEST — not DELIVERY or others
+        const alarmTypes = ['ORDER_NEW', 'BILL_REQUEST'] as const
+        const unackedHigh = notifs.filter(n => n.priority === 'HIGH' && alarmTypes.includes(n.type as any) && !seen.has(n.id))
         const hasUnacked = unackedHigh.length > 0
 
         // Play alarms for cashier roles AND kitchen/bar (so kitchen hears new orders too)
@@ -214,11 +216,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
     }, [])
 
-    // Core logic: process a batch of notifications, trigger sound if new HIGH
+    // Core logic: process a batch of notifications, trigger sound only for ORDER_NEW / BILL_REQUEST
     const processNotifications = useCallback((notifs: NotificationInfo[]) => {
-        // Detect brand-new HIGH alerts (not seen in previous poll)
+        // Detect brand-new alerts that should trigger sound (ORDER_NEW + BILL_REQUEST only)
+        const soundTypes = ['ORDER_NEW', 'BILL_REQUEST'] as const
         const newHighNotifs = notifs.filter(
-            n => n.priority === 'HIGH' && !prevHighIdsRef.current.has(n.id)
+            n => n.priority === 'HIGH' && soundTypes.includes(n.type as any) && !prevHighIdsRef.current.has(n.id)
         )
         const hasNewHigh = newHighNotifs.length > 0;
 
