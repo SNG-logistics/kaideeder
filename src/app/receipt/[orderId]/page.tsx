@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect, use, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useParams } from 'next/navigation'
 import { useCurrency, useTenant } from '@/context/TenantContext'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
 
@@ -268,8 +268,12 @@ function ReceiptContent({ orderId }: { orderId: string }) {
 // ═══════════════════════════════════════════════════════════════
 // Default export wraps ReceiptContent in <Suspense>
 // Required by Next.js 15: useSearchParams() must be inside Suspense
-export default function ReceiptPage({ params }: { params: Promise<{ orderId: string }> }) {
-    const { orderId } = use(params)
+export default function ReceiptPage() {
+    const params = useParams()
+    const orderId = params.orderId as string
+
+    if (!orderId) return null;
+
     return (
         <Suspense fallback={
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontFamily:'sans-serif', flexDirection:'column', gap:12, color:'#666' }}>
