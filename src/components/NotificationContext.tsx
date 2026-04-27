@@ -214,71 +214,119 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
     }, [])
 
+    // Core logic: process a batch of notifications, trigger sound if new HIGH
+    const processNotifications = useCallback((notifs: NotificationInfo[]) => {
+        // Detect brand-new HIGH alerts (not seen in previous poll)
+        const newHighNotifs = notifs.filter(
+            n => n.priority === 'HIGH' && !prevHighIdsRef.current.has(n.id)
+        )
+        const hasNewHigh = newHighNotifs.length > 0;
+
+        prevHighIdsRef.current = new Set(
+            notifs.filter(n => n.priority === 'HIGH').map(n => n.id)
+        )
+
+        // Debug logging
+        if (notifs.length > 0 || hasNewHigh) {
+            console.log(`[Notification] Push: ${notifs.length} total, ${newHighNotifs.length} new HIGH | role=${user?.role} cashier=${isCashierRole} kitchen=${isKitchenRole} audioOK=${audioUnlocked} ctxOK=${!!audioCtxRef.current}`)
+        }
+
+        // Play immediately when a new order arrives
+        if (hasNewHigh && (isCashierRole || isKitchenRole) && audioUnlocked && audioCtxRef.current) {
+            const latestHigh = newHighNotifs[0];
+            const shouldAnnounce = isCashierRole || latestHigh.type === 'ORDER_NEW';
+            if (shouldAnnounce) {
+                const tbl = latestHigh.metadata?.table
+                const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
+                const zonePart = tbl?.zone ? ` โซน${tbl.zone}` : ''
+
+                let msg: string | undefined
+                if (latestHigh.type === 'ORDER_NEW') {
+                    msg = tablePart ? `${tablePart}${zonePart} สั่งอาหาร` : 'มีออเดอร์ใหม่'
+                } else if (latestHigh.type === 'BILL_REQUEST' && isCashierRole) {
+                    msg = tablePart ? `${tablePart}${zonePart} เรียกเช็คบิล` : 'ลูกค้าเรียกเช็คบิล'
+                }
+                playBellChime(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
+            } else {
+                console.log('[Notification] Skipped sound: shouldAnnounce=false for', latestHigh.type)
+            }
+        } else if (hasNewHigh) {
+            console.log(`[Notification] ⚠️ New HIGH but no sound: cashier=${isCashierRole} kitchen=${isKitchenRole} audio=${audioUnlocked} ctx=${!!audioCtxRef.current}`)
+        }
+
+        setNotifications(notifs)
+        setSeenIds(prev => {
+            updateAlarm(notifs, prev)
+            return prev
+        })
+    }, [updateAlarm, isCashierRole, isKitchenRole, audioUnlocked, user?.role])
+
     const fetchNotifications = useCallback(async () => {
         try {
             const res = await fetch('/api/notifications')
             if (!res.ok) return
             const data = await res.json()
-            const notifs: NotificationInfo[] = data.data ?? []
-
-            // Detect brand-new HIGH alerts (not seen in previous poll)
-            const newHighNotifs = notifs.filter(
-                n => n.priority === 'HIGH' && !prevHighIdsRef.current.has(n.id)
-            )
-            const hasNewHigh = newHighNotifs.length > 0;
-            
-            prevHighIdsRef.current = new Set(
-                notifs.filter(n => n.priority === 'HIGH').map(n => n.id)
-            )
-
-            // Debug logging
-            if (notifs.length > 0) {
-                console.log(`[Notification] Poll: ${notifs.length} total, ${newHighNotifs.length} new HIGH | role=${user?.role} cashier=${isCashierRole} kitchen=${isKitchenRole} audioOK=${audioUnlocked} ctxOK=${!!audioCtxRef.current}`)
-            }
-
-            // Play immediately when a new order arrives (before interval kicks in)
-            if (hasNewHigh && (isCashierRole || isKitchenRole) && audioUnlocked && audioCtxRef.current) {
-                const latestHigh = newHighNotifs[0];
-                // Kitchen/bar: only announce ORDER_NEW, not bill requests
-                const shouldAnnounce = isCashierRole || latestHigh.type === 'ORDER_NEW';
-                if (shouldAnnounce) {
-                    const tbl = latestHigh.metadata?.table
-                    const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
-                    const zonePart = tbl?.zone ? ` โซน${tbl.zone}` : ''
-
-                    let msg: string | undefined
-                    if (latestHigh.type === 'ORDER_NEW') {
-                        msg = tablePart
-                            ? `${tablePart}${zonePart} สั่งอาหาร`
-                            : 'มีออเดอร์ใหม่'
-                    } else if (latestHigh.type === 'BILL_REQUEST' && isCashierRole) {
-                        msg = tablePart
-                            ? `${tablePart}${zonePart} เรียกเช็คบิล`
-                            : 'ลูกค้าเรียกเช็คบิล'
-                    }
-                    playBellChime(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
-                } else {
-                    console.log('[Notification] Skipped sound: shouldAnnounce=false for', latestHigh.type)
-                }
-            } else if (hasNewHigh) {
-                console.log(`[Notification] ⚠️ New HIGH but no sound: cashier=${isCashierRole} kitchen=${isKitchenRole} audio=${audioUnlocked} ctx=${!!audioCtxRef.current}`)
-            }
-
-            setNotifications(notifs)
-            setSeenIds(prev => {
-                updateAlarm(notifs, prev)
-                return prev
-            })
+            processNotifications(data.data ?? [])
         } catch (e) {
             console.error('Failed to fetch notifications', e)
         }
-    }, [updateAlarm, isCashierRole, isKitchenRole, audioUnlocked, user?.role])
+    }, [processNotifications])
 
+    // SSE real-time stream — orders detected within ~1.5s instead of 4s polling
     useEffect(() => {
-        fetchNotifications()
-        const iv = setInterval(fetchNotifications, 4000)
-        return () => clearInterval(iv)
-    }, [fetchNotifications])
+        let es: EventSource | null = null
+        let fallbackIv: ReturnType<typeof setInterval> | null = null
+        let sseOk = false
+
+        function connectSSE() {
+            try {
+                es = new EventSource('/api/notifications/stream')
+
+                es.onopen = () => {
+                    sseOk = true
+                    console.log('[Notification] ✅ SSE connected — real-time mode')
+                    // Cancel fallback polling if SSE is working
+                    if (fallbackIv) { clearInterval(fallbackIv); fallbackIv = null }
+                }
+
+                es.onmessage = (ev) => {
+                    try {
+                        const payload = JSON.parse(ev.data)
+                        if (payload.type === 'notifications') {
+                            processNotifications(payload.data)
+                        }
+                    } catch { }
+                }
+
+                es.onerror = () => {
+                    if (!sseOk) {
+                        // SSE never connected — fall back to polling
+                        console.warn('[Notification] SSE unavailable — falling back to polling')
+                        es?.close()
+                        es = null
+                        if (!fallbackIv) {
+                            fetchNotifications()
+                            fallbackIv = setInterval(fetchNotifications, 3000)
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[Notification] EventSource failed:', e)
+                fetchNotifications()
+                fallbackIv = setInterval(fetchNotifications, 3000)
+            }
+        }
+
+        connectSSE()
+
+        return () => {
+            es?.close()
+            if (fallbackIv) clearInterval(fallbackIv)
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchNotifications, processNotifications])
+
+    // Manual refresh still calls fetchNotifications directly
 
     const markAsSeen = useCallback((id: string) => {
         setSeenIds(prev => {
