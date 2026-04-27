@@ -99,7 +99,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, [])
 
     // Unlock audio on EVERY user interaction until confirmed unlocked
-    const unlockAudio = useCallback(() => {
+    const unlockAudio = useCallback((playTest = false) => {
         if (audioUnlocked) return
         try {
             if (!audioCtxRef.current) {
@@ -110,9 +110,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             audioCtxRef.current.resume().then(() => {
                 console.log('[Notification] ✅ Audio unlocked, state:', audioCtxRef.current?.state)
                 setAudioUnlocked(true)
+                // Play short test chime so staff know audio is working
+                if (audioCtxRef.current) {
+                    playBellChime(audioCtxRef.current, 0.5)
+                }
             }).catch((e) => {
                 console.warn('[Notification] ⚠️ AudioContext resume failed:', e)
-                // Still mark as unlocked — some browsers don't support resume() but audio works
                 setAudioUnlocked(true)
             })
         } catch (e) {
@@ -316,18 +319,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }}>
             {children}
 
-            {/* Prompt user to tap once so browser unlocks audio */}
-            {!audioUnlocked && notifications.some(n => n.priority === 'HIGH') && (
+            {/* Always show unlock button until audio is confirmed unlocked */}
+            {!audioUnlocked && (
                 <div
                     onClick={unlockAudio}
                     style={{
                         position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
-                        zIndex: 10000, background: '#1e293b', border: '1px solid rgba(245,158,11,0.5)',
-                        borderRadius: 99, padding: '8px 20px', fontSize: '0.78rem',
-                        color: '#f59e0b', fontWeight: 700, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 7,
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.5)', whiteSpace: 'nowrap',
+                        zIndex: 10000,
+                        background: 'linear-gradient(135deg, #b45309, #d97706)',
+                        border: 'none',
+                        borderRadius: 99, padding: '10px 22px', fontSize: '0.82rem',
+                        color: '#fff', fontWeight: 800, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        boxShadow: '0 4px 24px rgba(217,119,6,0.6)', whiteSpace: 'nowrap',
                         animation: 'bellPromptBounce 0.9s ease-in-out infinite',
+                        userSelect: 'none',
                     }}
                 >
                     🔔 แตะที่นี่เพื่อเปิดเสียงแจ้งเตือน
@@ -336,7 +342,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             <style>{`
                 @keyframes bellPromptBounce {
                     0%,100% { transform: translateX(-50%) translateY(0); }
-                    50%      { transform: translateX(-50%) translateY(-5px); }
+                    50%      { transform: translateX(-50%) translateY(-6px); }
                 }
             `}</style>
         </NotificationContext.Provider>
