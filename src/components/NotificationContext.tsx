@@ -99,7 +99,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, [])
 
     // Unlock audio on EVERY user interaction until confirmed unlocked
-    const unlockAudio = useCallback((playTest = false) => {
+    const unlockAudio = useCallback(() => {
         if (audioUnlocked) return
         try {
             if (!audioCtxRef.current) {
@@ -370,7 +370,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             {/* Always show unlock button until audio is confirmed unlocked */}
             {!audioUnlocked && (
                 <div
-                    onClick={unlockAudio}
+                    onClick={() => unlockAudio()}
                     style={{
                         position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
                         zIndex: 10000,
