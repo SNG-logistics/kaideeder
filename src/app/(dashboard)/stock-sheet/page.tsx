@@ -53,12 +53,17 @@ export default function StockSheetPage() {
         <>
             <style>{`
                 @media print {
+                    aside,
+                    header,
+                    nav,
                     .no-print { display: none !important; }
                     .print-area { display: block !important; }
+                    /* Remove sidebar margin from main wrapper */
+                    body > div,
+                    body > div > div { margin-left: 0 !important; padding-left: 0 !important; }
                     @page { margin: 12mm; size: A4 portrait; }
                     body { font-family: 'Noto Sans Thai', sans-serif; }
                 }
-                @media screen { .print-area { display: none; } }
             `}</style>
 
             <div className="no-print" style={{ maxWidth: 780, margin: '0 auto' }}>
@@ -143,8 +148,8 @@ export default function StockSheetPage() {
                 </div>
             </div>
 
-            {/* ── PRINT AREA ── */}
-            <div className="print-area" style={{ fontFamily: 'Noto Sans Thai, sans-serif' }}>
+            {/* ── PRINT AREA (hidden on screen, shown when printing) ── */}
+            <div className="print-area" style={{ fontFamily: 'Noto Sans Thai, sans-serif', display: 'none' }}>
                 <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 14 }}>
                     <div style={{ fontSize: '1.3rem', fontWeight: 800 }}>ใบกรอกสต็อค</div>
                     <div style={{ fontSize: '0.85rem', color: '#444', marginTop: 4 }}>
