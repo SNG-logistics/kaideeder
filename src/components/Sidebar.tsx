@@ -40,6 +40,7 @@ const navItems: NavItem[] = [
 
     // ── Stock Operations ─────────────────────────────────────────────────
     { href: '/purchase',    icon: '🛒', label: 'รับสินค้า / GR',           labelLo: 'ຮັບສິນຄ້າ / GR',        divider: '📦 Stock Operations', dividerLo: '📦 Stock Operations', permission: 'PURCHASE_VIEW' },
+    { href: '/stock-sheet', icon: '📋', label: 'ใบกรอกสต็อค (AI)',        labelLo: 'ໃບກອກສະຕ໋ອກ (AI)',      permission: 'INVENTORY_VIEW' },
     { href: '/stock-count', icon: '📋', label: 'นับสต็อค (Physical Count)', labelLo: 'ນັບສະຕ໋ອກ (Physical)', permission: 'INVENTORY_VIEW' },
     { href: '/transfer',    icon: '🔄', label: 'เบิก / โอนคลัง',           labelLo: 'ເບີກ / ໂອນຄັງ',         permission: 'TRANSFER_USE' },
     { href: '/adjustment',  icon: '⚖️', label: 'บันทึกปรับยอดสต็อค',      labelLo: 'ປ່ຽນຍອດສະຕ໋ອກ',         permission: 'ADJUSTMENT_USE' },
