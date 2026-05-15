@@ -484,8 +484,16 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
     const [skuLoading, setSkuLoading] = useState(false)
     const [activeModalTab, setActiveModalTab] = useState<'basic' | 'topping'>('basic')
 
-    // ── Topping state ────────────────────────────────────────────────
-    type Topping = { id: string; name: string; price: number; isActive: boolean; productId?: string; productName?: string }
+    type Topping = {
+        id: string
+        name: string
+        price: number
+        isActive: boolean
+        recipeId?: string   // ใหม่: ผูกกับ Recipe (recipeId) สำหรับตัดสต็อคอัตโนมัติ
+        recipeName?: string
+        productId?: string  // เก่า: backward-compat
+        productName?: string
+    }
     const parseToppings = (json?: string | null): Topping[] => {
         try { return json ? JSON.parse(json) : [] } catch { return [] }
     }
@@ -493,9 +501,33 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
     const [newToppingName, setNewToppingName] = useState('')
     const [newToppingPrice, setNewToppingPrice] = useState('')
     const [toppingProductSearch, setToppingProductSearch] = useState('')
-    const [toppingProductDropdown, setToppingProductDropdown] = useState<string | null>(null) // topping id showing dropdown
+    const [toppingProductDropdown, setToppingProductDropdown] = useState<string | null>(null)
 
-    // Stock products for linking toppings
+    // โหลด Recipes สำหรับเลือกผูกท็อปปิ้ง
+    interface RecipeOption {
+        id: string
+        menuName: string
+        posMenuCode?: string | null
+        bom: { product: { name: string; unit: string }; quantity: number; unit: string }[]
+    }
+    const [recipeOptions, setRecipeOptions] = useState<RecipeOption[]>([])
+    const [loadingRecipes, setLoadingRecipes] = useState(false)
+
+    useEffect(() => {
+        setLoadingRecipes(true)
+        fetch('/api/recipes')
+            .then(r => r.json())
+            .then(j => { if (j.success) setRecipeOptions(j.data) })
+            .catch(() => {})
+            .finally(() => setLoadingRecipes(false))
+    }, [])
+
+    const filteredRecipeOptions = recipeOptions.filter(r =>
+        r.menuName.toLowerCase().includes(toppingProductSearch.toLowerCase()) ||
+        (r.posMenuCode || '').toLowerCase().includes(toppingProductSearch.toLowerCase())
+    )
+
+    // Stock products for linking toppings (backward-compat only)
     const stockProducts = allProducts.filter(p => !['SALE_ITEM', 'ENTERTAIN'].includes(p.productType))
 
     function addTopping() {
@@ -515,13 +547,13 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
     function updateToppingPrice(id: string, price: number) {
         setToppings(prev => prev.map(t => t.id === id ? { ...t, price } : t))
     }
-    function linkToppingProduct(toppingId: string, productId: string, productName: string) {
-        setToppings(prev => prev.map(t => t.id === toppingId ? { ...t, productId, productName } : t))
+    function linkToppingProduct(toppingId: string, recipeId: string, recipeName: string) {
+        setToppings(prev => prev.map(t => t.id === toppingId ? { ...t, recipeId, recipeName, productId: undefined, productName: undefined } : t))
         setToppingProductDropdown(null)
         setToppingProductSearch('')
     }
     function unlinkToppingProduct(toppingId: string) {
-        setToppings(prev => prev.map(t => t.id === toppingId ? { ...t, productId: undefined, productName: undefined } : t))
+        setToppings(prev => prev.map(t => t.id === toppingId ? { ...t, recipeId: undefined, recipeName: undefined, productId: undefined, productName: undefined } : t))
     }
 
     // ── Combobox state for category ──────────────────────────────────
@@ -946,37 +978,47 @@ function MenuProductModal({ product, allProducts, categories, defaultTab, onClos
                                             <button onClick={() => removeTopping(t.id)}
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '1rem', padding: 0, flexShrink: 0 }}>✕</button>
                                         </div>
-                                        {/* ── Product Link for Stock Deduction ── */}
+                                        {/* ── Recipe Link for Stock Deduction ── */}
                                         <div style={{ marginLeft: 28, display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
-                                            {t.productId ? (
+                                            {t.recipeId || t.productId ? (
                                                 <>
-                                                    <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>📦 {t.productName || t.productId}</span>
+                                                    <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>
+                                                        📋 {t.recipeName || t.productName || t.recipeId || t.productId}
+                                                    </span>
                                                     <button onClick={() => unlinkToppingProduct(t.id)}
                                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '0.7rem', padding: 0 }}>✕ ยกเลิก</button>
                                                 </>
                                             ) : (
                                                 <>
                                                     <button onClick={() => { setToppingProductDropdown(toppingProductDropdown === t.id ? null : t.id); setToppingProductSearch('') }}
-                                                        style={{ background: 'none', border: '1px dashed #BBF7D0', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: '0.7rem', color: '#059669', fontWeight: 600, fontFamily: 'inherit' }}>
-                                                        📦 เลือกสินค้าตัดสต็อค
+                                                        style={{ background: 'none', border: '1.5px dashed #10B981', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: '0.7rem', color: '#059669', fontWeight: 600, fontFamily: 'inherit' }}>
+                                                        📋 เลือกสูตรตัดสต็อค
                                                     </button>
                                                     {toppingProductDropdown === t.id && (
-                                                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, background: '#fff', border: '1px solid #BBF7D0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', width: 280, maxHeight: 200, overflowY: 'auto' }}>
-                                                            <input value={toppingProductSearch} onChange={e => setToppingProductSearch(e.target.value)}
-                                                                placeholder="ค้นหา SKU / ชื่อ..."
-                                                                autoFocus
-                                                                style={{ width: '100%', padding: '8px 12px', border: 'none', borderBottom: '1px solid #E5E7EB', outline: 'none', fontSize: '0.82rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                                                            {stockProducts.filter(p => p.sku.toLowerCase().includes(toppingProductSearch.toLowerCase()) || p.name.toLowerCase().includes(toppingProductSearch.toLowerCase())).slice(0, 15).map(p => (
-                                                                <div key={p.id} onClick={() => linkToppingProduct(t.id, p.id, `${p.sku} — ${p.name}`)}
-                                                                    style={{ padding: '7px 12px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #F3F4F6' }}
-                                                                    onMouseEnter={e => e.currentTarget.style.background = '#F0FDF4'}
-                                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                                    <span style={{ fontWeight: 700, color: '#059669' }}>{p.sku}</span> — {p.name}
-                                                                </div>
-                                                            ))}
-                                                            {stockProducts.filter(p => p.sku.toLowerCase().includes(toppingProductSearch.toLowerCase()) || p.name.toLowerCase().includes(toppingProductSearch.toLowerCase())).length === 0 && (
-                                                                <div style={{ padding: '12px', color: '#9CA3AF', textAlign: 'center', fontSize: '0.8rem' }}>ไม่พบสินค้า</div>
-                                                            )}
+                                                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, background: '#fff', border: '1.5px solid #10B981', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', width: 300, maxHeight: 240, overflowY: 'auto' }}>
+                                                            <div style={{ padding: '6px 10px', borderBottom: '1px solid #E5E7EB', background: '#F0FDF4' }}>
+                                                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#065f46', marginBottom: 4 }}>📋 เลือกสูตร (Recipe) สำหรับตัดสต็อค</div>
+                                                                <input value={toppingProductSearch} onChange={e => setToppingProductSearch(e.target.value)}
+                                                                    placeholder="ค้นหาสูตร..."
+                                                                    autoFocus
+                                                                    style={{ width: '100%', padding: '6px 10px', border: '1px solid #BBF7D0', borderRadius: 6, outline: 'none', fontSize: '0.82rem', fontFamily: 'inherit', boxSizing: 'border-box', background: '#fff' }} />
+                                                            </div>
+                                                            {loadingRecipes ? (
+                                                                <div style={{ padding: '10px', color: '#9CA3AF', textAlign: 'center', fontSize: '0.8rem' }}>⏳ กำลังโหลด...</div>
+                                                            ) : filteredRecipeOptions.length === 0 ? (
+                                                                <div style={{ padding: '10px 12px', fontSize: '0.8rem', color: '#9CA3AF', textAlign: 'center' }}>ไม่พบสูตร — ไปสร้างสูตรที่หน้า สูตรอาหาร ก่อน</div>
+                                                            ) : filteredRecipeOptions.map(r => {
+                                                                const bomSummary = r.bom.slice(0, 3).map(b => `${b.product.name} ${b.quantity}${b.unit}`).join(', ')
+                                                                return (
+                                                                    <div key={r.id} onClick={() => linkToppingProduct(t.id, r.id, r.menuName)}
+                                                                        style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #F3F4F6', display: 'flex', flexDirection: 'column', gap: 2 }}
+                                                                        onMouseEnter={e => (e.currentTarget.style.background = '#F0FDF4')}
+                                                                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                                        <span style={{ fontWeight: 700, color: '#065f46' }}>📋 {r.menuName}</span>
+                                                                        {bomSummary && <span style={{ fontSize: '0.68rem', color: '#6B7280' }}>↳ {bomSummary}{r.bom.length > 3 ? ` +${r.bom.length - 3} รายการ` : ''}</span>}
+                                                                    </div>
+                                                                )
+                                                            })}
                                                         </div>
                                                     )}
                                                 </>

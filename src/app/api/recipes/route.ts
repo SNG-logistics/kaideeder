@@ -21,7 +21,7 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     const recipes = await prisma.recipe.findMany({
         where: { tenantId, isActive: true },
         orderBy: { menuName: 'asc' },
-        include: { bom: { include: { product: { select: { id: true, name: true, sku: true, isActive: true } } } } },
+        include: { bom: { include: { product: { select: { id: true, name: true, sku: true, unit: true, isActive: true } } } } },
     })
 
     // Annotate bomStatus for UI alerts
