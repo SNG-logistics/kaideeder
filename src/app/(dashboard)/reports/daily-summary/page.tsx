@@ -10,12 +10,12 @@ interface SoldItem { name: string; qty: number; revenue: number; toppings?: Sold
 interface DailyData {
     date: string
     closingHour?: number
-    orders: { count: number; totalRevenue: number; cashRevenue: number; transferRevenue: number; avgOrderValue: number }
+    orders: { count: number; totalRevenue: number; cashRevenue: number; transferRevenue: number }
     topMenus: { name: string; qty: number; revenue: number }[]
-    stock: { lowItems: { name: string; quantity: number; unit: string; minQty: number; location: string }[] }
+    stock: { lowItems: { product: { name: string; unit: string; minQty: number | null }; location: { name: string }; quantity: number }[] }
     allSoldItems: SoldItem[]
-    waste: { count: number; totalValue: number }
-    purchase: { count: number; totalCost: number }
+    waste: { items: number; totalValue: number }
+    purchase: { totalCost: number }
 }
 
 export default function DailySummaryPage() {
@@ -140,7 +140,7 @@ export default function DailySummaryPage() {
                             { label: 'เงินสด', value: fmt(data.orders.cashRevenue), color: 'var(--text)', icon: '💵' },
                             { label: 'โอนเงิน', value: fmt(data.orders.transferRevenue), color: '#3B82F6', icon: '📱' },
                             { label: 'จำนวนบิล', value: String(data.orders.count), color: 'var(--text)', icon: '🧾' },
-                            { label: 'เฉลี่ย/บิล', value: fmt(data.orders.avgOrderValue), color: '#7C3AED', icon: '📊' },
+                            { label: 'เฉลี่ย/บิล', value: data.orders.count > 0 ? fmt(Math.round(data.orders.totalRevenue / data.orders.count)) : '-', color: '#7C3AED', icon: '📊' },
                         ].map(s => (
                             <div key={s.label} className="stat-card">
                                 <p style={{ fontSize: '1.2rem', marginBottom: 4 }}>{s.icon}</p>
@@ -180,11 +180,11 @@ export default function DailySummaryPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(22,163,74,0.06)', borderRadius: 8, border: '1px solid rgba(22,163,74,0.15)' }}>
                                     <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#15803d' }}>🛒 รับสินค้า</span>
-                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#15803d' }}>{data.purchase.count} รายการ · {fmt(data.purchase.totalCost)}</span>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#15803d' }}>{fmt(data.purchase.totalCost)}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(220,38,38,0.05)', borderRadius: 8, border: '1px solid rgba(220,38,38,0.15)' }}>
                                     <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>🗑️ ของเสีย</span>
-                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#dc2626' }}>{data.waste.count} รายการ · {fmt(data.waste.totalValue)}</span>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#dc2626' }}>{data.waste.items} รายการ · {fmt(data.waste.totalValue)}</span>
                                 </div>
                             </div>
                         </div>
@@ -199,9 +199,9 @@ export default function DailySummaryPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
                                 {data.stock.lowItems.map((item, i) => (
                                     <div key={i} style={{ background: 'rgba(220,38,38,0.06)', borderRadius: 8, padding: '0.5rem 0.75rem', border: '1px solid rgba(220,38,38,0.15)' }}>
-                                        <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#b91c1c' }}>{item.name}</p>
+                                        <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#b91c1c' }}>{item.product.name}</p>
                                         <p style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: 2 }}>
-                                            คงเหลือ {item.quantity} {item.unit} (ต่ำสุด {item.minQty}) · {item.location}
+                                            คงเหลือ {item.quantity} {item.product.unit} (ต่ำสุด {item.product.minQty ?? 0}) · {item.location.name}
                                         </p>
                                     </div>
                                 ))}
