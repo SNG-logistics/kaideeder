@@ -62,38 +62,38 @@ export default function DailySummaryPage() {
         }).join('')
 
         const closingNote = (data.closingHour ?? 0) > 0
-            ? `<div style="text-align:center;font-size:10px;color:#555;margin-bottom:4px">วันธุรกิจ: ${String(data.closingHour).padStart(2,'0')}:00 น. ถึง ${String(data.closingHour).padStart(2,'0')}:00 น. วันถัดไป</div>`
+            ? `<div style="text-align:center;font-size:12px;color:#555;margin-bottom:4px">วันธุรกิจ: ${String(data.closingHour).padStart(2,'0')}:00 น. ถึง ${String(data.closingHour).padStart(2,'0')}:00 น. วันถัดไป</div>`
             : ''
 
         w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap" rel="stylesheet">
         <style>
           *{margin:0;padding:0;box-sizing:border-box}
-          @page{size:58mm auto;margin:3mm 2mm}
+          @page{size:80mm auto;margin:3mm 4mm}
           html,body{height:fit-content!important;overflow:hidden!important}
-          body{font-family:'Noto Sans Lao','Noto Sans Thai','Courier New',monospace;font-size:12px;color:#000;width:54mm;line-height:1.4}
-          .title{font-size:16px;font-weight:bold;text-align:center;margin-bottom:5px;border-bottom:1px dashed #000;padding-bottom:5px}
+          body{font-family:'Noto Sans Lao','Noto Sans Thai','Courier New',monospace;font-size:14px;color:#000;width:72mm;line-height:1.4}
+          .title{font-size:18px;font-weight:bold;text-align:center;margin-bottom:5px;border-bottom:1px dashed #000;padding-bottom:5px}
           .row{display:flex;justify-content:space-between;margin-bottom:3px}
           .bold{font-weight:bold}
           .divider{border-bottom:1px dotted #000;margin:6px 0}
           .item{display:flex;justify-content:space-between;margin-bottom:2px;align-items:baseline}
           .item-name{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600}
-          .item-qty{width:24px;text-align:right;font-weight:bold;flex-shrink:0}
+          .item-qty{width:30px;text-align:right;font-weight:bold;flex-shrink:0}
           .topping-row{display:flex;justify-content:space-between;margin-bottom:1px;padding-left:14px;border-left:2px solid #ddd;margin-left:4px}
-          .topping-name{flex:1;font-size:10px;color:#888;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:400}
-          .topping-qty{width:24px;text-align:right;font-size:10px;color:#999;flex-shrink:0}
+          .topping-name{flex:1;font-size:12px;color:#888;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:400}
+          .topping-qty{width:30px;text-align:right;font-size:12px;color:#999;flex-shrink:0}
         </style></head><body>
-          <div class="title">สรุปยอดขายรายวัน<br><span style="font-size:12px">${new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
+          <div class="title">สรุปยอดขายรายวัน<br><span style="font-size:14px">${new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
           ${closingNote}
           <div class="row"><span>ยอดขายรวม:</span><span class="bold">${fmt(data.orders.totalRevenue)}</span></div>
           <div class="row"><span>เงินสด:</span><span>${fmt(data.orders.cashRevenue)}</span></div>
           <div class="row"><span>โอนเงิน:</span><span>${fmt(data.orders.transferRevenue)}</span></div>
           <div class="row"><span>จำนวนบิล:</span><span>${data.orders.count} บิล</span></div>
           <div class="divider"></div>
-          <div style="font-weight:bold;margin-bottom:4px;text-align:center">สรุปรายการสินค้า (สำหรับเช็คสต็อค)</div>
+          <div style="font-weight:bold;margin-bottom:4px;text-align:center;font-size:14px">สรุปรายการสินค้า (สำหรับเช็คสต็อค)</div>
           ${itemRows}
           <div class="divider"></div>
-          <div style="text-align:center;font-size:10px;margin-top:10px">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+          <div style="text-align:center;font-size:12px;margin-top:10px">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
           <script>
             window.onload = function(){ window.focus(); window.print(); };
             window.onafterprint = function(){ window.close(); };
