@@ -13,6 +13,11 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     const { tenantId } = context
     const where: Record<string, unknown> = { tenantId }
     if (locationId) where.locationId = locationId
+
+    // By default, only show RAW_MATERIAL products (not food menu SALE_ITEM)
+    // SALE_ITEM = เมนูอาหาร ที่ตัดสต็อคผ่าน BOM ไม่ใช่สต็อคตรง
+    const showSaleItems = url.searchParams.get('showSaleItems') === 'true'
+
     if (search) {
         where.product = {
             OR: [
@@ -21,9 +26,14 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
             ],
             isActive: true,
             ...(categoryId ? { categoryId } : {}),
+            ...(!showSaleItems ? { productType: 'RAW_MATERIAL' } : {}),
         }
     } else {
-        where.product = { isActive: true, ...(categoryId ? { categoryId } : {}) }
+        where.product = {
+            isActive: true,
+            ...(categoryId ? { categoryId } : {}),
+            ...(!showSaleItems ? { productType: 'RAW_MATERIAL' } : {}),
+        }
     }
 
     const inventory = await prisma.inventory.findMany({

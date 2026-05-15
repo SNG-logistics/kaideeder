@@ -31,12 +31,14 @@ export const GET = withAuth(async (req: NextRequest, ctx: any) => {
     if (inventoryGroups.length === 0) return ok(countOnly ? { total: 0 } : [])
 
     // Fetch products that have reorderPoint or minQty set
+    // Exclude SALE_ITEM (เมนูอาหาร) — ไม่ควรขึ้นแจ้งเตือนสต็อคต่ำ
     const productIds = inventoryGroups.map(g => g.productId)
     const products = await prisma.product.findMany({
         where: {
             id: { in: productIds },
             tenantId,
             isActive: true,
+            productType: 'RAW_MATERIAL',
             OR: [
                 { reorderPoint: { gt: 0 } },
                 { minQty: { gt: 0 } },

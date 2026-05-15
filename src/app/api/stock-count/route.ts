@@ -49,11 +49,12 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
     }).parse(body)
 
     // Fetch current inventory to auto-populate items (snapshot preview)
+    // Exclude SALE_ITEM (เมนูอาหาร) — ตัดสต็อคผ่าน BOM ไม่ใช่สต็อคตรง
     const inventory = await prisma.inventory.findMany({
         where: {
             tenantId,
             ...(locationId ? { locationId } : {}),
-            product: { isActive: true },
+            product: { isActive: true, productType: 'RAW_MATERIAL' },
         },
         include: {
             product: { select: { unit: true } },
