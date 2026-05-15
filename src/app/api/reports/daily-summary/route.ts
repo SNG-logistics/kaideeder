@@ -146,7 +146,7 @@ export const GET = withAuth(async (req: NextRequest, ctx: any) => {
             },
             topMenus,
             allSoldItems,
-            lowStock,
+            stock: { lowItems: lowStock },   // ← match frontend: data.stock.lowItems
             waste: { items: wasteItems.length, totalValue: wasteTotalValue },
             purchase: { totalCost: purchaseTotalCost },
         })
