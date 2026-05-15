@@ -384,6 +384,17 @@ function RecipeFormModal({ recipe, onClose, onSaved, showToast }: {
     const [yieldUnit, setYieldUnit] = useState(recipe?.yieldUnit || 'กรัม')
     const [note, setNote] = useState(recipe?.note || '')
     const [saving, setSaving] = useState(false)
+    const [locations, setLocations] = useState<Location[]>([])
+    const [outputLocationId, setOutputLocationId] = useState('')
+
+    useEffect(() => {
+        fetch('/api/locations').then(r => r.json()).then(j => {
+            if (j.success && j.data.length > 0) {
+                setLocations(j.data)
+                setOutputLocationId(j.data[0].id)
+            }
+        })
+    }, [])
 
     // Output Product — backed by CatalogCombobox
     const [outputVal, setOutputVal] = useState<{ productId: string; productName: string; unit: string } | null>(
@@ -437,6 +448,7 @@ function RecipeFormModal({ recipe, onClose, onSaved, showToast }: {
     async function save() {
         if (!name.trim()) { showToast('กรุณาระบุชื่อสูตร', 'err'); return }
         if (!outputVal?.productId) { showToast('กรุณาเลือกสินค้าผลผลิต', 'err'); return }
+        if (!outputLocationId) { showToast('กรุณาเลือกคลังที่เก็บผลผลิต', 'err'); return }
         if (lines.some(l => !l.productId || l.quantity <= 0)) { showToast('ส่วนผสมยังไม่ครบ กรุณาเลือกวัตถุดิบทุกรายการ', 'err'); return }
 
         setSaving(true)
@@ -444,10 +456,11 @@ function RecipeFormModal({ recipe, onClose, onSaved, showToast }: {
             const payload = {
                 name: name.trim(),
                 outputProductId: outputVal.productId,
-                yieldQty,
-                yieldUnit,
+                outputLocationId,
+                outputQty: yieldQty,
+                outputUnit: yieldUnit,
                 note: note || undefined,
-                lines: lines.map(l => ({ productId: l.productId, quantity: l.quantity, unit: l.unit })),
+                ingredients: lines.map(l => ({ productId: l.productId, quantity: l.quantity, unit: l.unit, locationId: outputLocationId })),
             }
             const url = recipe ? `/api/prep-recipes/${recipe.id}` : '/api/prep-recipes'
             const method = recipe ? 'PATCH' : 'POST'
@@ -505,6 +518,13 @@ function RecipeFormModal({ recipe, onClose, onSaved, showToast }: {
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>หน่วย *</label>
                             <input value={yieldUnit} onChange={e => setYieldUnit(e.target.value)} className="input" placeholder="ลิตร, กก., ชิ้น" />
                         </div>
+                    </div>
+                    <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>คลังเก็บผลผลิต *</label>
+                        <select value={outputLocationId} onChange={e => setOutputLocationId(e.target.value)} className="input">
+                            {locations.length === 0 && <option value="">กำลังโหลด...</option>}
+                            {locations.map(l => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                        </select>
                     </div>
                     <div>
                         <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>หมายเหตุ</label>
