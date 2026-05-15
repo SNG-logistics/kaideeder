@@ -82,11 +82,12 @@ function printKitchenTicket(opts: {
         const w = window.open('', '_blank', 'width=302,height=400,toolbar=0,menubar=0,scrollbars=0')
         if (!w) return
         w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   @page{size:${paperWidth} auto;margin:3mm 2mm}
   html,body{height:fit-content!important;overflow:hidden!important}
-  body{font-family:'Courier New',monospace;font-size:14px;color:#000;width:${bodyWidth};line-height:1.35}
+  body{font-family:'Noto Sans Lao','Noto Sans Thai','Courier New',monospace;font-size:14px;color:#000;width:${bodyWidth};line-height:1.35}
   .top{font-size:18px;font-weight:900;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:baseline}
   .sub{font-size:10px;color:#444;margin-bottom:6px;border-bottom:1px dashed #000;padding-bottom:4px}
   .row{display:flex;gap:6px;padding:3px 0;border-bottom:1px dotted #ccc}
@@ -2056,7 +2057,7 @@ export default function POSPage() {
                                                 const items = selectedHistoryOrder.items?.map((i: any) =>
                                                     `<tr><td>${i.product?.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${(i.quantity * i.unitPrice).toLocaleString()}</td></tr>`
                                                 ).join('') ?? ''
-                                                win.document.write(`<html><head><title>Receipt</title><style>body{font-family:sans-serif;padding:16px;font-size:13px}table{width:100%;border-collapse:collapse}td{padding:4px}hr{border:1px dashed #ccc}.total{font-weight:bold}</style></head><body>
+                                                win.document.write(`<html><head><title>Receipt</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700&family=Noto+Sans+Thai:wght@400;700&display=swap" rel="stylesheet"><style>body{font-family:'Noto Sans Lao','Noto Sans Thai',sans-serif;padding:16px;font-size:13px}table{width:100%;border-collapse:collapse}td{padding:4px}hr{border:1px dashed #ccc}.total{font-weight:bold}</style></head><body>
                                                 <h3 style="text-align:center">ใบเสร็จ</h3>
                                                 <p>\u0e42\u0e15\u0e4a\u0e30: ${selectedHistoryOrder.table?.name ?? '—'} | #${selectedHistoryOrder.orderNumber}</p>
                                                 <p>${selectedHistoryOrder.closedAt ? new Date(selectedHistoryOrder.closedAt).toLocaleString('th-TH') : ''}</p>

@@ -66,11 +66,12 @@ export default function DailySummaryPage() {
             : ''
 
         w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap" rel="stylesheet">
         <style>
           *{margin:0;padding:0;box-sizing:border-box}
           @page{size:58mm auto;margin:3mm 2mm}
           html,body{height:fit-content!important;overflow:hidden!important}
-          body{font-family:'Courier New',monospace;font-size:12px;color:#000;width:54mm;line-height:1.4}
+          body{font-family:'Noto Sans Lao','Noto Sans Thai','Courier New',monospace;font-size:12px;color:#000;width:54mm;line-height:1.4}
           .title{font-size:16px;font-weight:bold;text-align:center;margin-bottom:5px;border-bottom:1px dashed #000;padding-bottom:5px}
           .row{display:flex;justify-content:space-between;margin-bottom:3px}
           .bold{font-weight:bold}
