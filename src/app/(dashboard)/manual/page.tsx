@@ -177,9 +177,16 @@ export default function ManualPage() {
                 @media print {
                     aside, header, nav, .no-print { display: none !important; }
                     .print-area { display: block !important; }
-                    body > div > div { margin-left: 0 !important; }
-                    @page { margin: 15mm; size: A4; }
-                    .role-card { break-inside: avoid; page-break-inside: avoid; }
+                    body > div, body > div > div { margin-left: 0 !important; padding-left: 0 !important; }
+                    @page { margin: 12mm 15mm; size: A4 portrait; }
+                    /* Allow content to flow freely across pages */
+                    .print-role { page-break-inside: auto; break-inside: auto; }
+                    .print-role-header { page-break-after: avoid; break-after: avoid; }
+                    .print-section { page-break-inside: avoid; break-inside: avoid; }
+                    /* Ensure background colors print */
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    /* Workflow diagram: keep on its own page if possible */
+                    .print-workflow { page-break-after: always; break-after: page; }
                 }
                 @media screen { .print-area { display: none; } }
             `}</style>
@@ -379,7 +386,7 @@ export default function ManualPage() {
                 </div>
 
                 {/* Workflow SVG Diagram — print version */}
-                <div style={{ marginBottom: 20, padding: '10px 14px', background: '#FFF5F6', border: '1px solid #FECDD3', borderRadius: 8 }}>
+                <div className="print-workflow" style={{ marginBottom: 20, padding: '10px 14px', background: '#FFF5F6', border: '1px solid #FECDD3', borderRadius: 8 }}>
                     <div style={{ fontWeight: 800, fontSize: '11pt', marginBottom: 8, color: '#E8364E' }}>🗺️ Workflow ภาพรวม — ทุก Role เชื่อมกันอย่างไร?</div>
                     <svg viewBox="0 0 860 340" style={{ width: '100%', height: 'auto', fontFamily: 'Noto Sans Thai, sans-serif' }}>
                         <defs>
@@ -467,26 +474,24 @@ export default function ManualPage() {
                     </svg>
                 </div>
 
-                {/* Role Sections */}
+                {/* Role Sections — single column for reliable print flow */}
                 {ROLES.map(role => (
-                    <div key={role.id} style={{ marginBottom: 20, pageBreakInside: 'avoid' }}>
-                        <div style={{ background: '#f5f5f5', padding: '8px 14px', borderLeft: `5px solid ${role.color}`, marginBottom: 10 }}>
-                            <span style={{ fontSize: '13pt', fontWeight: 900, color: role.color }}>{role.icon} {role.title}</span>
-                            <span style={{ fontSize: '9pt', color: '#666', marginLeft: 10 }}>— {role.desc}</span>
+                    <div key={role.id} className="print-role" style={{ marginBottom: 18 }}>
+                        <div className="print-role-header" style={{ background: role.bg, padding: '7px 14px', borderLeft: `5px solid ${role.color}`, marginBottom: 8, borderRadius: '0 6px 6px 0' }}>
+                            <span style={{ fontSize: '12pt', fontWeight: 900, color: role.color }}>{role.icon} {role.title}</span>
+                            <span style={{ fontSize: '8.5pt', color: '#666', marginLeft: 10 }}>— {role.desc}</span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px', paddingLeft: 10 }}>
-                            {role.sections.map(sec => (
-                                <div key={sec.title} style={{ marginBottom: 12, pageBreakInside: 'avoid' }}>
-                                    <div style={{ fontWeight: 700, fontSize: '10pt', color: role.color, borderBottom: `1px dashed ${role.border}`, paddingBottom: 4, marginBottom: 7 }}>{sec.title}</div>
-                                    {sec.steps.map(s => (
-                                        <div key={s.step} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
-                                            <span style={{ minWidth: 18, height: 18, background: role.color, color: '#fff', borderRadius: '50%', fontSize: '8pt', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.step}</span>
-                                            <span style={{ fontSize: '9pt', lineHeight: 1.5 }}>{s.text}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
-                        </div>
+                        {role.sections.map(sec => (
+                            <div key={sec.title} className="print-section" style={{ marginBottom: 10, paddingLeft: 14 }}>
+                                <div style={{ fontWeight: 700, fontSize: '10pt', color: role.color, borderBottom: `1px solid ${role.border}`, paddingBottom: 3, marginBottom: 6 }}>{sec.title}</div>
+                                {sec.steps.map(s => (
+                                    <div key={s.step} style={{ display: 'flex', gap: 8, marginBottom: 4, alignItems: 'flex-start' }}>
+                                        <span style={{ minWidth: 18, height: 18, background: role.color, color: '#fff', borderRadius: '50%', fontSize: '8pt', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{s.step}</span>
+                                        <span style={{ fontSize: '9pt', lineHeight: 1.55 }}>{s.text}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
                     </div>
                 ))}
 
