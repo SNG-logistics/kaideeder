@@ -1,12 +1,160 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { usePermission } from '@/hooks/usePermission'
 import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBranding'
 import QRCode from 'qrcode'
 import { useTenant } from '@/context/TenantContext'
 import { getPrinterSettings, setPrinterSettings, setStationPrinter, type PrinterSettings, type StationPrinterConfig } from '@/lib/printerSettings'
+
+const LOCATION_TYPE_LABELS: Record<string, string> = {
+    MAIN_WAREHOUSE: '🏪 คลังหลัก',
+    FRESH_STORAGE: '🥩 ห้องเย็น/ของสด',
+    DRINK_WAREHOUSE: '🧃 คลังเครื่องดื่ม',
+    DISPLAY_FREEZER: '🧊 ตู้แช่โชว์',
+    KITCHEN_STOCK: '🍳 คลังครัว',
+    BAR_STOCK: '🍸 คลังบาร์',
+}
+
+type Loc = { id: string; code: string; name: string; type: string; isActive: boolean; _count?: { inventory: number } }
+
+// ─── Warehouse Card ───────────────────────────────────────────
+function WarehouseCard() {
+    const canManage = usePermission('SETTINGS_MANAGE')
+    const [locs, setLocs] = useState<Loc[]>([])
+    const [loading, setLoading] = useState(true)
+    const [showAdd, setShowAdd] = useState(false)
+    const [form, setForm] = useState({ name: '', code: '', type: 'MAIN_WAREHOUSE' })
+    const [saving, setSaving] = useState(false)
+    const [editId, setEditId] = useState<string | null>(null)
+    const [editName, setEditName] = useState('')
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        const r = await fetch('/api/locations').then(r => r.json())
+        if (r.success) setLocs(r.data)
+        setLoading(false)
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    async function handleAdd() {
+        if (!form.name.trim() || !form.code.trim()) return toast.error('กรุณากรอกชื่อและรหัสคลัง')
+        setSaving(true)
+        const r = await fetch('/api/locations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(form),
+        }).then(r => r.json())
+        setSaving(false)
+        if (r.success) { toast.success('✅ เพิ่มคลังสำเร็จ'); setForm({ name: '', code: '', type: 'MAIN_WAREHOUSE' }); setShowAdd(false); load() }
+        else toast.error(r.error || 'เกิดข้อผิดพลาด')
+    }
+
+    async function handleRename(id: string) {
+        if (!editName.trim()) return
+        const r = await fetch(`/api/locations/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: editName }),
+        }).then(r => r.json())
+        if (r.success) { toast.success('✅ แก้ไขชื่อแล้ว'); setEditId(null); load() }
+        else toast.error(r.error || 'เกิดข้อผิดพลาด')
+    }
+
+    async function handleDelete(loc: Loc) {
+        if (!confirm(`ลบคลัง "${loc.name}" ? จะลบสต็อคที่เกี่ยวข้องทั้งหมด`)) return
+        const r = await fetch(`/api/locations/${loc.id}`, { method: 'DELETE' }).then(r => r.json())
+        if (r.success) { toast.success(`🗑️ ลบคลัง "${r.data.locationName}" แล้ว`); load() }
+        else toast.error(r.error || 'เกิดข้อผิดพลาด')
+    }
+
+    const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 9, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(5,150,105,0.25)', background: 'rgba(5,150,105,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <h2 style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>🏪</span> คลังสินค้า (Warehouses)
+                </h2>
+                {canManage && (
+                    <button onClick={() => setShowAdd(!showAdd)}
+                        style={{ padding: '0.4rem 1rem', borderRadius: 9, border: 'none', background: showAdd ? '#6B7280' : '#059669', color: '#fff', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {showAdd ? '✕ ยกเลิก' : '+ เพิ่มคลัง'}
+                    </button>
+                )}
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 14 }}>จัดการคลังสินค้า — วัตถุดิบแยกเก็บตามคลัง</p>
+
+            {showAdd && (
+                <div style={{ marginBottom: 14, padding: '1rem', borderRadius: 10, border: '1.5px solid rgba(5,150,105,0.3)', background: 'rgba(5,150,105,0.04)' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 10, color: '#059669' }}>+ เพิ่มคลังใหม่</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                        <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>ชื่อคลัง *</label>
+                            <input style={inp} placeholder="เช่น คลังหลัก" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>รหัส (ภาษาอังกฤษ) *</label>
+                            <input style={inp} placeholder="WH_MAIN" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase().replace(/\s/g, '_') }))} />
+                        </div>
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>ประเภทคลัง</label>
+                        <select style={inp} value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}>
+                            {Object.entries(LOCATION_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                    </div>
+                    <button onClick={handleAdd} disabled={saving}
+                        style={{ padding: '0.5rem 1.25rem', borderRadius: 9, border: 'none', background: saving ? '#d1d5db' : '#059669', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        {saving ? '⏳...' : '✅ บันทึกคลังใหม่'}
+                    </button>
+                </div>
+            )}
+
+            {loading ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>⏳ กำลังโหลด...</p>
+            ) : locs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', border: '1.5px dashed var(--border)', borderRadius: 10 }}>
+                    <div style={{ fontSize: '2rem', marginBottom: 6 }}>🏪</div>
+                    <div>ยังไม่มีคลัง — กด <strong>+ เพิ่มคลัง</strong> เพื่อเริ่มต้น</div>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {locs.map(loc => (
+                        <div key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.65rem 1rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                {editId === loc.id ? (
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                        <input value={editName} onChange={e => setEditName(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleRename(loc.id)}
+                                            style={{ ...inp, flex: 1 }} autoFocus />
+                                        <button onClick={() => handleRename(loc.id)} style={{ padding: '0.4rem 0.75rem', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit' }}>✅</button>
+                                        <button onClick={() => setEditId(null)} style={{ padding: '0.4rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit' }}>✕</button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                        <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>{loc.name}</span>
+                                        <span style={{ fontSize: '0.72rem', color: '#6B7280', background: 'var(--bg)', padding: '2px 8px', borderRadius: 6, fontFamily: 'monospace' }}>{loc.code}</span>
+                                        <span style={{ fontSize: '0.72rem', color: '#059669', background: 'rgba(5,150,105,0.1)', padding: '2px 8px', borderRadius: 6 }}>{LOCATION_TYPE_LABELS[loc.type] || loc.type}</span>
+                                        {loc._count !== undefined && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{loc._count.inventory} รายการ</span>}
+                                    </div>
+                                )}
+                            </div>
+                            {canManage && editId !== loc.id && (
+                                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                                    <button onClick={() => { setEditId(loc.id); setEditName(loc.name) }} style={{ padding: '0.3rem 0.7rem', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'inherit', color: 'var(--text)' }}>✏️ แก้ชื่อ</button>
+                                    <button onClick={() => handleDelete(loc)} style={{ padding: '0.3rem 0.7rem', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', color: '#dc2626', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'inherit' }}>🗑️</button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
 
 // ─── Store Branding Card ─────────────────────────────────────
 function StoreBrandingCard() {
@@ -1784,6 +1932,9 @@ export default function SettingsPage() {
 
                 {/* ── Payment Config ── */}
                 <PaymentConfigCard />
+
+                {/* ── Warehouses ── */}
+                <WarehouseCard />
 
                 {/* ── User Management ── */}
                 <div className="card" style={{ borderColor: 'rgba(59,130,246,0.25)', background: 'rgba(59,130,246,0.03)' }}>
