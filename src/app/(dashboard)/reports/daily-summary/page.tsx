@@ -52,7 +52,7 @@ export default function DailySummaryPage() {
             const toppingRows = (item.toppings || []).map(t =>
                 `<div class="topping-row">
                   <span class="topping-name">└ ${t.label}</span>
-                  <span class="item-qty">x${t.qty}</span>
+                  <span class="topping-qty">x${t.qty}</span>
                  </div>`
             ).join('')
             return `<div class="item">
@@ -76,11 +76,12 @@ export default function DailySummaryPage() {
           .row{display:flex;justify-content:space-between;margin-bottom:3px}
           .bold{font-weight:bold}
           .divider{border-bottom:1px dotted #000;margin:6px 0}
-          .item{display:flex;justify-content:space-between;margin-bottom:2px}
-          .item-name{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+          .item{display:flex;justify-content:space-between;margin-bottom:2px;align-items:baseline}
+          .item-name{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600}
           .item-qty{width:24px;text-align:right;font-weight:bold;flex-shrink:0}
-          .topping-row{display:flex;justify-content:space-between;margin-bottom:1px;padding-left:8px}
-          .topping-name{flex:1;font-size:11px;color:#333;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+          .topping-row{display:flex;justify-content:space-between;margin-bottom:1px;padding-left:14px;border-left:2px solid #ddd;margin-left:4px}
+          .topping-name{flex:1;font-size:10px;color:#888;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:400}
+          .topping-qty{width:24px;text-align:right;font-size:10px;color:#999;flex-shrink:0}
         </style></head><body>
           <div class="title">สรุปยอดขายรายวัน<br><span style="font-size:12px">${new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
           ${closingNote}
