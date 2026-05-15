@@ -138,16 +138,28 @@ export default function StockSetupPage() {
         fetch('/api/products?limit=500&productType=SALE_ITEM').then(r => r.json()).then(j => {
             if (j.success) setMenus(j.data.products)
         })
-        // โหลดวัตถุดิบ (RAW_MATERIAL + PACKAGING)
+        // โหลดวัตถุดิบ: RAW_MATERIAL + PACKAGING รวม Draft ด้วย (includeDraft=true)
         Promise.all([
-            fetch('/api/products?limit=500&productType=RAW_MATERIAL').then(r => r.json()),
-            fetch('/api/products?limit=500&productType=PACKAGING').then(r => r.json()),
+            fetch('/api/products?limit=500&productType=RAW_MATERIAL&includeDraft=true').then(r => r.json()),
+            fetch('/api/products?limit=500&productType=PACKAGING&includeDraft=true').then(r => r.json()),
         ]).then(([rm, pkg]) => {
             const combined = [
                 ...(rm.success ? rm.data.products : []),
                 ...(pkg.success ? pkg.data.products : []),
             ]
-            setRawMaterials(combined)
+            if (combined.length === 0) {
+                // fallback: โหลดทุก product แล้วกรอง SALE_ITEM ออก
+                fetch('/api/products?limit=1000&includeDraft=true').then(r => r.json()).then(j => {
+                    if (j.success) {
+                        const filtered = j.data.products.filter((p: any) =>
+                            !['SALE_ITEM', 'ENTERTAIN'].includes(p.productType)
+                        )
+                        setRawMaterials(filtered.length > 0 ? filtered : j.data.products)
+                    }
+                })
+            } else {
+                setRawMaterials(combined)
+            }
         })
         fetch('/api/locations').then(r => r.json()).then(j => {
             if (j.success) setLocations(j.data)
@@ -232,7 +244,7 @@ export default function StockSetupPage() {
                 {/* ── Left: Menu List ─────────────────────────────── */}
                 <div style={{ width: 280, minWidth: 280, borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', background: '#FAFAFA' }}>
                     <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB' }}>
-                        <input value={search} onChange={e => setSearch(e.target.value)}
+                        <input suppressHydrationWarning value={search} onChange={e => setSearch(e.target.value)}
                             placeholder="🔍 ค้นหาเมนู..."
                             style={{ width: '100%', padding: '7px 10px', border: '1px solid #D1FAE5', borderRadius: 8, fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' }} />
                     </div>
@@ -282,7 +294,7 @@ export default function StockSetupPage() {
                             </div>
 
                             {/* ── วัตถุดิบหลัก ── */}
-                            <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #BBF7D0', overflow: 'hidden' }}>
+                            <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #BBF7D0' }}>
                                 <div style={{ background: '#F0FDF4', padding: '12px 16px', borderBottom: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span style={{ fontSize: '1.1rem' }}>🍚</span>
                                     <div>
@@ -314,7 +326,7 @@ export default function StockSetupPage() {
                             </div>
 
                             {/* ── ท็อปปิ้ง ── */}
-                            <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #FDE68A', overflow: 'hidden' }}>
+                            <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #FDE68A' }}>
                                 <div style={{ background: '#FFFBEB', padding: '12px 16px', borderBottom: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         <span style={{ fontSize: '1.1rem' }}>🌶️</span>
@@ -335,7 +347,7 @@ export default function StockSetupPage() {
                                         </div>
                                     )}
                                     {setup.toppings.map((top, idx) => (
-                                        <div key={top.id} style={{ border: '1px solid #FDE68A', borderRadius: 10, overflow: 'hidden' }}>
+                                        <div key={top.id} style={{ border: '1px solid #FDE68A', borderRadius: 10 }}>
                                             {/* Topping header row */}
                                             <div style={{ background: '#FFFBEB', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                                                 <button onClick={() => updateTopping(idx, 'isActive', !top.isActive)}

@@ -84,8 +84,10 @@ export const GET = withAuth<any>(async (req: NextRequest, context: any) => {
     const limit = parseInt(url.searchParams.get('limit') || '50')
     const skip = (page - 1) * limit
 
+    const includeDraft = url.searchParams.get('includeDraft') === 'true'
+
     // tenantId is always the first filter — never omit it
-    const where: Record<string, unknown> = { tenantId, isActive: true }
+    const where: Record<string, unknown> = { tenantId, ...(includeDraft ? {} : { isActive: true }) }
     if (search) {
         where.OR = [
             { name: { contains: search } },
