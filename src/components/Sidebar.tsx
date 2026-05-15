@@ -56,6 +56,7 @@ const navItems: NavItem[] = [
     // ── Reports ──────────────────────────────────────────────────────────
     { href: '/reports',      icon: '📈', label: 'รายงาน & วิเคราะห์',    labelLo: 'ລາຍງານ & ວິເຄາະ',      divider: '📈 Reports', dividerLo: '📈 Reports', permission: 'REPORT_VIEW' },
     { href: '/sales-import', icon: '💾', label: 'นำเข้าข้อมูลยอดขาย', labelLo: 'ນຳເຂົ້າຂໍ້ມູນຍອດຂາຍ', permission: 'SALES_IMPORT' },
+    { href: '/manual',       icon: '📖', label: 'คู่มือการใช้งาน',     labelLo: 'ຄູ່ມືການໃຊ້ງານ',           permission: 'REPORT_VIEW' },
 ]
 
 const quickItems: NavItem[] = [
