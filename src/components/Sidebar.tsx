@@ -385,21 +385,31 @@ export default function Sidebar() {
 
                     {/* Settings — SETTINGS_MANAGE permission required */}
                     {userPermissions.has('SETTINGS_MANAGE') && (
-                        <Link href="/settings" onClick={() => isMobile && setMobileOpen(false)}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                padding: collapsed && !isMobile ? '0.6rem' : '0.6rem 0.875rem',
-                                borderRadius: 10, fontSize: '0.875rem', textDecoration: 'none',
-                                color: '#6B7280', marginTop: 4,
-                                justifyContent: collapsed && !isMobile ? 'center' : 'flex-start', minHeight: 40,
-                            }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#F3F4F6'; (e.currentTarget as HTMLElement).style.color = '#1A1D26' }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#6B7280' }}
-                            title={collapsed && !isMobile ? 'Settings' : undefined}
-                        >
-                            <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>⚙️</span>
-                            {showLabels && <span>Settings</span>}
-                        </Link>
+                        (() => {
+                            const settingsActive = pathname === '/settings' || pathname.startsWith('/settings/')
+                            return (
+                                <Link href="/settings" onClick={() => isMobile && setMobileOpen(false)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 10,
+                                        padding: collapsed && !isMobile ? '0.6rem' : '0.6rem 0.875rem',
+                                        borderRadius: 10, fontSize: '0.875rem', textDecoration: 'none',
+                                        background: settingsActive ? '#E8364E' : 'transparent',
+                                        color: settingsActive ? '#fff' : '#374151',
+                                        boxShadow: settingsActive ? '0 2px 8px rgba(232,54,78,0.25)' : 'none',
+                                        fontWeight: settingsActive ? 600 : 400,
+                                        marginTop: 4,
+                                        justifyContent: collapsed && !isMobile ? 'center' : 'flex-start', minHeight: 40,
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                    onMouseEnter={e => { if (!settingsActive) { (e.currentTarget as HTMLElement).style.background = '#F3F4F6'; (e.currentTarget as HTMLElement).style.color = '#1A1D26' } }}
+                                    onMouseLeave={e => { if (!settingsActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#374151' } }}
+                                    title={collapsed && !isMobile ? 'Settings' : undefined}
+                                >
+                                    <span style={{ fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>⚙️</span>
+                                    {showLabels && <span>การตั้งค่า</span>}
+                                </Link>
+                            )
+                        })()
                     )}
                 </nav>
 
