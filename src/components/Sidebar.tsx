@@ -34,7 +34,8 @@ const navItems: NavItem[] = [
     { href: '/inventory-catalog', icon: '🧺', label: 'คลังวัตถุดิบ (Catalog)',  labelLo: 'ຄັງວັດຖຸດິບ (Catalog)', permission: 'PRODUCT_VIEW' },
 
     // ── Production ───────────────────────────────────────────────────────
-    { href: '/recipes',      icon: '📋', label: 'สูตรเมนู (BOM)',            labelLo: 'ສູດເມນູ (BOM)',          divider: '🍳 Production', dividerLo: '🍳 Production', permission: 'RECIPE_VIEW' },
+    { href: '/stock-setup',  icon: '🧾', label: 'ตั้งสูตรตัดสต็อค',         labelLo: 'ຕັ້ງສູດຕັດສະຕ໋ອກ',      divider: '🍳 Production', dividerLo: '🍳 Production', permission: 'RECIPE_VIEW' },
+    { href: '/recipes',      icon: '📋', label: 'สูตรเมนู (BOM) [ขั้นสูง]',  labelLo: 'ສູດເມນູ (BOM) [ຂັ້ນສູງ]', permission: 'RECIPE_VIEW' },
     { href: '/prep-recipes', icon: '🧪', label: 'สูตรเตรียมวัตถุดิบ (Prep)', labelLo: 'ສູດຕຽມວັດຖຸດິບ (Prep)', permission: 'SETTINGS_MANAGE' },
 
     // ── Stock Operations ─────────────────────────────────────────────────
