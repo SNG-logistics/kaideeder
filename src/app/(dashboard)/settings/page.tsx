@@ -937,6 +937,189 @@ function Toggle({ val, onChange }: { val: boolean; onChange: (v: boolean) => voi
     )
 }
 
+// ─── Notification Sound Test Card ─────────────────────────────────────────
+function NotificationTestCard() {
+    const [testing, setTesting] = useState<string | null>(null)
+
+    function playUrgentBuzzer() {
+        try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+            const vol = 1.0
+            const t = audioCtx.currentTime
+            const pulses: [number, number, number][] = [
+                [880,  0.0,  vol],
+                [880,  0.28, vol],
+                [1046, 0.56, vol * 1.2],
+            ]
+            pulses.forEach(([freq, delay, gain]) => {
+                const osc = audioCtx.createOscillator()
+                const g = audioCtx.createGain()
+                osc.connect(g); g.connect(audioCtx.destination)
+                osc.type = 'square'; osc.frequency.value = freq
+                g.gain.setValueAtTime(0, t + delay)
+                g.gain.linearRampToValueAtTime(gain * 0.4, t + delay + 0.01)
+                g.gain.setValueAtTime(gain * 0.4, t + delay + 0.18)
+                g.gain.linearRampToValueAtTime(0, t + delay + 0.24)
+                osc.start(t + delay); osc.stop(t + delay + 0.28)
+            })
+        } catch (e) { console.error('buzzer error', e) }
+    }
+
+    function playBellChime() {
+        try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+            const vol = 1.0
+            const t = audioCtx.currentTime
+            const tones: [number, number, number][] = [
+                [1046, 0,    vol],
+                [880,  0.3,  vol * 0.8],
+                [698,  0.65, vol * 0.6],
+                [1046, 1.0,  vol],
+                [880,  1.3,  vol * 0.8],
+            ]
+            tones.forEach(([freq, delay, gain]) => {
+                const osc = audioCtx.createOscillator()
+                const g = audioCtx.createGain()
+                osc.connect(g); g.connect(audioCtx.destination)
+                osc.type = 'triangle'; osc.frequency.value = freq
+                g.gain.setValueAtTime(0, t + delay)
+                g.gain.linearRampToValueAtTime(gain, t + delay + 0.02)
+                g.gain.exponentialRampToValueAtTime(0.01, t + delay + 1.2)
+                osc.start(t + delay); osc.stop(t + delay + 1.3)
+            })
+        } catch (e) { console.error('chime error', e) }
+    }
+
+    function playSpeech(msg: string) {
+        if (!('speechSynthesis' in window)) { toast.error('เบราว์เซอร์ไม่รองรับ Speech'); return }
+        window.speechSynthesis.cancel()
+        const utterance = new SpeechSynthesisUtterance(msg)
+        utterance.lang = 'th-TH'
+        utterance.rate = 1.0
+        utterance.volume = 1.0
+        const voices = window.speechSynthesis.getVoices()
+        const thaiVoice = voices.find(v => v.lang === 'th-TH' || v.lang === 'th')
+        if (thaiVoice) utterance.voice = thaiVoice
+        window.speechSynthesis.speak(utterance)
+    }
+
+    async function testOrderNew() {
+        setTesting('order')
+        playUrgentBuzzer()
+        setTimeout(() => playSpeech('โต๊ะ 3 โซนใน สั่งอาหาร'), 900)
+        toast('📢 ทดสอบ: ออเดอร์ใหม่ (Beep x3 + เสียงพูด)', { icon: '🛎️' })
+        setTimeout(() => setTesting(null), 1500)
+    }
+
+    async function testBillRequest() {
+        setTesting('bill')
+        playBellChime()
+        setTimeout(() => playSpeech('โต๊ะ 5 โซนวีไอพี เรียกเช็คบิล'), 1600)
+        toast('🔔 ทดสอบ: เรียกเช็คบิล (Bell + เสียงพูด)', { icon: '🔔' })
+        setTimeout(() => setTesting(null), 2000)
+    }
+
+    async function testBothSequence() {
+        setTesting('both')
+        toast('🎵 ทดสอบเสียงทั้งคู่ต่อเนื่อง...', { icon: '🎵' })
+        // ORDER_NEW first
+        playUrgentBuzzer()
+        setTimeout(() => playSpeech('โต๊ะ 3 สั่งอาหาร'), 900)
+        // Then BILL_REQUEST
+        setTimeout(() => { playBellChime() }, 2500)
+        setTimeout(() => playSpeech('โต๊ะ 7 เรียกเช็คบิล'), 4000)
+        setTimeout(() => setTesting(null), 5000)
+    }
+
+    const btnBase: React.CSSProperties = {
+        flex: 1, minHeight: 52, borderRadius: 12, border: 'none',
+        fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
+        fontFamily: 'inherit', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 4,
+        transition: 'all 0.15s', position: 'relative',
+    }
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🔔</span> ทดสอบระบบแจ้งเตือน
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
+                ทดสอบเสียงแจ้งเตือนทั้งหมด — ต้องเปิดเสียงเบราว์เซอร์ก่อน · ใช้งานได้เฉพาะบนเครื่องที่เปิด POS
+            </p>
+
+            {/* Sound comparison diagram */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'center', marginBottom: 14, padding: '10px 14px', background: 'rgba(139,92,246,0.05)', borderRadius: 10, border: '1px solid rgba(139,92,246,0.15)' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📢</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7C3AED' }}>ออเดอร์ใหม่ (QR)</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>Beep-Beep-BEEP</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Square wave · เร่งด่วน</div>
+                </div>
+                <div style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>≠</div>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>🔔</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669' }}>เรียกเช็คบิล</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>Ding-Dong...</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Triangle wave · นุ่มนวล</div>
+                </div>
+            </div>
+
+            {/* Test buttons */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                <button
+                    onClick={testOrderNew}
+                    disabled={testing !== null}
+                    style={{ ...btnBase, background: testing === 'order' ? '#6D28D9' : 'linear-gradient(135deg,#7C3AED,#6D28D9)', color: '#fff', boxShadow: '0 4px 12px rgba(109,40,217,0.3)' }}
+                >
+                    <span style={{ fontSize: '1.3rem' }}>{testing === 'order' ? '⏳' : '📢'}</span>
+                    <span>ออเดอร์ใหม่</span>
+                    <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>Beep x3 + พูด</span>
+                </button>
+                <button
+                    onClick={testBillRequest}
+                    disabled={testing !== null}
+                    style={{ ...btnBase, background: testing === 'bill' ? '#047857' : 'linear-gradient(135deg,#059669,#047857)', color: '#fff', boxShadow: '0 4px 12px rgba(5,150,105,0.3)' }}
+                >
+                    <span style={{ fontSize: '1.3rem' }}>{testing === 'bill' ? '⏳' : '🔔'}</span>
+                    <span>เรียกเช็คบิล</span>
+                    <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>Bell + พูด</span>
+                </button>
+                <button
+                    onClick={testBothSequence}
+                    disabled={testing !== null}
+                    style={{ ...btnBase, background: testing === 'both' ? '#1D4ED8' : 'linear-gradient(135deg,#3B82F6,#1D4ED8)', color: '#fff', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}
+                >
+                    <span style={{ fontSize: '1.3rem' }}>{testing === 'both' ? '⏳' : '🎵'}</span>
+                    <span>ทดสอบทั้งคู่</span>
+                    <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>ต่อเนื่อง 5 วิ</span>
+                </button>
+            </div>
+
+            {/* Speech only test */}
+            <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                    onClick={() => { playSpeech('โต๊ะ 3 โซนใน สั่งอาหาร'); toast('🗣️ ทดสอบเสียงพูด: ออเดอร์', { icon: '🗣️' }) }}
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: 9, border: '1.5px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.06)', color: '#7C3AED', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                    🗣️ ทดสอบเสียงพูด (ออเดอร์)
+                </button>
+                <button
+                    onClick={() => { playSpeech('โต๊ะ 5 โซนวีไอพี เรียกเช็คบิล'); toast('🗣️ ทดสอบเสียงพูด: เช็คบิล', { icon: '🗣️' }) }}
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: 9, border: '1.5px solid rgba(5,150,105,0.3)', background: 'rgba(5,150,105,0.06)', color: '#059669', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                    🗣️ ทดสอบเสียงพูด (เช็คบิล)
+                </button>
+            </div>
+
+            <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(139,92,246,0.05)', borderRadius: 8, fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                💡 <strong>หากไม่ได้ยินเสียง:</strong> คลิกปุ่ม "🔔 แตะที่นี่เพื่อเปิดเสียงแจ้งเตือน" ที่ด้านบน → กลับมากดทดสอบอีกครั้ง<br/>
+                🎙️ <strong>Speech ต้องการ:</strong> Chrome/Edge + ติดตั้ง Thai voice ในระบบ (Windows: Settings → Time &amp; Language → Speech)
+            </div>
+        </div>
+    )
+}
+
 // ─── Global Auto-Print Card ───────────────────────────────────────────────
 function AutoPrintCard() {
     const [s, setS] = useState<PrinterSettings | null>(null)
@@ -1681,8 +1864,12 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* ── Notification Test ── */}
+                <NotificationTestCard />
+
                 {/* ── Printer Settings ── */}
                 <PrinterSettingsCard />
+
 
                 {/* ── Danger Zone ── */}
                 <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 14, padding: '1.5rem' }}>

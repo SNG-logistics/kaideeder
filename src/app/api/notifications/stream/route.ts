@@ -11,8 +11,16 @@ async function fetchNotifs(tenantId: string): Promise<NotificationInfo[]> {
     const result: NotificationInfo[] = []
 
     const [pendingOrders, billRequests, newDeliveries] = await Promise.all([
+        // ⚠️ note: { not: { contains } } silently excludes NULL — use OR to include null notes
         prisma.order.findMany({
-            where: { tenantId, status: 'PENDING_CONFIRM', note: { not: { contains: 'เรียกเช็คบิล' } } },
+            where: {
+                tenantId,
+                status: 'PENDING_CONFIRM',
+                OR: [
+                    { note: null },
+                    { note: { not: { contains: 'เรียกเช็คบิล' } } },
+                ],
+            },
             include: { table: true, items: { include: { product: true } } },
             orderBy: { openedAt: 'asc' },
         }),

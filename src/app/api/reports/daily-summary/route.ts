@@ -45,6 +45,9 @@ export const GET = withAuth(async (req: NextRequest) => {
             .sort((a, b) => b.qty - a.qty)
             .slice(0, 5)
 
+        const allSoldItems = [...menuMap.values()]
+            .sort((a, b) => a.name.localeCompare(b.name))
+
         // ── Opening/Closing Stock Snapshot ────────────────────
         const lowStock = await prisma.inventory.findMany({
             where: {
@@ -82,6 +85,7 @@ export const GET = withAuth(async (req: NextRequest) => {
                 avgOrderValue: orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0,
             },
             topMenus,
+            allSoldItems,
             stock: {
                 lowItems: lowStock.filter(i => i.product.minQty > 0 && i.quantity <= i.product.minQty).map(i => ({
                     name: i.product.name,

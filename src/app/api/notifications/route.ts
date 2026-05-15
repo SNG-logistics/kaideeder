@@ -19,12 +19,22 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
     try {
         const result: NotificationInfo[] = []
 
-        // 1. Fetch pending orders (Order NEW)
+        // 1. Fetch pending orders (ORDER_NEW)
+        // ⚠️ IMPORTANT: Prisma `note: { not: { contains: '...' } }` silently EXCLUDES null values.
+        // Must use OR to explicitly include orders where note IS null (most QR orders).
         const pendingOrders = await prisma.order.findMany({
-            where: { tenantId, status: 'PENDING_CONFIRM', note: { not: { contains: 'เรียกเช็คบิล' } } },
+            where: {
+                tenantId,
+                status: 'PENDING_CONFIRM',
+                OR: [
+                    { note: null },
+                    { note: { not: { contains: 'เรียกเช็คบิล' } } },
+                ],
+            },
             include: { table: true, items: { include: { product: true } } },
             orderBy: { openedAt: 'asc' },
         })
+
 
         pendingOrders.forEach(order => {
             result.push({

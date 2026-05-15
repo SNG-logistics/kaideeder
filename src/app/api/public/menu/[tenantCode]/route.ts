@@ -35,6 +35,7 @@ export async function GET(
                 salePrice: true, unit: true, categoryId: true,
                 imageUrl: true, isFeatured: true,
                 toppingsJson: true,
+                note: true,
                 // check if base64 exists (boolean only) — actual bytes loaded per-product
                 imageBase64: true,
             },
@@ -44,6 +45,7 @@ export async function GET(
             ...p,
             price: p.salePrice,
             isFeatured: isFeatured ?? false,
+            note: p.note ?? null,
             imageUrl: imageBase64
                 ? `/api/public/img/${p.id}`
                 : (imageUrl ?? null),

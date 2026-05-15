@@ -181,7 +181,8 @@ export default function POSPage() {
     const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'warning' } | null>(null)
     const [showReceiptPreview, setShowReceiptPreview] = useState(false)
     const [proteinPendingProduct, setProteinPendingProduct] = useState<Product | null>(null)
-    const [proteinComment, setProteinComment] = useState('')      // comment สำหรับ topping modal
+    const [proteinComment, setProteinComment] = useState('')      // comment สำหรับ topping modal (hack: stores selected topping IDs)
+    const [proteinNote, setProteinNote] = useState('')            // text note input for topping modal
     const [sentItems, setSentItems] = useState<{ kitchen: OrderItemData[], bar: OrderItemData[], orderId: string, tableCode: string } | null>(null)
     const [authChecked, setAuthChecked] = useState(false)
     const [selectedZone, setSelectedZone] = useState<string>('ALL')  // Zone tab
@@ -258,8 +259,13 @@ export default function POSPage() {
             setToast({ message: `ไม่มีสิทธิ์: ${context}`, type: 'error' })
             return true
         }
+        if (res.status >= 500) {
+            setToast({ message: `เซิร์ฟเวอร์ผิดพลาด (${res.status}): ${context}`, type: 'error' })
+            return true
+        }
         return false
     }, [])
+
 
     // ─── Data Loading ─────────────────────────────────────────
     const fetchTables = useCallback(async () => {
@@ -427,7 +433,8 @@ export default function POSPage() {
         // ถ้าเมนูนี้ต้องเลือก topping → เปิด modal ก่อน
         if (requiresProteinSelection(product)) {
             setProteinPendingProduct(product)
-            setProteinComment('')   // reset comment ทุกครั้ง
+            setProteinComment('')   // reset selected topping IDs
+            setProteinNote('')      // reset text note
             return
         }
         setOrderItems(prev => {
@@ -467,6 +474,7 @@ export default function POSPage() {
         }])
         setProteinPendingProduct(null)
         setProteinComment('')
+        setProteinNote('')
     }
 
     const updateItemQty = (index: number, delta: number) => {
@@ -476,6 +484,14 @@ export default function POSPage() {
             if (updated[index].quantity === 0) {
                 updated.splice(index, 1)
             }
+            return updated
+        })
+    }
+
+    const updateItemNote = (index: number, note: string) => {
+        setOrderItems(prev => {
+            const updated = [...prev]
+            updated[index] = { ...updated[index], note: note || undefined }
             return updated
         })
     }
@@ -900,7 +916,7 @@ export default function POSPage() {
                 const hasCatalogToppings = availableToppings.length > 0
                 return (
                     <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '1rem' }}
-                        onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}>
+                        onClick={() => { setProteinPendingProduct(null); setProteinComment(''); setProteinNote('') }}>
                         <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', maxHeight: '88vh', overflowY: 'auto' }}
                             onClick={e => e.stopPropagation()}>
 
@@ -963,6 +979,14 @@ export default function POSPage() {
                                             })}
                                         </div>
 
+                                        {/* Optional Note input */}
+                                        <div style={{ marginBottom: 14 }}>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151', marginBottom: 6 }}>📝 หมายเหตุเพิ่มเติม</div>
+                                            <input type="text" placeholder="เช่น ไม่เผ็ด, เด็กกิน, แยกน้ำ..." value={proteinNote} onChange={e => setProteinNote(e.target.value)}
+                                                style={{ width: '100%', padding: '0.65rem 1rem', border: '1.5px solid #E5E7EB', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.88rem', outline: 'none' }}
+                                            />
+                                        </div>
+
                                         {/* Price summary strip */}
                                         {toppingsTotal > 0 && (
                                             <div style={{
@@ -983,7 +1007,7 @@ export default function POSPage() {
 
                                         {/* Confirm button */}
                                         <button
-                                            onClick={() => addItemWithProtein(proteinPendingProduct, selectedToppings)}
+                                            onClick={() => addItemWithProtein(proteinPendingProduct, selectedToppings, proteinNote)}
                                             style={{
                                                 width: '100%', padding: '0.75rem', borderRadius: 12, border: 'none',
                                                 background: 'linear-gradient(135deg, #059669, #10B981)',
@@ -993,7 +1017,7 @@ export default function POSPage() {
                                             }}>
                                             ✅ เพิ่มลงออเดอร์ {toppingsTotal > 0 ? `(${formatLAK(proteinPendingProduct.salePrice + toppingsTotal)})` : ''}
                                         </button>
-                                        <button onClick={() => { setProteinPendingProduct(null); setProteinComment('') }}
+                                        <button onClick={() => { setProteinPendingProduct(null); setProteinComment(''); setProteinNote('') }}
                                             style={{ width: '100%', padding: '0.55rem', borderRadius: 10, border: '1px solid #E5E7EB', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', color: '#9CA3AF', fontSize: '0.82rem', fontWeight: 600 }}>
                                             ยกเลิก
                                         </button>
@@ -1400,22 +1424,34 @@ export default function POSPage() {
                                 </div>
                             ) : (
                                 orderItems.map((item, idx) => (
-                                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '3fr 1.2fr 1fr 1.2fr 1fr 0.5fr', padding: '0.5rem 0.75rem', borderBottom: '1px solid #F3F4F6', alignItems: 'center', gap: 4 }}>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1D26', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product?.name || item.productId}</span>
-                                        <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{formatLAK(item.unitPrice)}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            <button onClick={() => updateItemQty(idx, -1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem' }}>−</button>
-                                            <span style={{ minWidth: 18, textAlign: 'center', fontSize: '0.82rem', fontWeight: 700 }}>{item.quantity}</span>
-                                            <button onClick={() => updateItemQty(idx, 1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem' }}>+</button>
+                                    <div key={idx} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '3fr 1.2fr 1fr 1.2fr 1fr 0.5fr', padding: '0.5rem 0.75rem', alignItems: 'center', gap: 4 }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1D26', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product?.name || item.productId}</span>
+                                            <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{formatLAK(item.unitPrice)}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                <button onClick={() => updateItemQty(idx, -1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem' }}>−</button>
+                                                <span style={{ minWidth: 18, textAlign: 'center', fontSize: '0.82rem', fontWeight: 700 }}>{item.quantity}</span>
+                                                <button onClick={() => updateItemQty(idx, 1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem' }}>+</button>
+                                            </div>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#E8364E' }}>{formatLAK(item.quantity * item.unitPrice)}</span>
+                                            {(() => {
+                                                const st = item.kitchenStatus || 'PENDING'
+                                                const icon = { PENDING: '⏳', ACCEPTED: '👌', COOKING: '🔥', READY: '✅', SERVED: '🍽️' }[st] || '⏳'
+                                                const col = { PENDING: '#F59E0B', ACCEPTED: '#3B82F6', COOKING: '#EF4444', READY: '#10B981', SERVED: '#6B7280' }[st] || '#F59E0B'
+                                                return <span style={{ fontSize: '0.72rem', color: col, fontWeight: 600 }}>{icon}</span>
+                                            })()}
+                                            <button onClick={() => removeItem(idx)} style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: '#9CA3AF', cursor: 'pointer', fontSize: '0.75rem' }}>✕</button>
                                         </div>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#E8364E' }}>{formatLAK(item.quantity * item.unitPrice)}</span>
-                                        {(() => {
-                                            const st = item.kitchenStatus || 'PENDING'
-                                            const icon = { PENDING: '⏳', ACCEPTED: '👌', COOKING: '🔥', READY: '✅', SERVED: '🍽️' }[st] || '⏳'
-                                            const col = { PENDING: '#F59E0B', ACCEPTED: '#3B82F6', COOKING: '#EF4444', READY: '#10B981', SERVED: '#6B7280' }[st] || '#F59E0B'
-                                            return <span style={{ fontSize: '0.72rem', color: col, fontWeight: 600 }}>{icon}</span>
-                                        })()}
-                                        <button onClick={() => removeItem(idx)} style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: '#9CA3AF', cursor: 'pointer', fontSize: '0.75rem' }}>✕</button>
+                                        {/* Note Input */}
+                                        <div style={{ padding: '0 0.75rem 0.5rem 0.75rem' }}>
+                                            <input 
+                                                type="text" 
+                                                placeholder="📝 หมายเหตุ (เช่น ไม่เผ็ด, เด็กกิน)..." 
+                                                value={item.note || ''} 
+                                                onChange={e => updateItemNote(idx, e.target.value)}
+                                                style={{ width: '100%', fontSize: '0.72rem', padding: '4px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#FAFAFA', outline: 'none' }}
+                                            />
+                                        </div>
                                     </div>
                                 ))
                             )}
@@ -1578,14 +1614,25 @@ export default function POSPage() {
                                 ) : (
                                     orderItems.map((item, idx) => (
                                         <div key={idx} style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
                                                 <span style={{ flex: 1, fontSize: '0.83rem', fontWeight: 600, color: '#1A1D26' }}>({item.quantity}) {item.product?.name}</span>
                                                 <button onClick={() => removeItem(idx)} style={{ background: '#EF4444', border: 'none', color: '#fff', borderRadius: 6, width: 24, height: 24, cursor: 'pointer', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>
                                                 <button onClick={() => updateItemQty(idx, -1)} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem' }}>−</button>
                                                 <span style={{ minWidth: 20, textAlign: 'center', fontWeight: 700, fontSize: '0.85rem' }}>{item.quantity}</span>
                                                 <button onClick={() => updateItemQty(idx, 1)} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem' }}>+</button>
                                             </div>
-                                            <div style={{ fontSize: '0.72rem', color: '#9CA3AF', textAlign: 'right' }}>ราคา {formatLAK(item.quantity * item.unitPrice)} กีบ</div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="📝 หมายเหตุ..." 
+                                                    value={item.note || ''} 
+                                                    onChange={e => updateItemNote(idx, e.target.value)}
+                                                    style={{ flex: 1, fontSize: '0.7rem', padding: '3px 6px', borderRadius: 4, border: '1px solid #E5E7EB', background: '#FAFAFA', outline: 'none', marginRight: '6px' }}
+                                                />
+                                                <div style={{ fontSize: '0.72rem', color: '#9CA3AF', textAlign: 'right', flexShrink: 0 }}>
+                                                    {formatLAK(item.quantity * item.unitPrice)}
+                                                </div>
+                                            </div>
                                         </div>
                                     ))
                                 )}

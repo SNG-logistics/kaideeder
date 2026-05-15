@@ -23,96 +23,105 @@ export const POST = withAuth(async (req: NextRequest, context) => {
     const { tableId } = body
     if (!tableId) return err('tableId is required', 400)
 
-    // Verify the table belongs to this tenant
-    const table = await prisma.diningTable.findFirst({
-        where: { id: tableId, tenantId, isActive: true },
-    })
-    if (!table) return err('Table not found', 404)
+    try {
+        // Verify the table belongs to this tenant
+        const table = await prisma.diningTable.findFirst({
+            where: { id: tableId, tenantId, isActive: true },
+        })
+        if (!table) return err('Table not found', 404)
 
-    // Load all active orders for this table, oldest first
-    const allOrders = await prisma.order.findMany({
-        where: {
-            tenantId,
-            tableId,
-            status: { in: ['OPEN', 'PENDING_CONFIRM'] },
-        },
-        orderBy: { openedAt: 'asc' },
-        include: {
-            items: { where: { isCancelled: false } },
-        },
-    })
+        // Load all active orders for this table, oldest first
+        const allOrders = await prisma.order.findMany({
+            where: {
+                tenantId,
+                tableId,
+                status: { in: ['OPEN', 'PENDING_CONFIRM'] },
+            },
+            orderBy: { openedAt: 'asc' },
+            include: {
+                items: { where: { isCancelled: false } },
+            },
+        })
 
-    if (allOrders.length === 0) return err('No active orders for this table', 404)
+        if (allOrders.length === 0) return err('No active orders for this table', 404)
 
-    // If already a single order, just return it
-    if (allOrders.length === 1) {
-        // If it's PENDING_CONFIRM, promote it to OPEN
-        if (allOrders[0].status === 'PENDING_CONFIRM') {
-            const promoted = await prisma.order.update({
+        // If already a single order, just return it
+        if (allOrders.length === 1) {
+            // If it's PENDING_CONFIRM, promote it to OPEN
+            if (allOrders[0].status === 'PENDING_CONFIRM') {
+                const promoted = await prisma.order.update({
+                    where: { id: allOrders[0].id },
+                    data: { status: 'OPEN' },
+                    include: { items: { where: { isCancelled: false }, include: { product: true } } },
+                })
+                return ok(promoted)
+            }
+            const single = await prisma.order.findUnique({
                 where: { id: allOrders[0].id },
-                data: { status: 'OPEN' },
                 include: { items: { where: { isCancelled: false }, include: { product: true } } },
             })
-            return ok(promoted)
+            return ok(single)
         }
-        const single = await prisma.order.findUnique({
-            where: { id: allOrders[0].id },
-            include: { items: { where: { isCancelled: false }, include: { product: true } } },
-        })
-        return ok(single)
-    }
 
-    // ── Multiple orders: merge all into the primary ────────────────
-    // Primary = the OPEN order, or the first PENDING_CONFIRM if none OPEN
-    const primaryOrder = allOrders.find(o => o.status === 'OPEN') ?? allOrders[0]
-    const others = allOrders.filter(o => o.id !== primaryOrder.id)
+        // ── Multiple orders: merge all into the primary ────────────────
+        // Primary = the OPEN order, or the first PENDING_CONFIRM if none OPEN
+        const primaryOrder = allOrders.find(o => o.status === 'OPEN') ?? allOrders[0]
+        const others = allOrders.filter(o => o.id !== primaryOrder.id)
 
-    // Collect all items from secondary orders
-    const itemsToMove = others.flatMap(o => o.items)
+        // Collect all items from secondary orders
+        const itemsToMove = others.flatMap(o => o.items)
 
-    await prisma.$transaction(async (tx) => {
-        // 1. Copy items from secondary orders into primary
-        if (itemsToMove.length > 0) {
-            await tx.orderItem.createMany({
-                data: itemsToMove.map(item => ({
-                    tenantId,                        // ← required field
-                    orderId: primaryOrder.id,
-                    productId: item.productId,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    note: item.note,
-                    kitchenStatus: item.kitchenStatus,
-                    isCancelled: false,
-                })),
+        await prisma.$transaction(async (tx) => {
+            // 1. Copy items from secondary orders into primary
+            if (itemsToMove.length > 0) {
+                await tx.orderItem.createMany({
+                    data: itemsToMove.map(item => ({
+                        tenantId,                        // ← required field
+                        orderId: primaryOrder.id,
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        note: item.note,
+                        kitchenStatus: item.kitchenStatus,
+                        isCancelled: false,
+                    })),
+                })
+            }
+
+            // 2. Mark secondary orders as CANCELLED (so table shows clean)
+            await tx.order.updateMany({
+                where: { id: { in: others.map(o => o.id) } },
+                data: {
+                    status: 'CANCELLED',
+                    note: `รวมเข้าออเดอร์ ${primaryOrder.orderNumber}`,
+                },
             })
-        }
 
-        // 2. Mark secondary orders as CANCELLED (so table shows clean)
-        await tx.order.updateMany({
-            where: { id: { in: others.map(o => o.id) } },
-            data: {
-                status: 'CANCELLED',
-                note: `รวมเข้าออเดอร์ ${primaryOrder.orderNumber}`,
-            },
+            // 3. Recalculate subtotal/totalAmount and ensure OPEN
+            const freshItems = await tx.orderItem.findMany({
+                where: { orderId: primaryOrder.id, isCancelled: false },
+            })
+            const newSubtotal = freshItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+            await tx.order.update({
+                where: { id: primaryOrder.id },
+                data: { status: 'OPEN', subtotal: newSubtotal, totalAmount: newSubtotal },
+            })
         })
 
-        // 3. Ensure the primary order is OPEN
-        await tx.order.update({
+        // Return the fresh merged order
+        const merged = await prisma.order.findUnique({
             where: { id: primaryOrder.id },
-            data: { status: 'OPEN' },
-        })
-    })
-
-    // Return the fresh merged order
-    const merged = await prisma.order.findUnique({
-        where: { id: primaryOrder.id },
-        include: {
-            items: {
-                where: { isCancelled: false },
-                include: { product: true },
+            include: {
+                items: {
+                    where: { isCancelled: false },
+                    include: { product: true },
+                },
             },
-        },
-    })
+        })
 
-    return ok(merged)
+        return ok(merged)
+    } catch (e: any) {
+        console.error('[consolidate] Error:', e)
+        return err(e?.message || 'เกิดข้อผิดพลาดในการรวมออเดอร์', 500)
+    }
 }, ['OWNER', 'MANAGER', 'CASHIER'])

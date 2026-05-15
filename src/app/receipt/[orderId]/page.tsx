@@ -90,7 +90,13 @@ function ReceiptContent({ orderId }: { orderId: string }) {
 
     const activeItems = order.items.filter(i => !i.isCancelled)
     const payment     = order.payments?.[0] ?? null
-    const discountAmt = order.discountType === 'PERCENT' ? order.subtotal * order.discount / 100 : order.discount
+    // Always compute subtotal from live items (DB field may be stale / 0)
+    const computedSubtotal = activeItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+    const subtotal = computedSubtotal || order.subtotal
+    const discountAmt = order.discountType === 'PERCENT' ? subtotal * order.discount / 100 : order.discount
+    const afterDiscount = subtotal - discountAmt
+    const computedTotal = afterDiscount + (order.serviceCharge || 0) + (order.vat || 0)
+    const finalTotal = computedTotal || order.totalAmount
     const isPaid      = !!payment
     const initials    = storeName.slice(0, 2).toUpperCase()
 
@@ -195,7 +201,7 @@ function ReceiptContent({ orderId }: { orderId: string }) {
 
                 <div style={{ margin:'4px 12px 0', borderTop:'1.5px dashed #E5E7EB', paddingTop:8 }}>
                     {([
-                        ['ລວມ · รวม', fmt(order.subtotal)],
+                        ['ລວມ · รวม', fmt(subtotal)],
                         discountAmt > 0 ? [`ສ່ວນລຸດ${order.discountType==='PERCENT'?` (${order.discount}%)`:''}`, `- ${fmt(discountAmt)}`] : null,
                         order.serviceCharge > 0 ? ['ຄ່າບໍລິການ', fmt(order.serviceCharge)] : null,
                         order.vat > 0 ? ['VAT', fmt(order.vat)] : null,
@@ -212,7 +218,7 @@ function ReceiptContent({ orderId }: { orderId: string }) {
                         <div style={{ fontSize:9, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:0.8 }}>ຍອດສຸດທ້າຍ · ยอดสุทธิ</div>
                         <div style={{ fontSize:10, color:'#64748B', marginTop:1 }}>{activeItems.length} รายการ</div>
                     </div>
-                    <span style={{ fontSize:22, fontWeight:900, color:'#FBBF24', letterSpacing:0.3, textShadow:'0 0 16px rgba(251,191,36,0.4)' }}>{fmt(order.totalAmount)}</span>
+                    <span style={{ fontSize:22, fontWeight:900, color:'#FBBF24', letterSpacing:0.3, textShadow:'0 0 16px rgba(251,191,36,0.4)' }}>{fmt(finalTotal)}</span>
                 </div>
 
                 {payment ? (

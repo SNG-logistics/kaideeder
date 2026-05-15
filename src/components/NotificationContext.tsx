@@ -11,14 +11,75 @@ type NotificationContextType = {
     markAsSeen: (id: string) => void
     removeNotification: (id: string) => void
     refresh: () => void
+    // Audio unlock state — exposed so TopBar/Sidebar can show status button
+    audioUnlocked: boolean
+    unlockAudio: () => void
 }
 
 const NotificationContext = createContext<NotificationContextType | null>(null)
 
-// ── Web Audio bell synthesizer ────────────────────────────────────────────
+// ── Web Audio URGENT buzzer for new ORDER (distinct from BILL_REQUEST bell) ─
+function playUrgentBuzzer(audioCtx: AudioContext, vol = 1.0, message?: string, onFail?: () => void) {
+    const doPlay = () => {
+        try {
+            const t = audioCtx.currentTime
+            // 3-pulse urgent beep: square wave, aggressive, clearly different from bell
+            const pulses: [number, number, number][] = [
+                [880,  0.0,  vol],       // first beep
+                [880,  0.28, vol],       // second beep
+                [1046, 0.56, vol * 1.2], // third higher beep (urgency)
+            ]
+            pulses.forEach(([freq, delay, gain]) => {
+                const osc = audioCtx.createOscillator()
+                const gainNode = audioCtx.createGain()
+                osc.connect(gainNode)
+                gainNode.connect(audioCtx.destination)
+                osc.type = 'square'    // square wave = harsh/urgent vs triangle = soft bell
+                osc.frequency.value = freq
+                gainNode.gain.setValueAtTime(0, t + delay)
+                gainNode.gain.linearRampToValueAtTime(gain * 0.4, t + delay + 0.01)
+                gainNode.gain.setValueAtTime(gain * 0.4, t + delay + 0.18)
+                gainNode.gain.linearRampToValueAtTime(0, t + delay + 0.24)
+                osc.start(t + delay)
+                osc.stop(t + delay + 0.28)
+            })
+            console.log('[Notification] 📢 Urgent buzzer played', message ?? '')
+        } catch (e) {
+            console.error('[Notification] Failed to play urgent buzzer', e)
+        }
+    }
+
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().then(doPlay).catch((e) => {
+            console.warn('[Notification] AudioContext resume failed', e)
+            if (onFail) onFail()
+        })
+    } else {
+        doPlay()
+    }
+
+    // Speech announcement for new orders
+    if (message && 'speechSynthesis' in window) {
+        setTimeout(() => {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(message);
+            utterance.lang = 'th-TH';
+            utterance.rate = 1.0;
+            utterance.volume = 1.0;
+            const voices = window.speechSynthesis.getVoices();
+            const thaiVoice = voices.find(v => v.lang === 'th-TH' || v.lang === 'th');
+            if (thaiVoice) utterance.voice = thaiVoice;
+            window.speechSynthesis.speak(utterance);
+        }, 900);
+    }
+}
+
+
+// ── Web Audio gentle bell for BILL_REQUEST ──────────────────────────────────
 function playBellChime(audioCtx: AudioContext, vol = 1.0, message?: string, onFail?: () => void) {
     // Always resume — context may slip back to 'suspended' after tab inactivity
     const doPlay = () => {
+
         try {
             const t = audioCtx.currentTime
             // Two-tone chime: high ding + lower dong
@@ -80,6 +141,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
     const [notifications, setNotifications] = useState<NotificationInfo[]>([])
     const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
+    const [uiDismissed, setUiDismissed] = useState(false)
     const [audioUnlocked, setAudioUnlocked] = useState(false)
     const audioUnlockedRef = useRef(false)
     useEffect(() => { audioUnlockedRef.current = audioUnlocked }, [audioUnlocked])
@@ -88,36 +150,79 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const audioCtxRef = useRef<AudioContext | null>(null)
     const alarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const prevHighIdsRef = useRef<Set<string>>(new Set())
+    // Stable refs for role — avoids recreating processNotifications on every role change
+    const isCashierRoleRef = useRef(false)
+    const isKitchenRoleRef = useRef(false)
 
-    // Create AudioContext eagerly — will be in 'suspended' until user gesture
+    // On mount: if localStorage says unlocked, try to actually resume AudioContext immediately
+    // (Browser resets AudioContext state on every page load regardless of localStorage)
     useEffect(() => {
-        if (typeof window !== 'undefined' && !audioCtxRef.current) {
-            try {
-                audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
-            } catch { }
+        if (typeof window === 'undefined') return
+        const wasUnlocked = localStorage.getItem('audioUnlockedUI') === 'true'
+        if (wasUnlocked) {
+            setUiDismissed(true)
+            // Try to auto-resume — will succeed if user has previously interacted
+            // (modern browsers allow resume if the tab was previously interactive)
+            if (!audioCtxRef.current) {
+                try { audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)() } catch { }
+            }
+            audioCtxRef.current?.resume()
+                .then(() => {
+                    if (audioCtxRef.current?.state === 'running') {
+                        setAudioUnlocked(true)
+                        console.log('[Notification] ✅ Auto-resumed AudioContext from localStorage hint')
+                    }
+                })
+                .catch(() => {
+                    // Browser blocked auto-resume — need user gesture, show banner again
+                    setUiDismissed(false)
+                    console.log('[Notification] ⚠️ Auto-resume blocked — showing banner again')
+                })
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     // Unlock audio on EVERY user interaction until confirmed unlocked
-    const unlockAudio = useCallback(() => {
-        if (audioUnlocked) return
+    const unlockAudio = useCallback((e?: Event | boolean) => {
+        const fromBanner = typeof e === 'boolean' ? e : false;
+
+        if (audioCtxRef.current?.state === 'running') {
+            setAudioUnlocked(true)
+            if (!uiDismissed) {
+                setUiDismissed(true)
+                localStorage.setItem('audioUnlockedUI', 'true')
+            }
+            return
+        }
         try {
             if (!audioCtxRef.current) {
                 audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
                 console.log('[Notification] AudioContext created, state:', audioCtxRef.current.state)
             }
-            // Must call resume() — AudioContext starts suspended on Chrome/Safari
-            audioCtxRef.current.resume().then(() => {
-                console.log('[Notification] ✅ Audio unlocked, state:', audioCtxRef.current?.state)
+            
+            if (audioCtxRef.current.state === 'suspended') {
+                audioCtxRef.current.resume().then(() => {
+                    console.log('[Notification] ✅ Audio unlocked, state:', audioCtxRef.current?.state)
+                    setAudioUnlocked(true)
+                    
+                    // Play short test chime ONLY if the UI banner was not dismissed yet
+                    // This ensures the bell only rings on the very first permission grant in the session
+                    if (!uiDismissed && audioCtxRef.current) {
+                        playBellChime(audioCtxRef.current, 0.5)
+                    }
+
+                    setUiDismissed(true)
+                    localStorage.setItem('audioUnlockedUI', 'true')
+                }).catch((e) => {
+                    console.warn('[Notification] ⚠️ AudioContext resume failed:', e)
+                })
+            } else {
                 setAudioUnlocked(true)
-                // Play short test chime so staff know audio is working
-                if (audioCtxRef.current) {
-                    playBellChime(audioCtxRef.current, 0.5)
+                if (!uiDismissed) {
+                    setUiDismissed(true)
+                    localStorage.setItem('audioUnlockedUI', 'true')
                 }
-            }).catch((e) => {
-                console.warn('[Notification] ⚠️ AudioContext resume failed:', e)
-                setAudioUnlocked(true)
-            })
+            }
         } catch (e) {
             console.error('[Notification] ❌ AudioContext creation failed:', e)
         }
@@ -127,7 +232,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             u.volume = 0
             window.speechSynthesis.speak(u)
         }
-    }, [audioUnlocked])
+    }, [uiDismissed])
 
     useEffect(() => {
         document.addEventListener('click', unlockAudio)
@@ -139,8 +244,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, [unlockAudio])
 
 
-    const isCashierRole = user?.role === 'cashier' || user?.role === 'owner' || user?.role === 'manager';
-    const isKitchenRole = user?.role === 'kitchen' || user?.role === 'bar';
+    const isCashierRole = ['cashier', 'owner', 'manager'].includes(user?.role?.toLowerCase() ?? '')
+    const isKitchenRole = ['kitchen', 'bar'].includes(user?.role?.toLowerCase() ?? '')
+    // Keep refs in sync so callbacks can read current values without being recreated
+    isCashierRoleRef.current = isCashierRole
+    isKitchenRoleRef.current = isKitchenRole
 
     // Reset seen-IDs when role loads OR when audio unlocks
     // This ensures any orders that arrived while audio was locked (or role was loading)
@@ -159,8 +267,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const unackedHigh = notifs.filter(n => n.priority === 'HIGH' && alarmTypes.includes(n.type as any) && !seen.has(n.id))
         const hasUnacked = unackedHigh.length > 0
 
-        // Play alarms for cashier roles AND kitchen/bar (so kitchen hears new orders too)
-        if (!isCashierRole && !isKitchenRole) {
+        // Use refs so this callback doesn't need to be recreated on role change
+        const cashier = isCashierRoleRef.current
+        const kitchen = isKitchenRoleRef.current
+
+        if (!cashier && !kitchen) {
             if (alarmIntervalRef.current) {
                 clearInterval(alarmIntervalRef.current)
                 alarmIntervalRef.current = null
@@ -171,9 +282,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (hasUnacked) {
             if (!alarmIntervalRef.current) {
                 const latestHigh = unackedHigh[0];
-                // Kitchen/bar only hear ORDER_NEW (not bill requests)
                 const isBillOnly = latestHigh.type === 'BILL_REQUEST';
-                if (isKitchenRole && isBillOnly) return;
+                if (kitchen && isBillOnly) return;
 
                 const tbl = latestHigh.metadata?.table
                 const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
@@ -182,33 +292,36 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 let msg: string | undefined
                 if (latestHigh.type === 'ORDER_NEW') {
                     msg = tablePart ? `${tablePart}${zonePart} สั่งอาหาร` : 'มีออเดอร์ใหม่'
-                } else if (latestHigh.type === 'BILL_REQUEST' && isCashierRole) {
+                } else if (latestHigh.type === 'BILL_REQUEST' && cashier) {
                     msg = tablePart ? `${tablePart}${zonePart} เรียกเช็คบิล` : 'ลูกค้าเรียกเช็คบิล'
                 }
-                
-                // Play first chime immediately
-                if (audioUnlocked && audioCtxRef.current) {
-                    playBellChime(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
-                }
-                // Repeat every 10 seconds until acknowledged
-                alarmIntervalRef.current = setInterval(() => {
-                    // Use audioUnlockedRef to avoid stale closure (in case interval was created when it was false)
-                    if (audioUnlockedRef.current && audioCtxRef.current) {
-                        playBellChime(audioCtxRef.current, 0.7, undefined, () => setAudioUnlocked(false)) // without speech on repeats
+
+                if (audioUnlockedRef.current && audioCtxRef.current) {
+                    if (latestHigh.type === 'ORDER_NEW') {
+                        playUrgentBuzzer(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
+                    } else {
+                        playBellChime(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
                     }
-                }, 10000)
+                }
+                alarmIntervalRef.current = setInterval(() => {
+                    if (audioUnlockedRef.current && audioCtxRef.current) {
+                        if (latestHigh.type === 'ORDER_NEW') {
+                            playUrgentBuzzer(audioCtxRef.current, 0.7, undefined, () => setAudioUnlocked(false))
+                        } else {
+                            playBellChime(audioCtxRef.current, 0.7, undefined, () => setAudioUnlocked(false))
+                        }
+                    }
+                }, 8000)
             }
         } else {
-            // All HIGH alerts cleared — stop ringing
             if (alarmIntervalRef.current) {
                 clearInterval(alarmIntervalRef.current)
                 alarmIntervalRef.current = null
-                if ('speechSynthesis' in window) {
-                    window.speechSynthesis.cancel();
-                }
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel()
             }
         }
-    }, [isCashierRole, isKitchenRole, audioUnlocked])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])  // ← stable: reads live values via refs only
 
     useEffect(() => {
         return () => {
@@ -217,44 +330,37 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, [])
 
     // Core logic: process a batch of notifications, trigger sound only for ORDER_NEW / BILL_REQUEST
+    // useCallback with [] deps — reads live values via refs to stay stable and not force SSE reconnect
     const processNotifications = useCallback((notifs: NotificationInfo[]) => {
-        // Detect brand-new alerts that should trigger sound (ORDER_NEW + BILL_REQUEST only)
         const soundTypes = ['ORDER_NEW', 'BILL_REQUEST'] as const
         const newHighNotifs = notifs.filter(
             n => n.priority === 'HIGH' && soundTypes.includes(n.type as any) && !prevHighIdsRef.current.has(n.id)
         )
-        const hasNewHigh = newHighNotifs.length > 0;
+        const hasNewHigh = newHighNotifs.length > 0
 
         prevHighIdsRef.current = new Set(
             notifs.filter(n => n.priority === 'HIGH').map(n => n.id)
         )
 
         // Debug logging
-        if (notifs.length > 0 || hasNewHigh) {
-            console.log(`[Notification] Push: ${notifs.length} total, ${newHighNotifs.length} new HIGH | role=${user?.role} cashier=${isCashierRole} kitchen=${isKitchenRole} audioOK=${audioUnlocked} ctxOK=${!!audioCtxRef.current}`)
-        }
+        console.log(`[Notification] Push: ${notifs.length} total, ${newHighNotifs.length} new HIGH | cashier=${isCashierRoleRef.current} kitchen=${isKitchenRoleRef.current} audioOK=${audioUnlockedRef.current} ctx=${!!audioCtxRef.current}`)
 
-        // Play immediately when a new order arrives
-        if (hasNewHigh && (isCashierRole || isKitchenRole) && audioUnlocked && audioCtxRef.current) {
-            const latestHigh = newHighNotifs[0];
-            const shouldAnnounce = isCashierRole || latestHigh.type === 'ORDER_NEW';
-            if (shouldAnnounce) {
-                const tbl = latestHigh.metadata?.table
-                const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
-                const zonePart = tbl?.zone ? ` โซน${tbl.zone}` : ''
+        // Play immediately when a new order arrives (reads from refs — always current)
+        if (hasNewHigh && (isCashierRoleRef.current || isKitchenRoleRef.current) && audioUnlockedRef.current && audioCtxRef.current) {
+            const latestHigh = newHighNotifs[0]
+            const tbl = latestHigh.metadata?.table
+            const tablePart = tbl ? `โต๊ะ${tbl.name}` : ''
+            const zonePart = tbl?.zone ? ` โซน${tbl.zone}` : ''
 
-                let msg: string | undefined
-                if (latestHigh.type === 'ORDER_NEW') {
-                    msg = tablePart ? `${tablePart}${zonePart} สั่งอาหาร` : 'มีออเดอร์ใหม่'
-                } else if (latestHigh.type === 'BILL_REQUEST' && isCashierRole) {
-                    msg = tablePart ? `${tablePart}${zonePart} เรียกเช็คบิล` : 'ลูกค้าเรียกเช็คบิล'
-                }
+            if (latestHigh.type === 'ORDER_NEW') {
+                const msg = tablePart ? `${tablePart}${zonePart} สั่งอาหาร` : 'มีออเดอร์ใหม่'
+                playUrgentBuzzer(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
+            } else if (latestHigh.type === 'BILL_REQUEST' && isCashierRoleRef.current) {
+                const msg = tablePart ? `${tablePart}${zonePart} เรียกเช็คบิล` : 'ลูกค้าเรียกเช็คบิล'
                 playBellChime(audioCtxRef.current, 1.0, msg, () => setAudioUnlocked(false))
-            } else {
-                console.log('[Notification] Skipped sound: shouldAnnounce=false for', latestHigh.type)
             }
         } else if (hasNewHigh) {
-            console.log(`[Notification] ⚠️ New HIGH but no sound: cashier=${isCashierRole} kitchen=${isKitchenRole} audio=${audioUnlocked} ctx=${!!audioCtxRef.current}`)
+            console.log(`[Notification] ⚠️ New HIGH but no sound: cashier=${isCashierRoleRef.current} kitchen=${isKitchenRoleRef.current} audio=${audioUnlockedRef.current} ctx=${!!audioCtxRef.current}`)
         }
 
         setNotifications(notifs)
@@ -262,7 +368,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             updateAlarm(notifs, prev)
             return prev
         })
-    }, [updateAlarm, isCashierRole, isKitchenRole, audioUnlocked, user?.role])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [updateAlarm])  // ← only updateAlarm dep; everything else via refs
 
     const fetchNotifications = useCallback(async () => {
         try {
@@ -275,7 +382,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
     }, [processNotifications])
 
-    // SSE real-time stream — orders detected within ~1.5s instead of 4s polling
+    // Stable refs so SSE closure (which runs once) always calls the latest fn version
+    const processNotificationsRef = useRef(processNotifications)
+    const fetchNotificationsRef = useRef(fetchNotifications)
+    useEffect(() => { processNotificationsRef.current = processNotifications }, [processNotifications])
+    useEffect(() => { fetchNotificationsRef.current = fetchNotifications }, [fetchNotifications])
+
+    // SSE real-time stream — runs once, uses refs for live state access
     useEffect(() => {
         let es: EventSource | null = null
         let fallbackIv: ReturnType<typeof setInterval> | null = null
@@ -288,7 +401,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 es.onopen = () => {
                     sseOk = true
                     console.log('[Notification] ✅ SSE connected — real-time mode')
-                    // Cancel fallback polling if SSE is working
                     if (fallbackIv) { clearInterval(fallbackIv); fallbackIv = null }
                 }
 
@@ -296,27 +408,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     try {
                         const payload = JSON.parse(ev.data)
                         if (payload.type === 'notifications') {
-                            processNotifications(payload.data)
+                            processNotificationsRef.current(payload.data)
                         }
                     } catch { }
                 }
 
                 es.onerror = () => {
                     if (!sseOk) {
-                        // SSE never connected — fall back to polling
                         console.warn('[Notification] SSE unavailable — falling back to polling')
-                        es?.close()
-                        es = null
+                        es?.close(); es = null
                         if (!fallbackIv) {
-                            fetchNotifications()
-                            fallbackIv = setInterval(fetchNotifications, 3000)
+                            fetchNotificationsRef.current()
+                            fallbackIv = setInterval(() => fetchNotificationsRef.current(), 3000)
                         }
                     }
                 }
             } catch (e) {
                 console.warn('[Notification] EventSource failed:', e)
-                fetchNotifications()
-                fallbackIv = setInterval(fetchNotifications, 3000)
+                fetchNotificationsRef.current()
+                fallbackIv = setInterval(() => fetchNotificationsRef.current(), 3000)
             }
         }
 
@@ -327,7 +437,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             if (fallbackIv) clearInterval(fallbackIv)
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchNotifications, processNotifications])
+    }, [])  // ← runs ONCE only
 
     // Manual refresh still calls fetchNotifications directly
 
@@ -366,14 +476,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             normalPriorityCount,
             markAsSeen,
             removeNotification,
-            refresh: fetchNotifications
+            refresh: fetchNotifications,
+            audioUnlocked,
+            unlockAudio: () => unlockAudio(true),
         }}>
             {children}
 
-            {/* Always show unlock button until audio is confirmed unlocked */}
+            {/* Show banner whenever AudioContext is not running — browser resets state on every reload */}
             {!audioUnlocked && (
                 <div
-                    onClick={() => unlockAudio()}
+                    onClick={() => unlockAudio(true)}
                     style={{
                         position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
                         zIndex: 10000,

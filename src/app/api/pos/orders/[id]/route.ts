@@ -37,6 +37,24 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
         },
     })
     if (!order) return err('ไม่พบออเดอร์', 404)
+
+    // ── Self-heal stale subtotal/totalAmount (e.g. after merge without recalculate) ──
+    const liveItems = order.items.filter(i => !i.isCancelled)
+    const computedSubtotal = liveItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+    if (computedSubtotal > 0 && order.subtotal === 0) {
+        const discountAmt = order.discountType === 'PERCENT'
+            ? computedSubtotal * order.discount / 100
+            : order.discount
+        const afterDiscount = computedSubtotal - discountAmt
+        const total = afterDiscount + order.serviceCharge + order.vat
+        await prisma.order.update({
+            where: { id },
+            data: { subtotal: computedSubtotal, totalAmount: total },
+        })
+        order.subtotal = computedSubtotal
+        order.totalAmount = total
+    }
+
     return ok(order)
 })
 

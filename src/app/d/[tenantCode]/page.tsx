@@ -7,7 +7,7 @@ import { LangSwitcher } from '@/components/LangSwitcher'
 // ── Types ─────────────────────────────────────────────────────
 type Step = 1 | 2 | 3
 type Topping = { id: string; name: string; price: number; isActive?: boolean }
-type Product = { toppingsJson?: string | null;  id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean }
+type Product = { toppingsJson?: string | null;  id: string; name: string; price: number | null; unit: string | null; categoryId: string | null; imageUrl?: string | null; isFeatured?: boolean; note?: string | null }
 type Category = { id: string; name: string; color: string | null; icon: string | null }
 type Tenant = { name: string; displayName: string | null; storeNameLao?: string | null; language?: string; logoUrl: string | null; currency: string; qrBankingBase64?: string | null }
 type CartItem = Product & { cartId: string; quantity: number; note: string; toppingsJson?: string | null; toppingsTotal?: number }
@@ -530,7 +530,8 @@ export default function DeliveryOrderPage() {
                                                 )}
                                             </div>
                                             <div style={{ padding: '9px 10px 10px' }}>
-                                                <div style={{ color: C.text, fontWeight: 700, fontSize: '0.83rem', lineHeight: 1.35, marginBottom: 4, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
+                                                <div style={{ color: C.text, fontWeight: 700, fontSize: '0.83rem', lineHeight: 1.35, marginBottom: 2, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
+                                                {p.note && <div style={{ color: C.sub, fontSize: '0.7rem', lineHeight: 1.3, marginBottom: 4, opacity: 0.8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.note}</div>}
                                                 <div style={{ color: '#FDA4AF', fontWeight: 800, fontSize: '0.88rem', marginBottom: p.toppingsJson ? 2 : 8 }}>{fmt(p.price, currency)}</div>
                                                 {p.toppingsJson && <div style={{ color: '#fb923c', fontSize: '0.72rem', fontWeight: 700, marginBottom: 6 }}>+ {t('add')} {t('topping')}</div>}
                                                 {qty === 0 ? (
@@ -720,7 +721,8 @@ export default function DeliveryOrderPage() {
                     <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '20px 20px 40px', maxHeight: '85dvh', overflowY: 'auto', animation: 'slideUp 0.24s ease', boxShadow: '0 -16px 48px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}>
                         <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
                         <div style={{ color: C.text, fontWeight: 800, fontSize: '1rem', marginBottom: 4 }}>🧂 {t('topping')}</div>
-                        <div style={{ color: C.sub, fontSize: '0.78rem', marginBottom: 16 }}>{toppingProduct.name}</div>
+                        <div style={{ color: '#FDA4AF', fontWeight: 700, fontSize: '0.9rem', marginBottom: 2 }}>{toppingProduct.name}</div>
+                        {toppingProduct.note && <div style={{ color: C.sub, fontSize: '0.78rem', marginBottom: 12, lineHeight: 1.5, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, border: `1px solid ${C.border}` }}>📝 {toppingProduct.note}</div>}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                             {tops.map(t => {
                                 const isSel = selectedToppings.some(st => st.id === t.id)

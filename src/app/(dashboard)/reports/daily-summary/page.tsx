@@ -9,6 +9,7 @@ interface DailyData {
     orders: { count: number; totalRevenue: number; cashRevenue: number; transferRevenue: number; avgOrderValue: number }
     topMenus: { name: string; qty: number; revenue: number }[]
     stock: { lowItems: { name: string; quantity: number; unit: string; minQty: number; location: string }[] }
+    allSoldItems: { name: string; qty: number; revenue: number }[]
     waste: { count: number; totalValue: number }
     purchase: { count: number; totalCost: number }
 }
@@ -36,6 +37,48 @@ export default function DailySummaryPage() {
         const d = new Date(date); d.setDate(d.getDate() - 1)
         const s = d.toISOString().split('T')[0]; setDate(s); load(s)
     }
+    function printSummary() {
+        if (!data) return
+        const w = window.open('', '_blank', 'width=302,height=500,toolbar=0,menubar=0,scrollbars=0')
+        if (!w) { alert('Popup blocker prevented printing. Please allow popups.'); return }
+        
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <style>
+          *{margin:0;padding:0;box-sizing:border-box}
+          @page{size:58mm auto;margin:3mm 2mm}
+          html,body{height:fit-content!important;overflow:hidden!important}
+          body{font-family:'Courier New',monospace;font-size:12px;color:#000;width:54mm;line-height:1.4}
+          .title{font-size:16px;font-weight:bold;text-align:center;margin-bottom:5px;border-bottom:1px dashed #000;padding-bottom:5px}
+          .row{display:flex;justify-content:space-between;margin-bottom:3px}
+          .bold{font-weight:bold}
+          .divider{border-bottom:1px dotted #000;margin:6px 0}
+          .item{display:flex;justify-content:space-between;margin-bottom:2px}
+          .item-name{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+          .item-qty{width:20px;text-align:right;font-weight:bold}
+        </style></head><body>
+          <div class="title">สรุปยอดขายรายวัน<br><span style="font-size:12px">${new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
+          <div class="row"><span>ยอดขายรวม:</span><span class="bold">${fmt(data.orders.totalRevenue)}</span></div>
+          <div class="row"><span>เงินสด:</span><span>${fmt(data.orders.cashRevenue)}</span></div>
+          <div class="row"><span>โอนเงิน:</span><span>${fmt(data.orders.transferRevenue)}</span></div>
+          <div class="row"><span>จำนวนบิล:</span><span>${data.orders.count} บิล</span></div>
+          <div class="divider"></div>
+          <div style="font-weight:bold;margin-bottom:4px;text-align:center">สรุปรายการสินค้า (สำหรับเช็คสต็อค)</div>
+          ${(data.allSoldItems || []).map(item => `
+            <div class="item">
+              <span class="item-name">${item.name}</span>
+              <span class="item-qty">x${item.qty}</span>
+            </div>
+          `).join('')}
+          <div class="divider"></div>
+          <div style="text-align:center;font-size:10px;margin-top:10px">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+          <script>
+            window.onload = function(){ window.focus(); window.print(); };
+            window.onafterprint = function(){ window.close(); };
+          </script>
+        </body></html>`)
+        w.document.close()
+    }
+
     function nextDay() {
         const d = new Date(date); d.setDate(d.getDate() + 1)
         const s = d.toISOString().split('T')[0]; setDate(s); load(s)
@@ -55,9 +98,14 @@ export default function DailySummaryPage() {
                 <button onClick={prevDay} className="btn-outline" style={{ padding: '0.4rem 0.75rem', fontSize: '1rem' }}>‹</button>
                 <input type="date" value={date} onChange={e => { setDate(e.target.value); load(e.target.value) }} className="input" style={{ width: 160 }} />
                 <button onClick={nextDay} disabled={date >= today} className="btn-outline" style={{ padding: '0.4rem 0.75rem', fontSize: '1rem' }}>›</button>
-                <button onClick={() => load()} disabled={loading} className="btn-primary" style={{ marginLeft: 'auto', padding: '0.45rem 1rem', fontSize: '0.82rem' }}>
-                    {loading ? '⏳...' : '🔄 รีเฟรช'}
-                </button>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                    <button onClick={printSummary} disabled={!data || loading} className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem', borderColor: '#374151', color: '#111827' }}>
+                        🖨️ พิมพ์บิลเช็คสต็อค
+                    </button>
+                    <button onClick={() => load()} disabled={loading} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }}>
+                        {loading ? '⏳...' : '🔄 รีเฟรช'}
+                    </button>
+                </div>
             </div>
 
             {loading && <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>⏳ กำลังโหลด...</div>}
