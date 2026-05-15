@@ -199,30 +199,143 @@ export default function ManualPage() {
                     </button>
                 </div>
 
-                {/* Overview Flow */}
-                <div className="card" style={{ marginBottom: 24, padding: '1.25rem' }}>
-                    <h2 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: 14 }}>🗺️ ขั้นตอนภาพรวม (เริ่มจาก 0)</h2>
-                    <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', flexWrap: 'wrap' }}>
-                        {[
-                            { n: '1', label: 'ตั้งค่าร้าน + เพิ่มผู้ใช้', icon: '⚙️', who: 'เจ้าของ' },
-                            { n: '2', label: 'เพิ่มวัตถุดิบ (RAW)', icon: '📦', who: 'คลัง' },
-                            { n: '3', label: 'รับสินค้าเข้าคลัง', icon: '🛒', who: 'คลัง' },
-                            { n: '4', label: 'สร้างเมนู + ตั้งสูตร BOM', icon: '🍽️', who: 'ผู้จัดการ' },
-                            { n: '5', label: 'ขายหน้าร้าน POS', icon: '🧾', who: 'แคชเชียร์' },
-                            { n: '6', label: 'ระบบตัดสต็อคอัตโนมัติ', icon: '✅', who: 'อัตโนมัติ' },
-                        ].map((s, i, arr) => (
-                            <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
-                                <div style={{ textAlign: 'center', padding: '0.75rem 1rem', background: 'var(--bg)', borderRadius: 10, minWidth: 110 }}>
-                                    <div style={{ fontSize: '1.4rem' }}>{s.icon}</div>
-                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#E8364E', marginTop: 2 }}>ขั้น {s.n}</div>
-                                    <div style={{ fontSize: '0.78rem', fontWeight: 600, marginTop: 2 }}>{s.label}</div>
-                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: 1 }}>{s.who}</div>
-                                </div>
-                                {i < arr.length - 1 && <div style={{ fontSize: '1.2rem', color: '#D1D5DB', padding: '0 4px' }}>→</div>}
-                            </div>
-                        ))}
+                {/* Workflow SVG Diagram */}
+                <div className="card" style={{ marginBottom: 24, padding: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: 4 }}>🗺️ Workflow ภาพรวม — ทุก Role เชื่อมกันอย่างไร?</h2>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 20 }}>แต่ละ Role ส่งต่องานให้กัน → ระบบทำงานอัตโนมัติเมื่อครบวงจร</p>
+                    <div style={{ overflowX: 'auto' }}>
+                        <svg viewBox="0 0 860 340" style={{ width: '100%', minWidth: 700, height: 'auto', fontFamily: 'inherit' }}>
+                            {/* ─── Definitions ─── */}
+                            <defs>
+                                <marker id="arrowR" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                                    <polygon points="0 0, 8 3, 0 6" fill="#9CA3AF" />
+                                </marker>
+                                <marker id="arrowG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                                    <polygon points="0 0, 8 3, 0 6" fill="#059669" />
+                                </marker>
+                                <marker id="arrowP" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                                    <polygon points="0 0, 8 3, 0 6" fill="#7C3AED" />
+                                </marker>
+                                <marker id="arrowO" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                                    <polygon points="0 0, 8 3, 0 6" fill="#D97706" />
+                                </marker>
+                                <marker id="arrowB" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                                    <polygon points="0 0, 8 3, 0 6" fill="#E8364E" />
+                                </marker>
+                            </defs>
+
+                            {/* ─── ROW 1: Setup phase ─── */}
+                            {/* Box: เจ้าของ/ผู้จัดการ */}
+                            <rect x="10" y="20" width="150" height="72" rx="10" fill="#FFF5F6" stroke="#E8364E" strokeWidth="1.5"/>
+                            <text x="85" y="40" textAnchor="middle" fontSize="16">👑</text>
+                            <text x="85" y="57" textAnchor="middle" fontSize="10" fontWeight="700" fill="#E8364E">เจ้าของร้าน</text>
+                            <text x="85" y="71" textAnchor="middle" fontSize="8.5" fill="#6B7280">ตั้งค่า · เพิ่มผู้ใช้</text>
+                            <text x="85" y="84" textAnchor="middle" fontSize="8.5" fill="#6B7280">ตั้งค่าคลัง · หมวดหมู่</text>
+                            {/* Arrow → */}
+                            <line x1="160" y1="56" x2="200" y2="56" stroke="#9CA3AF" strokeWidth="1.5" markerEnd="url(#arrowR)"/>
+                            <text x="180" y="50" textAnchor="middle" fontSize="7.5" fill="#9CA3AF">ตั้งค่า</text>
+
+                            {/* Box: ระบบพร้อม */}
+                            <rect x="200" y="36" width="100" height="40" rx="8" fill="#F3F4F6" stroke="#D1D5DB" strokeWidth="1.5" strokeDasharray="4,2"/>
+                            <text x="250" y="53" textAnchor="middle" fontSize="9" fontWeight="700" fill="#374151">⚙️ ระบบพร้อมใช้</text>
+                            <text x="250" y="68" textAnchor="middle" fontSize="8" fill="#6B7280">Users, Warehouses</text>
+
+                            {/* ─── ROW 2: Stock phase (center) ─── */}
+                            {/* Arrow down from เจ้าของ */}
+                            <line x1="85" y1="92" x2="85" y2="148" stroke="#7C3AED" strokeWidth="1.5" markerEnd="url(#arrowP)"/>
+                            <text x="95" y="125" fontSize="7.5" fill="#7C3AED">มอบหมาย</text>
+
+                            {/* Box: พนักงานคลัง */}
+                            <rect x="10" y="148" width="150" height="72" rx="10" fill="#FAF5FF" stroke="#7C3AED" strokeWidth="1.5"/>
+                            <text x="85" y="168" textAnchor="middle" fontSize="16">📦</text>
+                            <text x="85" y="185" textAnchor="middle" fontSize="10" fontWeight="700" fill="#7C3AED">พนักงานคลัง</text>
+                            <text x="85" y="199" textAnchor="middle" fontSize="8.5" fill="#6B7280">เพิ่มวัตถุดิบ (RAW)</text>
+                            <text x="85" y="212" textAnchor="middle" fontSize="8.5" fill="#6B7280">รับสินค้า GR · นับสต็อค</text>
+
+                            {/* Arrow → to Inventory */}
+                            <line x1="160" y1="184" x2="220" y2="184" stroke="#7C3AED" strokeWidth="1.5" markerEnd="url(#arrowP)"/>
+                            <text x="190" y="178" textAnchor="middle" fontSize="7.5" fill="#7C3AED">เพิ่มสต็อค</text>
+
+                            {/* Box: คลังวัตถุดิบ */}
+                            <rect x="220" y="155" width="130" height="58" rx="10" fill="#F5F3FF" stroke="#7C3AED" strokeWidth="1.5"/>
+                            <text x="285" y="175" textAnchor="middle" fontSize="13">🏪</text>
+                            <text x="285" y="191" textAnchor="middle" fontSize="9.5" fontWeight="700" fill="#7C3AED">คลังวัตถุดิบ</text>
+                            <text x="285" y="205" textAnchor="middle" fontSize="8" fill="#6B7280">Inventory Stock Level</text>
+
+                            {/* ─── ROW 2 right: Menu phase ─── */}
+                            {/* Box: ผู้จัดการเมนู */}
+                            <rect x="430" y="20" width="150" height="72" rx="10" fill="#FFFBEB" stroke="#D97706" strokeWidth="1.5"/>
+                            <text x="505" y="40" textAnchor="middle" fontSize="16">🍽️</text>
+                            <text x="505" y="57" textAnchor="middle" fontSize="10" fontWeight="700" fill="#D97706">ผู้จัดการเมนู</text>
+                            <text x="505" y="71" textAnchor="middle" fontSize="8.5" fill="#6B7280">สร้างเมนูอาหาร</text>
+                            <text x="505" y="84" textAnchor="middle" fontSize="8.5" fill="#6B7280">ตั้งสูตร BOM Recipe</text>
+
+                            {/* Arrow down from ผู้จัดการ */}
+                            <line x1="505" y1="92" x2="505" y2="148" stroke="#D97706" strokeWidth="1.5" markerEnd="url(#arrowO)"/>
+                            <text x="518" y="125" fontSize="7.5" fill="#D97706">กำหนดสูตร</text>
+
+                            {/* Box: BOM Recipe */}
+                            <rect x="430" y="148" width="150" height="72" rx="10" fill="#FEF9EC" stroke="#D97706" strokeWidth="1.5"/>
+                            <text x="505" y="168" textAnchor="middle" fontSize="13">📋</text>
+                            <text x="505" y="184" textAnchor="middle" fontSize="9.5" fontWeight="700" fill="#D97706">สูตร BOM Recipe</text>
+                            <text x="505" y="198" textAnchor="middle" fontSize="8" fill="#6B7280">เมนู → วัตถุดิบที่ใช้</text>
+                            <text x="505" y="211" textAnchor="middle" fontSize="8" fill="#6B7280">ข้าวขาหมู = หมู+ข้าว+ไข่</text>
+
+                            {/* ─── CONVERGE: Inventory + BOM → POS ─── */}
+                            {/* Arrow from คลัง to POS */}
+                            <line x1="350" y1="184" x2="400" y2="260" stroke="#7C3AED" strokeWidth="1.5" strokeDasharray="5,3" markerEnd="url(#arrowP)"/>
+                            <text x="355" y="230" fontSize="7.5" fill="#7C3AED">สต็อควัตถุดิบ</text>
+                            {/* Arrow from BOM to POS */}
+                            <line x1="505" y1="220" x2="505" y2="260" stroke="#D97706" strokeWidth="1.5" strokeDasharray="5,3" markerEnd="url(#arrowO)"/>
+                            <text x="515" y="248" fontSize="7.5" fill="#D97706">สูตร</text>
+
+                            {/* Box: POS หน้าร้าน (แคชเชียร์) */}
+                            <rect x="395" y="260" width="160" height="68" rx="10" fill="#ECFDF5" stroke="#059669" strokeWidth="2"/>
+                            <text x="475" y="280" textAnchor="middle" fontSize="16">🧾</text>
+                            <text x="475" y="296" textAnchor="middle" fontSize="10" fontWeight="700" fill="#059669">แคชเชียร์ / POS</text>
+                            <text x="475" y="310" textAnchor="middle" fontSize="8.5" fill="#6B7280">รับออเดอร์ · ชำระเงิน</text>
+                            <text x="475" y="323" textAnchor="middle" fontSize="8.5" fill="#6B7280">ส่งครัว (KDS)</text>
+
+                            {/* Arrow → to Kitchen */}
+                            <line x1="555" y1="294" x2="615" y2="294" stroke="#059669" strokeWidth="1.5" markerEnd="url(#arrowG)"/>
+                            <text x="585" y="287" textAnchor="middle" fontSize="7.5" fill="#059669">ออเดอร์</text>
+
+                            {/* Box: KDS ครัว */}
+                            <rect x="615" y="260" width="130" height="68" rx="10" fill="#FDF2F8" stroke="#DB2777" strokeWidth="1.5"/>
+                            <text x="680" y="280" textAnchor="middle" fontSize="14">👨‍🍳</text>
+                            <text x="680" y="296" textAnchor="middle" fontSize="10" fontWeight="700" fill="#DB2777">ครัว (KDS)</text>
+                            <text x="680" y="310" textAnchor="middle" fontSize="8.5" fill="#6B7280">รับออเดอร์จาก POS</text>
+                            <text x="680" y="323" textAnchor="middle" fontSize="8.5" fill="#6B7280">เตรียม → ✅ เสร็จ</text>
+
+                            {/* Box: ตัดสต็อคอัตโนมัติ */}
+                            <rect x="615" y="148" width="130" height="68" rx="10" fill="#ECFDF5" stroke="#059669" strokeWidth="1.5"/>
+                            <text x="680" y="168" textAnchor="middle" fontSize="13">⚡</text>
+                            <text x="680" y="184" textAnchor="middle" fontSize="9" fontWeight="700" fill="#059669">ตัดสต็อคอัตโนมัติ</text>
+                            <text x="680" y="198" textAnchor="middle" fontSize="8" fill="#6B7280">หักวัตถุดิบตาม BOM</text>
+                            <text x="680" y="211" textAnchor="middle" fontSize="8" fill="#6B7280">อัปเดตคลังทันที</text>
+
+                            {/* Arrow: POS → ตัดสต็อค */}
+                            <line x1="555" y1="275" x2="610" y2="210" stroke="#059669" strokeWidth="1.5" strokeDasharray="5,3" markerEnd="url(#arrowG)"/>
+                            <text x="600" y="250" fontSize="7.5" fill="#059669">ยืนยัน</text>
+                            {/* Arrow: ตัดสต็อค → back to คลัง (loop) */}
+                            <line x1="615" y1="182" x2="365" y2="182" stroke="#059669" strokeWidth="1.2" strokeDasharray="4,3" markerEnd="url(#arrowG)"/>
+                            <text x="490" y="177" textAnchor="middle" fontSize="7.5" fill="#059669">อัปเดตยอดคงเหลือ</text>
+
+                            {/* Box: รายงาน */}
+                            <rect x="750" y="20" width="100" height="58" rx="10" fill="#EFF6FF" stroke="#3B82F6" strokeWidth="1.5"/>
+                            <text x="800" y="40" textAnchor="middle" fontSize="13">📊</text>
+                            <text x="800" y="56" textAnchor="middle" fontSize="9" fontWeight="700" fill="#3B82F6">รายงาน</text>
+                            <text x="800" y="70" textAnchor="middle" fontSize="8" fill="#6B7280">Dashboard · ยอดขาย</text>
+                            {/* Arrow to report */}
+                            <line x1="745" y1="180" x2="800" y2="78" stroke="#3B82F6" strokeWidth="1.2" strokeDasharray="4,3" markerEnd="url(#arrowB)"/>
+
+                            {/* Legend */}
+                            <text x="10" y="320" fontSize="8" fill="#9CA3AF">━━ ขั้นตอนหลัก</text>
+                            <text x="100" y="320" fontSize="8" fill="#9CA3AF">- - - ข้อมูลส่งต่อ</text>
+                        </svg>
                     </div>
                 </div>
+
 
                 {/* Role Cards */}
                 {ROLES.map(role => (

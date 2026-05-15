@@ -1802,6 +1802,25 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* ── Manual ── */}
+                <div className="card" style={{ borderColor: 'rgba(124,58,237,0.25)', background: 'rgba(124,58,237,0.02)' }}>
+                    <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>📖</span> คู่มือการทำงาน
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
+                        คู่มือการใช้งานระบบ แบ่งตาม Role · Workflow ภาพรวม · พิมพ์เป็น PDF ได้
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--white)', borderRadius: 10, border: '1px solid rgba(124,58,237,0.2)' }}>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: 2 }}>📋 ขั้นตอนการทำงาน ตั้งแต่ลงวัตถุดิบจนถึงการขาย</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>เหมาะสำหรับพนักงานใหม่ · มี Workflow diagram · พิมพ์ได้</div>
+                        </div>
+                        <a href="/manual"
+                            style={{ background: '#7C3AED', border: 'none', color: '#fff', padding: '0.5rem 1.25rem', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 12, textDecoration: 'none', display: 'inline-block', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}
+                        >📖 เปิดคู่มือ →</a>
+                    </div>
+                </div>
+
                 {/* ── Store Info (real form) ── */}
                 <StoreSettingsCard />
 
