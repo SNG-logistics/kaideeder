@@ -815,6 +815,27 @@ export default function POSPage() {
         finally { setLoading(false) }
     }
 
+    // ─── Force-clear stuck table (no active order but OCCUPIED) ───────
+    const forceClearTable = async () => {
+        if (!selectedTable) return
+        if (!confirm(`บังคับปลดล็อคโต๊ะ ${selectedTable.name}?\n(ใช้เมื่อโต๊ะค้างอยู่โดยไม่มีออเดอร์)`)) return
+        setLoading(true)
+        try {
+            const res = await fetch(`/api/pos/tables/${selectedTable.id}/force-clear`, { method: 'POST' })
+            const json = await res.json()
+            if (json.success) {
+                setCurrentOrder(null)
+                setOrderItems([])
+                setSelectedTable(null)
+                setToast({ message: `✅ ปลดล็อคโต๊ะ ${selectedTable.name} แล้ว`, type: 'success' })
+                fetchTables()
+            } else {
+                setToast({ message: json.error || 'ปลดล็อคไม่สำเร็จ', type: 'error' })
+            }
+        } catch { setToast({ message: 'เกิดข้อผิดพลาด', type: 'error' }) }
+        finally { setLoading(false) }
+    }
+
     // ─── Move order to another table ──────────────────────────
     const moveOrder = async (targetTable: DiningTable) => {
         if (!currentOrder) return
@@ -1401,19 +1422,35 @@ export default function POSPage() {
                                             </div>
                                             {/* ปิดโต๊ะ — only if no items yet */}
                                             {orderItems.length === 0 && (
-                                                <button
-                                                    onClick={closeEmptyTable}
-                                                    disabled={loading}
-                                                    style={{
-                                                        background: '#dc2626', color: '#fff',
-                                                        border: 'none', borderRadius: 8,
-                                                        padding: '5px 12px', fontSize: '0.72rem',
-                                                        fontWeight: 700, cursor: 'pointer',
-                                                        fontFamily: 'inherit', flexShrink: 0,
-                                                    }}
-                                                >
-                                                    ❌ ปิดโต๊ะ
-                                                </button>
+                                                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                                                    <button
+                                                        onClick={closeEmptyTable}
+                                                        disabled={loading}
+                                                        style={{
+                                                            background: '#dc2626', color: '#fff',
+                                                            border: 'none', borderRadius: 8,
+                                                            padding: '5px 12px', fontSize: '0.72rem',
+                                                            fontWeight: 700, cursor: 'pointer',
+                                                            fontFamily: 'inherit',
+                                                        }}
+                                                    >
+                                                        ❌ ปิดโต๊ะ
+                                                    </button>
+                                                    <button
+                                                        onClick={forceClearTable}
+                                                        disabled={loading}
+                                                        title="บังคับปลดล็อคโต๊ะที่ค้างอยู่โดยไม่มีออเดอร์"
+                                                        style={{
+                                                            background: '#6B7280', color: '#fff',
+                                                            border: 'none', borderRadius: 8,
+                                                            padding: '5px 10px', fontSize: '0.72rem',
+                                                            fontWeight: 700, cursor: 'pointer',
+                                                            fontFamily: 'inherit',
+                                                        }}
+                                                    >
+                                                        🔓 ปลดล็อค
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     )}

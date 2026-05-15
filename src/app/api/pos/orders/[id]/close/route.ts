@@ -3,10 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
 type ConsumeFailType =
     | 'NO_BOM'
     | 'BOM_INCOMPLETE'
@@ -29,10 +25,6 @@ interface FailEntry {
     detail: string
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Schema
-// ─────────────────────────────────────────────────────────────────────────────
-
 const closeOrderSchema = z.object({
     paymentMethod: z.enum(['CASH', 'TRANSFER', 'CARD', 'QRCODE']),
     receivedAmount: z.number().min(0),
@@ -43,9 +35,6 @@ const closeOrderSchema = z.object({
     vat: z.number().min(0).optional(),
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/pos/orders/[id]/close — close bill & deduct stock
-// ─────────────────────────────────────────────────────────────────────────────
 export const POST = withAuth(async (req: NextRequest, ctx) => {
     const { tenantId } = ctx as any
     const params = await ctx.params
@@ -56,7 +45,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         const body = await req.json()
         const data = closeOrderSchema.parse(body)
 
-        // Fetch order with items (tenant-scoped)
         const order = await prisma.order.findFirst({
             where: { id, tenantId },
             include: {
@@ -71,7 +59,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         if (!order) return err('ไม่พบออเดอร์', 404)
         if (order.status !== 'OPEN') return err('ออเดอร์นี้ปิดแล้ว')
 
-        // Recalculate totals
         const subtotal = order.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
         const discount = data.discount ?? order.discount
         const discountType = data.discountType ?? order.discountType
@@ -79,44 +66,30 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         const vat = data.vat ?? order.vat
 
         let discountAmount = discount
-        if (discountType === 'PERCENT') {
-            discountAmount = subtotal * (discount / 100)
-        }
+        if (discountType === 'PERCENT') discountAmount = subtotal * (discount / 100)
         const afterDiscount = subtotal - discountAmount
         const totalAmount = afterDiscount + serviceCharge + vat
-
-        const changeAmount = data.paymentMethod === 'CASH'
-            ? Math.max(0, data.receivedAmount - totalAmount)
-            : 0
+        const changeAmount = data.paymentMethod === 'CASH' ? Math.max(0, data.receivedAmount - totalAmount) : 0
 
         // ─── STOCK DEDUCTION ──────────────────────────────────────────────
         const stockWarnings: string[] = []
         const failEntries: FailEntry[] = []
 
-        // โหลด locations ทั้งหมดของ tenant ครั้งเดียว
         const locations = await prisma.location.findMany({ where: { tenantId, isActive: true } })
         const locationMap = Object.fromEntries(locations.map(l => [l.code, l.id]))
 
-        // โหลด UOM conversions ทั้งหมดของ tenant ครั้งเดียว (batch — ป้องกัน N+1)
         const allConversions = await prisma.uomConversion.findMany({ where: { tenantId } })
-
-        // index: productId → Map<"fromUnit|toUnit", factor>
         const convMap = new Map<string, Map<string, number>>()
         for (const c of allConversions) {
             if (!convMap.has(c.productId)) convMap.set(c.productId, new Map())
             convMap.get(c.productId)!.set(`${c.fromUnit}|${c.toUnit}`, c.factor)
-            // reverse ด้วย (1/factor)
             convMap.get(c.productId)!.set(`${c.toUnit}|${c.fromUnit}`, 1 / c.factor)
         }
 
-        // โหลด Recipe ทั้งหมดของ tenant ครั้งเดียว (batch — ป้องกัน N+1)
-        // ใช้ match ชื่อเมนู (menuName) หรือ posMenuCode กับ product.name / product.sku
         const allRecipes = await prisma.recipe.findMany({
             where: { tenantId, isActive: true },
             include: { bom: { include: { product: true } } },
         })
-
-        // Index: normalize ชื่อ → recipe (case-insensitive, trim)
         const recipeByName = new Map<string, typeof allRecipes[0]>()
         const recipeByCode = new Map<string, typeof allRecipes[0]>()
         const recipeById = new Map<string, typeof allRecipes[0]>()
@@ -129,7 +102,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         for (const item of order.items) {
             if (item.product.productType === 'ENTERTAIN') continue
 
-            // ─── ค้นหา Recipe ตาม menuName หรือ posMenuCode ──────────────
             const productName = item.product.name.toLowerCase().trim()
             const productSku = item.product.sku.toLowerCase().trim()
             const matchedRecipe = recipeByName.get(productName)
@@ -140,7 +112,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             const bomLines = matchedRecipe?.bom ?? []
 
             if (bomLines.length === 0) {
-                // ไม่มีสูตร Recipe → log NO_BOM (ไม่ fallback ตัดเมนูอีกต่อไป)
                 failEntries.push({
                     menuId: item.productId,
                     menuName: item.product.name,
@@ -153,21 +124,15 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                     availableQty: 0,
                     detail: `เมนู "${item.product.name}" ยังไม่มีสูตร Recipe — กรุณาสร้างสูตรที่หน้า สูตรอาหาร (Recipe/BOM)`,
                 })
-                stockWarnings.push(`⚠️ "${item.product.name}": ไม่มีสูตร Recipe — ไปสร้างสูตรที่หน้า สูตรอาหาร`)
-
-                // ยังตัด topping ตามปกติถ้ามี
-                await deductToppingStock({
-                    item, tenantId, id, ctx, stockWarnings, failEntries, convMap, locationMap, recipeById,
-                })
+                stockWarnings.push(`⚠️ "${item.product.name}": ไม่มีสูตร Recipe`)
+                await deductToppingStock({ item, tenantId, id, ctx, stockWarnings, failEntries, convMap, locationMap, recipeById })
                 continue
             }
 
-            // ─── มี Recipe BOM → ตัดแต่ละ ingredient ────────────────────
             for (const bom of bomLines) {
                 const baseUnit = bom.product.unit
                 let actualQty = item.quantity * bom.quantity
 
-                // แปลงหน่วยถ้า BOM unit ≠ base unit
                 if (bom.unit !== baseUnit) {
                     const factor = resolveConversion(bom.productId, bom.unit, baseUnit, convMap)
                     if (factor === null) {
@@ -181,7 +146,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                             requiredQty: bom.quantity,
                             requiredUnit: bom.unit,
                             availableQty: 0,
-                            detail: `ไม่มีหน่วยแปลง "${bom.unit}" → "${baseUnit}" สำหรับ "${bom.product.name}" — ไปเพิ่มที่ Settings > UOM`,
+                            detail: `ไม่มีหน่วยแปลง "${bom.unit}" → "${baseUnit}" สำหรับ "${bom.product.name}"`,
                         })
                         stockWarnings.push(`❌ "${bom.product.name}": ไม่มีหน่วยแปลง (${bom.unit}→${baseUnit})`)
                         continue
@@ -208,33 +173,34 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                 })
             }
 
-            // ─── Topping Recipe Deduction ─────────────────────────────────
-            await deductToppingStock({
-                item, tenantId, id, ctx, stockWarnings, failEntries, convMap, locationMap, recipeById,
-            })
+            await deductToppingStock({ item, tenantId, id, ctx, stockWarnings, failEntries, convMap, locationMap, recipeById })
         }
 
-        // ─── บันทึก ConsumeFailLog ถาวร ───────────────────────────────────
+        // ─── ConsumeFailLog (non-fatal — ไม่ block order close) ──────────
         if (failEntries.length > 0) {
-            await prisma.consumeFailLog.createMany({
-                data: failEntries.map(f => ({
-                    tenantId,
-                    orderId: id,
-                    orderNumber: order.orderNumber,
-                    menuId: f.menuId || null,
-                    menuName: f.menuName || null,
-                    ingredientId: f.ingredientId || null,
-                    ingredientName: f.ingredientName || null,
-                    locationId: f.locationId || null,
-                    failReason: f.failReason,
-                    requiredQty: f.requiredQty,
-                    requiredUnit: f.requiredUnit || null,
-                    availableQty: f.availableQty,
-                    detail: f.detail,
-                    status: 'OPEN',
-                })),
-                skipDuplicates: true,
-            })
+            try {
+                await prisma.consumeFailLog.createMany({
+                    data: failEntries.map(f => ({
+                        tenantId,
+                        orderId: id,
+                        orderNumber: order.orderNumber,
+                        menuId: f.menuId || null,
+                        menuName: f.menuName || null,
+                        ingredientId: f.ingredientId || null,
+                        ingredientName: f.ingredientName || null,
+                        locationId: f.locationId || null,
+                        failReason: f.failReason,
+                        requiredQty: f.requiredQty,
+                        requiredUnit: f.requiredUnit || null,
+                        availableQty: f.availableQty,
+                        detail: f.detail,
+                        status: 'OPEN',
+                    })),
+                    skipDuplicates: true,
+                })
+            } catch (logErr) {
+                console.error('[close] ConsumeFailLog write failed (non-fatal):', logErr)
+            }
         }
 
         // ─── Update order ─────────────────────────────────────────────────
@@ -257,7 +223,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             },
         })
 
-        // Create payment record
+        // ─── Payment ──────────────────────────────────────────────────────
         await prisma.payment.create({
             data: {
                 tenantId,
@@ -270,7 +236,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             },
         })
 
-        // Release table
+        // ─── Release table ────────────────────────────────────────────────
         if (order.tableId) {
             await prisma.diningTable.update({
                 where: { id: order.tableId },
@@ -278,37 +244,41 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             })
         }
 
-        // ─── Sales Event ──────────────────────────────────────────────────
-        await prisma.salesEvent.create({
-            data: {
-                tenantId,
-                orderId: id,
-                occurredAt: new Date(),
-                payload: {
+        // ─── SalesEvent (non-fatal — ไม่ block ถ้า migration ยังไม่ run) ──
+        try {
+            await prisma.salesEvent.create({
+                data: {
+                    tenantId,
                     orderId: id,
-                    orderNumber: order.orderNumber,
-                    tableId: order.tableId,
-                    tableName: order.table?.name || null,
-                    closedAt: new Date().toISOString(),
-                    subtotal,
-                    discount: discountAmount,
-                    totalAmount,
-                    paymentMethod: data.paymentMethod,
-                    items: order.items.map(item => ({
-                        orderItemId: item.id,
-                        productId: item.productId,
-                        productName: item.product.name,
-                        productSku: item.product.sku,
-                        categoryCode: item.product.category?.code || null,
-                        stationId: item.stationId || null,
-                        quantity: item.quantity,
-                        unitPrice: item.unitPrice,
-                        total: item.quantity * item.unitPrice,
-                        kitchenStatus: item.kitchenStatus,
-                    })),
+                    occurredAt: new Date(),
+                    payload: {
+                        orderId: id,
+                        orderNumber: order.orderNumber,
+                        tableId: order.tableId,
+                        tableName: order.table?.name || null,
+                        closedAt: new Date().toISOString(),
+                        subtotal,
+                        discount: discountAmount,
+                        totalAmount,
+                        paymentMethod: data.paymentMethod,
+                        items: order.items.map(item => ({
+                            orderItemId: item.id,
+                            productId: item.productId,
+                            productName: item.product.name,
+                            productSku: item.product.sku,
+                            categoryCode: item.product.category?.code || null,
+                            stationId: item.stationId || null,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            total: item.quantity * item.unitPrice,
+                            kitchenStatus: item.kitchenStatus,
+                        })),
+                    },
                 },
-            },
-        })
+            })
+        } catch (eventErr) {
+            console.error('[close] SalesEvent write failed (non-fatal):', eventErr)
+        }
 
         return ok({
             order: closedOrder,
@@ -323,9 +293,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     }
 }, ['OWNER', 'MANAGER', 'CASHIER'])
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: แปลงหน่วย (return null ถ้าไม่มี conversion)
-// ─────────────────────────────────────────────────────────────────────────────
 function resolveConversion(
     productId: string,
     fromUnit: string,
@@ -338,10 +305,6 @@ function resolveConversion(
     return productConv.get(`${fromUnit}|${toUnit}`) ?? null
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: ตัดสต็อคสำหรับท็อปปิ้งทั้งหมดใน OrderItem
-// เรียกได้ทั้งเมื่อเมนูหลักมี BOM หรือไม่มี BOM
-// ─────────────────────────────────────────────────────────────────────────────
 type RecipeWithBom = {
     id: string
     menuName: string
@@ -370,7 +333,7 @@ interface DeductToppingParams {
         product: { name: string }
     }
     tenantId: string
-    id: string               // orderId
+    id: string
     ctx: any
     stockWarnings: string[]
     failEntries: FailEntry[]
@@ -386,22 +349,16 @@ async function deductToppingStock(p: DeductToppingParams): Promise<void> {
             id: string
             name: string
             price: number
-            recipeId?: string   // ใหม่: ผูก Recipe โดยตรง
-            productId?: string  // เก่า: backward-compat (ถ้ายังมีอยู่)
+            recipeId?: string
+            productId?: string
             isActive?: boolean
         }[]
 
         for (const topping of selectedToppings) {
-            // ─── หา Recipe ของ topping ────────────────────────────────────
-            // รองรับทั้งแบบใหม่ (recipeId) และแบบเก่า (productId)
             let toppingRecipe: RecipeWithBom | undefined
-
             if (topping.recipeId) {
-                // ✅ แบบใหม่: ใช้ recipeId ตรงๆ
                 toppingRecipe = p.recipeById.get(topping.recipeId)
             } else if (topping.productId) {
-                // ⬅️ Backward-compat: หาจากชื่อ topping ใน recipeByName (fallback)
-                // ค้นหา recipe ที่ชื่อตรงกับชื่อท็อปปิ้ง
                 for (const [, r] of p.recipeById) {
                     if (r.menuName.toLowerCase().trim() === topping.name.toLowerCase().trim()) {
                         toppingRecipe = r
@@ -411,8 +368,7 @@ async function deductToppingStock(p: DeductToppingParams): Promise<void> {
             }
 
             if (!toppingRecipe || toppingRecipe.bom.length === 0) {
-                // ไม่มีสูตร Recipe สำหรับ topping นี้ → log NO_BOM แล้วข้าม
-                p.stockWarnings.push(`⚠️ ท็อปปิ้ง "${topping.name}": ไม่มีสูตร Recipe — กรุณาสร้างสูตรให้ท็อปปิ้งนี้`)
+                p.stockWarnings.push(`⚠️ ท็อปปิ้ง "${topping.name}": ไม่มีสูตร Recipe`)
                 p.failEntries.push({
                     menuId: p.item.productId,
                     menuName: `${p.item.product.name} + ${topping.name}`,
@@ -423,16 +379,14 @@ async function deductToppingStock(p: DeductToppingParams): Promise<void> {
                     requiredQty: p.item.quantity,
                     requiredUnit: 'จาน',
                     availableQty: 0,
-                    detail: `ท็อปปิ้ง "${topping.name}" ยังไม่มีสูตร Recipe — ไปสร้างสูตรที่หน้า สูตรอาหาร แล้วผูกใหม่`,
+                    detail: `ท็อปปิ้ง "${topping.name}" ยังไม่มีสูตร Recipe`,
                 })
                 continue
             }
 
-            // ─── มี Recipe BOM → ตัดแต่ละ ingredient ของ topping ─────────
             for (const bom of toppingRecipe.bom) {
                 const baseUnit = bom.product.unit
                 let actualQty = p.item.quantity * bom.quantity
-
                 if (bom.unit !== baseUnit) {
                     const factor = resolveConversion(bom.productId, bom.unit, baseUnit, p.convMap)
                     if (factor === null) {
@@ -446,14 +400,12 @@ async function deductToppingStock(p: DeductToppingParams): Promise<void> {
                             requiredQty: bom.quantity,
                             requiredUnit: bom.unit,
                             availableQty: 0,
-                            detail: `ท็อปปิ้ง "${topping.name}": ไม่มีหน่วยแปลง "${bom.unit}" → "${baseUnit}" สำหรับ "${bom.product.name}"`,
+                            detail: `ท็อปปิ้ง "${topping.name}": ไม่มีหน่วยแปลง`,
                         })
-                        p.stockWarnings.push(`❌ ท็อปปิ้ง "${topping.name}" > "${bom.product.name}": ไม่มี UOM`)
                         continue
                     }
                     actualQty = p.item.quantity * bom.quantity * factor
                 }
-
                 await deductInventory({
                     tenantId: p.tenantId,
                     productId: bom.productId,
@@ -474,13 +426,10 @@ async function deductToppingStock(p: DeductToppingParams): Promise<void> {
             }
         }
     } catch (toppingErr) {
-        console.error('[close] Topping Recipe deduction error:', toppingErr)
+        console.error('[close] Topping deduction error:', toppingErr)
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: ตัด inventory พร้อม detect WRONG_WAREHOUSE / NO_GR / STOCK_EMPTY
-// ─────────────────────────────────────────────────────────────────────────────
 interface DeductParams {
     tenantId: string
     productId: string
@@ -504,7 +453,7 @@ async function deductInventory(p: DeductParams): Promise<void> {
         if (!p.locationId) {
             const product = await prisma.product.findUnique({ where: { id: p.productId }, select: { name: true } })
             const name = product?.name || p.productId
-            p.warnings.push(`⚠️ "${name}": ไม่มี location — ข้ามการตัดสต็อค`)
+            p.warnings.push(`⚠️ "${name}": ไม่มี location`)
             p.failEntries.push({
                 menuId: p.menuId, menuName: p.menuName,
                 ingredientId: p.productId, ingredientName: name,
@@ -519,7 +468,6 @@ async function deductInventory(p: DeductParams): Promise<void> {
             where: { productId: p.productId, locationId: p.locationId, tenantId: p.tenantId },
         })
 
-        // ─── NO_GR: ยังไม่มี inventory record เลย ────────────────────────
         if (!inventory) {
             const product = await prisma.product.findUnique({ where: { id: p.productId }, select: { name: true } })
             const name = product?.name || p.productId
@@ -529,51 +477,41 @@ async function deductInventory(p: DeductParams): Promise<void> {
                 ingredientId: p.productId, ingredientName: name,
                 locationId: p.locationId, failReason: 'NO_GR',
                 requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: 0,
-                detail: 'ไม่พบ inventory record — วัตถุดิบนี้ยังไม่เคยถูกรับเข้าคลัง (ไม่มี GR)',
+                detail: 'ไม่พบ inventory record — วัตถุดิบนี้ยังไม่เคยถูกรับเข้าคลัง',
             })
-            // สร้าง record ยอด 0 เพื่อไม่ block การขาย (จะติดลบ)
             inventory = await prisma.inventory.create({
                 data: { tenantId: p.tenantId, productId: p.productId, locationId: p.locationId, quantity: 0, avgCost: p.unitCost },
             })
         }
 
-        // ─── STOCK_EMPTY หรือ WRONG_WAREHOUSE ────────────────────────────
         if (inventory.quantity < p.quantity) {
             const product = await prisma.product.findUnique({ where: { id: p.productId }, select: { name: true } })
             const name = product?.name || p.productId
-
-            // ตรวจว่ามีในคลังอื่นไหม
             const otherStock = await prisma.inventory.findFirst({
-                where: {
-                    tenantId: p.tenantId, productId: p.productId,
-                    quantity: { gt: 0 }, NOT: { locationId: p.locationId },
-                },
+                where: { tenantId: p.tenantId, productId: p.productId, quantity: { gt: 0 }, NOT: { locationId: p.locationId } },
                 include: { location: { select: { name: true, code: true } } },
             })
-
             if (otherStock) {
-                p.warnings.push(`⚠️ "${name}": ของอยู่คลัง "${otherStock.location.name}" — ต้องโอนก่อน`)
+                p.warnings.push(`⚠️ "${name}": ของอยู่คลัง "${otherStock.location.name}"`)
                 p.failEntries.push({
                     menuId: p.menuId, menuName: p.menuName,
                     ingredientId: p.productId, ingredientName: name,
                     locationId: p.locationId, failReason: 'WRONG_WAREHOUSE',
                     requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: inventory.quantity,
-                    detail: `ของมีในคลัง "${otherStock.location.name}" (${otherStock.quantity} ${p.bomUnit}) แต่คลังนี้ไม่พอ — กรุณาโอนก่อน`,
+                    detail: `ของมีในคลัง "${otherStock.location.name}" แต่คลังนี้ไม่พอ`,
                 })
             } else {
-                const shortage = (p.quantity - inventory.quantity).toFixed(2)
-                p.warnings.push(`⚠️ "${name}": สต็อคไม่พอ (มี ${inventory.quantity} ต้องการ ${p.quantity} ${p.bomUnit})`)
+                p.warnings.push(`⚠️ "${name}": สต็อคไม่พอ`)
                 p.failEntries.push({
                     menuId: p.menuId, menuName: p.menuName,
                     ingredientId: p.productId, ingredientName: name,
                     locationId: p.locationId, failReason: 'STOCK_EMPTY',
                     requiredQty: p.quantity, requiredUnit: p.bomUnit, availableQty: inventory.quantity,
-                    detail: `สต็อคไม่พอ: มี ${inventory.quantity} ต้องการ ${p.quantity} ${p.bomUnit} (ขาด ${shortage} ${p.bomUnit})`,
+                    detail: `สต็อคไม่พอ: มี ${inventory.quantity} ต้องการ ${p.quantity} ${p.bomUnit}`,
                 })
             }
         }
 
-        // ─── ตัดสต็อค (ยอมให้ติดลบ เพื่อไม่ block การขาย) ──────────────
         await prisma.inventory.update({
             where: { id: inventory.id },
             data: { quantity: { decrement: p.quantity } },
@@ -607,21 +545,12 @@ async function deductInventory(p: DeductParams): Promise<void> {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: Default location ตาม category code
-// ─────────────────────────────────────────────────────────────────────────────
 function getDefaultLocation(categoryCode: string | undefined, locationMap: Record<string, string>): string {
     const anyLocationId = Object.values(locationMap)[0] || ''
     if (!categoryCode) return locationMap['WH_MAIN'] || anyLocationId
-
     const barCategories = ['BEER', 'BEER_DRAFT', 'WINE', 'COCKTAIL', 'DRINK', 'WATER']
     const kitchenCategories = ['FOOD_GRILL', 'FOOD_FRY', 'FOOD_SEA', 'FOOD_VEG', 'FOOD_LAAB', 'FOOD_RICE', 'FOOD_NOODLE']
-
-    if (barCategories.includes(categoryCode)) {
-        return locationMap['BAR_STOCK'] || locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || anyLocationId
-    }
-    if (kitchenCategories.includes(categoryCode)) {
-        return locationMap['KIT_STOCK'] || locationMap['WH_MAIN'] || anyLocationId
-    }
+    if (barCategories.includes(categoryCode)) return locationMap['BAR_STOCK'] || locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || anyLocationId
+    if (kitchenCategories.includes(categoryCode)) return locationMap['KIT_STOCK'] || locationMap['WH_MAIN'] || anyLocationId
     return locationMap['FR_FREEZER'] || locationMap['WH_MAIN'] || anyLocationId
 }
