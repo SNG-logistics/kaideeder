@@ -36,26 +36,77 @@ export const GET = withAuth(async (req: NextRequest, ctx: any) => {
             }
         }
 
-        // ── Top 5 Menus ───────────────────────────────────────
-        const menuMap = new Map<string, { name: string; qty: number; revenue: number }>()
+        // ── All Sold Items — grouped by product (with topping breakdown) ─────
+        // Key: productId  → { name, qty, toppings: Map<toppingKey, {name, qty}> }
+        const allItemsMap = new Map<string, {
+            name: string
+            qty: number
+            revenue: number
+            // toppings breakdown: key = topping combo string
+            toppings: Map<string, { label: string; qty: number }>
+        }>()
+
         for (const o of orders) {
             for (const item of o.items) {
                 if (item.isCancelled) continue
-                const key = item.productId
-                const cur = menuMap.get(key) || { name: item.product.name, qty: 0, revenue: 0 }
+
+                const baseKey = item.productId
+                const baseName = item.product.name
+
+                // Parse toppingsJson — e.g. [{id, name, price}]
+                let toppingLabel = ''
+                if (item.toppingsJson) {
+                    try {
+                        const toppings: { name: string }[] = JSON.parse(item.toppingsJson)
+                        toppingLabel = toppings.map(t => t.name).join('+')
+                    } catch { /* ignore malformed JSON */ }
+                }
+                // Fallback: use note if no toppings JSON
+                if (!toppingLabel && item.note) {
+                    toppingLabel = item.note.trim()
+                }
+
+                // Accumulate base product
+                const cur = allItemsMap.get(baseKey) || {
+                    name: baseName, qty: 0, revenue: 0,
+                    toppings: new Map<string, { label: string; qty: number }>()
+                }
                 cur.qty += item.quantity
                 cur.revenue += item.unitPrice * item.quantity
-                menuMap.set(key, cur)
+
+                // Accumulate topping sub-row
+                if (toppingLabel) {
+                    const tKey = toppingLabel.toLowerCase()
+                    const tCur = cur.toppings.get(tKey) || { label: toppingLabel, qty: 0 }
+                    tCur.qty += item.quantity
+                    cur.toppings.set(tKey, tCur)
+                }
+
+                allItemsMap.set(baseKey, cur)
             }
         }
-        const topMenus = [...menuMap.values()]
+
+        // Serialize for JSON response — convert Map to sorted array
+        const allSoldItems = [...allItemsMap.values()]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(item => ({
+                name: item.name,
+                qty: item.qty,
+                revenue: item.revenue,
+                // Only include breakdown when there are toppings
+                toppings: item.toppings.size > 0
+                    ? [...item.toppings.values()].sort((a, b) => b.qty - a.qty)
+                    : [],
+            }))
+
+        // Top 5 menus by qty (derived from same data)
+        const topMenus = [...allItemsMap.values()]
             .sort((a, b) => b.qty - a.qty)
             .slice(0, 5)
-
-        const allSoldItems = [...menuMap.values()]
-            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(item => ({ name: item.name, qty: item.qty, revenue: item.revenue }))
 
         // ── Opening/Closing Stock Snapshot ────────────────────
+
         const lowStock = await prisma.inventory.findMany({
             where: {
                 product: { isActive: true },

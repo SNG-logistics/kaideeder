@@ -4,12 +4,16 @@ import { useCurrency } from '@/context/TenantContext';
 import { useEffect, useState } from 'react'
 
 
+interface SoldItemTopping { label: string; qty: number }
+interface SoldItem { name: string; qty: number; revenue: number; toppings?: SoldItemTopping[] }
+
 interface DailyData {
     date: string
+    closingHour?: number
     orders: { count: number; totalRevenue: number; cashRevenue: number; transferRevenue: number; avgOrderValue: number }
     topMenus: { name: string; qty: number; revenue: number }[]
     stock: { lowItems: { name: string; quantity: number; unit: string; minQty: number; location: string }[] }
-    allSoldItems: { name: string; qty: number; revenue: number }[]
+    allSoldItems: SoldItem[]
     waste: { count: number; totalValue: number }
     purchase: { count: number; totalCost: number }
 }
@@ -37,11 +41,30 @@ export default function DailySummaryPage() {
         const d = new Date(date); d.setDate(d.getDate() - 1)
         const s = d.toISOString().split('T')[0]; setDate(s); load(s)
     }
+
     function printSummary() {
         if (!data) return
         const w = window.open('', '_blank', 'width=302,height=500,toolbar=0,menubar=0,scrollbars=0')
         if (!w) { alert('Popup blocker prevented printing. Please allow popups.'); return }
-        
+
+        // Build item rows — main item + indented topping breakdown
+        const itemRows = (data.allSoldItems || []).map(item => {
+            const toppingRows = (item.toppings || []).map(t =>
+                `<div class="topping-row">
+                  <span class="topping-name">└ ${t.label}</span>
+                  <span class="item-qty">x${t.qty}</span>
+                 </div>`
+            ).join('')
+            return `<div class="item">
+                      <span class="item-name">${item.name}</span>
+                      <span class="item-qty">x${item.qty}</span>
+                    </div>${toppingRows}`
+        }).join('')
+
+        const closingNote = (data.closingHour ?? 0) > 0
+            ? `<div style="text-align:center;font-size:10px;color:#555;margin-bottom:4px">วันธุรกิจ: ${String(data.closingHour).padStart(2,'0')}:00 น. ถึง ${String(data.closingHour).padStart(2,'0')}:00 น. วันถัดไป</div>`
+            : ''
+
         w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
         <style>
           *{margin:0;padding:0;box-sizing:border-box}
@@ -54,21 +77,19 @@ export default function DailySummaryPage() {
           .divider{border-bottom:1px dotted #000;margin:6px 0}
           .item{display:flex;justify-content:space-between;margin-bottom:2px}
           .item-name{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-          .item-qty{width:20px;text-align:right;font-weight:bold}
+          .item-qty{width:24px;text-align:right;font-weight:bold;flex-shrink:0}
+          .topping-row{display:flex;justify-content:space-between;margin-bottom:1px;padding-left:8px}
+          .topping-name{flex:1;font-size:11px;color:#333;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
         </style></head><body>
           <div class="title">สรุปยอดขายรายวัน<br><span style="font-size:12px">${new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
+          ${closingNote}
           <div class="row"><span>ยอดขายรวม:</span><span class="bold">${fmt(data.orders.totalRevenue)}</span></div>
           <div class="row"><span>เงินสด:</span><span>${fmt(data.orders.cashRevenue)}</span></div>
           <div class="row"><span>โอนเงิน:</span><span>${fmt(data.orders.transferRevenue)}</span></div>
           <div class="row"><span>จำนวนบิล:</span><span>${data.orders.count} บิล</span></div>
           <div class="divider"></div>
           <div style="font-weight:bold;margin-bottom:4px;text-align:center">สรุปรายการสินค้า (สำหรับเช็คสต็อค)</div>
-          ${(data.allSoldItems || []).map(item => `
-            <div class="item">
-              <span class="item-name">${item.name}</span>
-              <span class="item-qty">x${item.qty}</span>
-            </div>
-          `).join('')}
+          ${itemRows}
           <div class="divider"></div>
           <div style="text-align:center;font-size:10px;margin-top:10px">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
           <script>
