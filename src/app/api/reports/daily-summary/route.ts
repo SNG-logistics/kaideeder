@@ -1,19 +1,26 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
+import { getBusinessDayRange } from '@/lib/businessDate'
 
 // GET /api/reports/daily-summary?date=YYYY-MM-DD
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, ctx: any) => {
+    const { tenantId } = ctx
     const url = new URL(req.url)
     const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0]
 
-    const start = new Date(date + 'T00:00:00+07:00')
-    const end = new Date(date + 'T23:59:59+07:00')
-
     try {
+        // Read tenant's closing hour for business day boundary
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { closingHour: true } as any,
+        })
+        const closingHour = (tenant as any)?.closingHour ?? 0
+        const { start, end } = getBusinessDayRange(date, closingHour)
+
         // ── Orders ────────────────────────────────────────────
         const orders = await prisma.order.findMany({
-            where: { closedAt: { gte: start, lte: end }, status: 'CLOSED' },
+            where: { tenantId, closedAt: { gte: start, lte: end }, status: 'CLOSED' },
             include: {
                 payments: true,
                 items: { include: { product: { include: { category: true } } } }
@@ -77,35 +84,23 @@ export const GET = withAuth(async (req: NextRequest) => {
 
         return ok({
             date,
+            closingHour,
+            businessDayStart: start.toISOString(),
+            businessDayEnd: end.toISOString(),
             orders: {
                 count: orders.length,
                 totalRevenue,
                 cashRevenue,
                 transferRevenue,
-                avgOrderValue: orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0,
             },
             topMenus,
             allSoldItems,
-            stock: {
-                lowItems: lowStock.filter(i => i.product.minQty > 0 && i.quantity <= i.product.minQty).map(i => ({
-                    name: i.product.name,
-                    quantity: i.quantity,
-                    unit: i.product.unit,
-                    minQty: i.product.minQty,
-                    location: i.location.code
-                }))
-            },
-            waste: {
-                count: wasteItems.length,
-                totalValue: wasteTotalValue
-            },
-            purchase: {
-                count: purchased.length,
-                totalCost: purchaseTotalCost
-            }
+            lowStock,
+            waste: { items: wasteItems.length, totalValue: wasteTotalValue },
+            purchase: { totalCost: purchaseTotalCost },
         })
-    } catch (error: any) {
-        console.error('Daily summary error:', error)
-        return err('Failed to generate daily summary')
+    } catch (e: any) {
+        console.error('daily-summary error:', e)
+        return err(e.message)
     }
 }, ['OWNER', 'MANAGER', 'CASHIER'])

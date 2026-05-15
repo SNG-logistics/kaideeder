@@ -1,17 +1,22 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok } from '@/lib/api'
+import { getBusinessDayRange, todayBusinessDate } from '@/lib/businessDate'
 
 // GET /api/dashboard — Dashboard data
 export const GET = withAuth(async (req: NextRequest, context) => {
     const { tenantId } = context as any
     const url = new URL(req.url)
-    const dateStr = url.searchParams.get('date') || new Date().toISOString().split('T')[0]
 
-    // B-04 Fix: parse as LAO time (UTC+7) — avoid off-by-one day when server=UTC
-    const [y, m, d] = dateStr.split('-').map(Number)
-    const startOfDay = new Date(Date.UTC(y, m - 1, d, 0 - 7, 0, 0, 0))   // midnight UTC+7
-    const endOfDay = new Date(Date.UTC(y, m - 1, d, 23 - 7, 59, 59, 999)) // 23:59 UTC+7
+    // Read tenant closingHour for business day boundary
+    const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { closingHour: true } as any,
+    })
+    const closingHour = (tenant as any)?.closingHour ?? 0
+    const dateStr = url.searchParams.get('date') || todayBusinessDate(closingHour)
+
+    const { start: startOfDay, end: endOfDay } = getBusinessDayRange(dateStr, closingHour)
 
     const [
         posOrders,

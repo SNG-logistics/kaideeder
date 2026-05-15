@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
+import { getBusinessDayRange, getBusinessDate } from '@/lib/businessDate'
 
 // GET /api/reports/sales?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 export const GET = withAuth(async (req: NextRequest, context) => {
@@ -11,12 +12,21 @@ export const GET = withAuth(async (req: NextRequest, context) => {
 
   if (!startDate || !endDate) return err('Missing startDate or endDate', 400)
 
-  const start = new Date(startDate + 'T00:00:00+07:00')
-  const end = new Date(endDate + 'T23:59:59+07:00')
-
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return err('Invalid date format', 400)
-
   try {
+    // Read tenant's closing hour for business day boundary
+    const { tenantId } = context as any
+    const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { closingHour: true } as any,
+    })
+    const closingHour = (tenant as any)?.closingHour ?? 0
+
+    // For multi-day range: start of first business day → end of last business day
+    const { start } = getBusinessDayRange(startDate, closingHour)
+    const { end }   = getBusinessDayRange(endDate, closingHour)
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return err('Invalid date format', 400)
+
     const orders = await prisma.order.findMany({
       where: { tenantId, closedAt: { gte: start, lte: end }, status: 'CLOSED' },
       include: {
@@ -69,10 +79,10 @@ export const GET = withAuth(async (req: NextRequest, context) => {
     }
     const byCategory = [...catMap.values()].sort((a, b) => b.revenue - a.revenue)
 
-    // ── Daily Breakdown ───────────────────────────────────
+    // ── Daily Breakdown (grouped by business date) ─────────
     const dailyMap = new Map<string, { date: string; revenue: number; orders: number }>()
     for (const o of orders) {
-      const d = o.closedAt!.toISOString().split('T')[0]
+      const d = getBusinessDate(o.closedAt!, closingHour)
       const cur = dailyMap.get(d) || { date: d, revenue: 0, orders: 0 }
       cur.revenue += o.totalAmount
       cur.orders++
@@ -81,7 +91,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
     const daily = [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date))
 
     return ok({
-      startDate, endDate,
+      startDate, endDate, closingHour,
       summary: {
         totalSales, cashSales, transferSales,
         orderCount: orders.length,

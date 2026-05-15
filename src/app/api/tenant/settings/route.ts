@@ -15,7 +15,7 @@ export const GET = withAuth<any>(async (_req: NextRequest, ctx: any) => {
             menuBannerBase64: true, qrBankingBase64: true,
             currency: true, language: true, phone: true,
             address: true, taxId: true, receiptHeader: true, timezone: true,
-            paymentConfigJson: true,
+            paymentConfigJson: true, closingHour: true,
         },
     })
     console.log('[DEBUG /api/tenant/settings] tenantId:', tenantId, 'found tenant?', !!tenant)
@@ -39,6 +39,7 @@ export const PATCH = withAuth<any>(async (req: NextRequest, ctx: any) => {
         'displayName', 'storeNameLao', 'currency', 'language',
         'phone', 'address', 'taxId', 'receiptHeader', 'timezone',
         'menuBannerBase64', 'qrBankingBase64', 'paymentConfigJson',
+        'closingHour',
     ] as const
 
     const data: Record<string, unknown> = {}
@@ -54,6 +55,14 @@ export const PATCH = withAuth<any>(async (req: NextRequest, ctx: any) => {
     if (data.language && !['th', 'lo', 'both'].includes(data.language as string)) {
         return NextResponse.json({ error: 'Invalid language. Use th, lo, or both' }, { status: 400 })
     }
+    // Validate closingHour
+    if (data.closingHour !== undefined) {
+        const h = Number(data.closingHour)
+        if (isNaN(h) || h < 0 || h > 12) {
+            return NextResponse.json({ error: 'closingHour must be 0–12' }, { status: 400 })
+        }
+        data.closingHour = h
+    }
 
     const updated = await prisma.tenant.update({
         where: { id: tenantId },
@@ -63,7 +72,7 @@ export const PATCH = withAuth<any>(async (req: NextRequest, ctx: any) => {
             storeNameLao: true, logoUrl: true, menuBannerBase64: true, qrBankingBase64: true,
             currency: true, language: true, phone: true,
             address: true, taxId: true, receiptHeader: true, timezone: true,
-            paymentConfigJson: true,
+            paymentConfigJson: true, closingHour: true,
         },
     })
 

@@ -795,6 +795,7 @@ function StoreSettingsCard() {
         displayName: '', storeNameLao: '',
         currency: 'LAK', language: 'th',
         phone: '', address: '', taxId: '', receiptHeader: '',
+        closingHour: 0,
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -812,6 +813,7 @@ function StoreSettingsCard() {
                     address: d.settings.address ?? '',
                     taxId: d.settings.taxId ?? '',
                     receiptHeader: d.settings.receiptHeader ?? '',
+                    closingHour: d.settings.closingHour ?? 0,
                 })
             })
             .finally(() => setLoading(false))
@@ -905,6 +907,36 @@ function StoreSettingsCard() {
                                 className="input" rows={4}
                                 style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: '0.875rem' }} maxLength={500} />
                             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>ข้อความนี้จะแสดงบนใบเสร็จทุกใบ</p>
+                        </div>
+
+                        {/* เวลาปิดร้าน — Business Day Boundary */}
+                        <div style={{ gridColumn: '1/-1', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '14px 16px' }}>
+                            <label className="label" style={{ color: '#818cf8', marginBottom: 8 }}>🕐 เวลาปิดร้าน (สำหรับสรุปยอดรายวัน)</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                <select
+                                    value={form.closingHour}
+                                    onChange={e => setForm(f => ({ ...f, closingHour: Number(e.target.value) }))}
+                                    className="input"
+                                    style={{ maxWidth: 180 }}
+                                >
+                                    <option value={0}>🌙 00:00 น. — เที่ยงคืน (ค่าเริ่มต้น)</option>
+                                    <option value={1}>🌙 01:00 น. — ตี 1</option>
+                                    <option value={2}>🌙 02:00 น. — ตี 2</option>
+                                    <option value={3}>🌙 03:00 น. — ตี 3</option>
+                                    <option value={4}>🌙 04:00 น. — ตี 4</option>
+                                    <option value={5}>🌅 05:00 น. — ตี 5</option>
+                                    <option value={6}>🌅 06:00 น. — 6 โมงเช้า</option>
+                                </select>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', flex: 1 }}>
+                                    {form.closingHour === 0 ? (
+                                        <>วันใหม่เริ่ม <strong>00:00 น.</strong> ตามปกติ<br />
+                                        <span style={{ color: '#94a3b8' }}>ออเดอร์ตี 1 จะนับเป็นของวันถัดไป</span></>
+                                    ) : (
+                                        <>วันธุรกิจเริ่ม <strong>{String(form.closingHour).padStart(2,'0')}:00 น.</strong> และสิ้นสุด <strong>{String(form.closingHour).padStart(2,'0')}:00 น. วันถัดไป</strong><br />
+                                        <span style={{ color: '#a5b4fc' }}>✅ ออเดอร์ก่อน {String(form.closingHour).padStart(2,'0')}:00 น. จะนับเป็นยอดของ<strong>วันก่อน</strong></span></>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 

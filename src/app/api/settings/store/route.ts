@@ -19,6 +19,11 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
             name: true,
             displayName: true,
             logoUrl: true,
+            currency: true,
+            timezone: true,
+            phone: true,
+            address: true,
+            closingHour: true,
         },
     })
     
@@ -38,6 +43,7 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
 const patchSchema = z.object({
     displayName: z.string().min(1).max(100).optional(),
     logoUrl: z.string().url().or(z.string().startsWith('/')).nullable().optional(),
+    closingHour: z.number().int().min(0).max(12).optional(), // 0=midnight, 1-12 = business boundary hour
 })
 
 export const PATCH = withAuth(async (req: NextRequest, ctx) => {
@@ -49,6 +55,7 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
             data: {
                 ...(body.displayName !== undefined && { displayName: body.displayName }),
                 ...(body.logoUrl !== undefined && { logoUrl: body.logoUrl }),
+                ...(body.closingHour !== undefined && { closingHour: body.closingHour }),
             },
             select: {
                 id: true,
@@ -56,6 +63,11 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
                 name: true,
                 displayName: true,
                 logoUrl: true,
+                currency: true,
+                timezone: true,
+                phone: true,
+                address: true,
+                closingHour: true,
             },
         })
         return ok(updated)
