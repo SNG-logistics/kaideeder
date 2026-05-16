@@ -152,7 +152,7 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
                     {/* Customer info */}
                     <div style={{ marginBottom: 16 }}>
                         <div style={sectionLabel}>👤 ข้อมูลลูกค้า</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
                             <div>
                                 <label style={labelStyle}>ชื่อลูกค้า *</label>
                                 <input style={inputStyle} placeholder="ชื่อ..." value={form.customerName}
@@ -169,7 +169,7 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
                             <textarea style={{ ...inputStyle, height: 64, resize: 'vertical' }} placeholder="บ้านเลขที่ ถนน หมู่บ้าน..."
                                 value={form.addressText} onChange={e => setForm(f => ({ ...f, addressText: e.target.value }))} />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginTop: 10 }}>
                             <div>
                                 <label style={labelStyle}>ช่องทางรับออเดอร์</label>
                                 <select style={inputStyle} value={form.channel} onChange={e => setForm(f => ({ ...f, channel: e.target.value as DeliveryChannel }))}>

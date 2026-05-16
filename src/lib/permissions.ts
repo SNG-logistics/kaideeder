@@ -87,6 +87,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
         'SALES_IMPORT',
         'REPORT_VIEW',
         'AI_CHAT',
+        'SETTINGS_MANAGE',
     ],
 
     PURCHASER: [

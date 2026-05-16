@@ -24,7 +24,7 @@ export default function ReportsPage() {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
                 {reports.map(r => (
                     <a key={r.title} href={r.href} style={{
                         display: 'block', textDecoration: 'none', padding: '1.5rem',

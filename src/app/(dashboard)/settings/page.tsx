@@ -2054,7 +2054,7 @@ export default function SettingsPage() {
                 <div className="card" style={{ borderColor: 'rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.02)' }}>
                     <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem' }}>📦 นำเข้าสินค้า</h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>เพิ่ม/อัพเดทสินค้าจากไฟล์ Excel — หรือล้างแล้ว import ใหม่</p>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--white)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--white)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.2)', flexWrap: 'wrap', gap: 10 }}>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: 2 }}>📊 Import จาก Excel (.xlsx)</div>
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>อ่านหลาย Sheet — อัพเดทหรือล้าง+import ใหม่แบบ Clean slate</div>
@@ -2079,7 +2079,7 @@ export default function SettingsPage() {
                     <h2 style={{ fontWeight: 700, color: '#DC2626', marginBottom: 4, fontSize: '0.95rem' }}>⚠️ Danger Zone</h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>การกระทำเหล่านี้ไม่สามารถย้อนกลับได้</p>
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--white)', borderRadius: 10, border: '1px solid rgba(239,68,68,0.2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--white)', borderRadius: 10, border: '1px solid rgba(239,68,68,0.2)', flexWrap: 'wrap', gap: 10 }}>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: 2 }}>🧹 รีเซ็ตข้อมูลทดสอบ</div>
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ล้าง: ประวัติสต็อค, คำสั่งซื้อ, ยอดคงเหลือ &mdash; เก็บ: สินค้า, สูตร, ผู้ใช้</div>

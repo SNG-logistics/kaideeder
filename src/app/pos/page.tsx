@@ -178,6 +178,7 @@ export default function POSPage() {
     const [paymentLoading, setPaymentLoading] = useState(false)
     const [closeResult, setCloseResult] = useState<{ changeAmount: number; orderId?: string; stockWarnings?: string[] } | null>(null)
     const [isMobile, setIsMobile] = useState(false)
+    const [isTablet, setIsTablet] = useState(false)
     const [showOrderPanel, setShowOrderPanel] = useState(true)
     const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'warning' } | null>(null)
     const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -241,9 +242,10 @@ export default function POSPage() {
 
     useEffect(() => {
         const check = () => {
-            const mobile = window.innerWidth < 768
-            setIsMobile(mobile)
-            setShowOrderPanel(!mobile)
+            const w = window.innerWidth
+            setIsMobile(w < 768)
+            setIsTablet(w >= 768 && w <= 1024)
+            setShowOrderPanel(w >= 768)
         }
         check()
         window.addEventListener('resize', check)
@@ -1055,7 +1057,7 @@ return (
 
 
         {/* ════ LEFT PANEL — Table Grid ════ */}
-        <div style={{ flex: isMobile ? '0 0 100%' : '0 0 56%', display: isMobile && mobileTab !== 'tables' ? 'none' : 'flex', flexDirection: 'column', borderRight: '1px solid #E5E7EB', background: '#fff', overflow: 'hidden', paddingBottom: isMobile ? 60 : 0 }}>
+        <div style={{ flex: isMobile ? '0 0 100%' : (isTablet ? '0 0 45%' : '0 0 56%'), display: isMobile && mobileTab !== 'tables' ? 'none' : 'flex', flexDirection: 'column', borderRight: '1px solid #E5E7EB', background: '#fff', overflow: 'hidden', paddingBottom: isMobile ? 60 : 0 }}>
             {/* Top Bar */}
             <div style={{ background: '#1A1D26', color: '#fff', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                 <span style={{ fontSize: '1.3rem' }}>🍽️</span>
@@ -1313,7 +1315,7 @@ return (
                     </div>
 
                     {/* Table Info Cards (2-col) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', padding: '0.75rem', flexShrink: 0 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.5rem', padding: '0.75rem', flexShrink: 0 }}>
                         <div style={{ background: '#fff', borderRadius: 12, padding: '0.75rem 1rem', border: '1px solid #E5E7EB' }}>
                             {([
                                 ['โต้อาหาร', selectedTable.name],
@@ -1366,8 +1368,8 @@ return (
 
                     {/* Order Items Table Header */}
                     <div style={{ background: '#FFFFFF', flexShrink: 0, borderTop: '1px solid #E5E7EB' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '3fr 1.2fr 1fr 1.2fr 1fr 0.5fr', padding: '0.4rem 0.75rem', fontSize: '0.72rem', color: '#9CA3AF', gap: 4 }}>
-                            {['รายการ', 'ราคา', 'จำนวน', 'รวม', 'สถานะ', '#'].map(h => <span key={h}>{h}</span>)}
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '3fr 1.5fr 1.5fr 0.5fr' : '3fr 1.2fr 1fr 1.2fr 1fr 0.5fr', padding: '0.4rem 0.75rem', fontSize: '0.72rem', color: '#9CA3AF', gap: 4 }}>
+                            {(isMobile ? ['รายการ', 'จำนวน', 'รวม', '#'] : ['รายการ', 'ราคา', 'จำนวน', 'รวม', 'สถานะ', '#']).map(h => <span key={h}>{h}</span>)}
                         </div>
                     </div>
 
@@ -1465,16 +1467,16 @@ return (
                         ) : (
                             orderItems.map((item, idx) => (
                                 <div key={idx} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '3fr 1.2fr 1fr 1.2fr 1fr 0.5fr', padding: '0.5rem 0.75rem', alignItems: 'center', gap: 4 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '3fr 1.5fr 1.5fr 0.5fr' : '3fr 1.2fr 1fr 1.2fr 1fr 0.5fr', padding: '0.5rem 0.75rem', alignItems: 'center', gap: 4 }}>
                                         <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1D26', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product?.name || item.productId}</span>
-                                        <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{formatLAK(item.unitPrice)}</span>
+                                        {!isMobile && <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{formatLAK(item.unitPrice)}</span>}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                             <button onClick={() => updateItemQty(idx, -1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem' }}>−</button>
                                             <span style={{ minWidth: 18, textAlign: 'center', fontSize: '0.82rem', fontWeight: 700 }}>{item.quantity}</span>
                                             <button onClick={() => updateItemQty(idx, 1)} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem' }}>+</button>
                                         </div>
                                         <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#E8364E' }}>{formatLAK(item.quantity * item.unitPrice)}</span>
-                                        {(() => {
+                                        {!isMobile && (() => {
                                             const st = item.kitchenStatus || 'PENDING'
                                             const icon = { PENDING: '⏳', ACCEPTED: '👌', COOKING: '🔥', READY: '✅', SERVED: '🍽️' }[st] || '⏳'
                                             const col = { PENDING: '#F59E0B', ACCEPTED: '#3B82F6', COOKING: '#EF4444', READY: '#10B981', SERVED: '#6B7280' }[st] || '#F59E0B'
@@ -1595,7 +1597,7 @@ return (
                                 style={{ width: '100%', padding: '0.45rem 0.75rem', border: '1px solid #E5E7EB', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.85rem', outline: 'none', background: '#FAFBFD' }} />
                         </div>
                         {/* Product Grid */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.6rem', alignContent: 'start' }}>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 130 : 150}px, 1fr))`, gap: '0.6rem', alignContent: 'start' }}>
                             {filteredProducts.map(product => {
                                 const catColor = product.category?.color || '#4B5563'
                                 const bg = product.imageUrl
@@ -1847,7 +1849,7 @@ return (
         {/* ════ PAYMENT MODAL ════ */}
         {showPaymentModal && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
-                <div style={{ background: '#FFFFFF', borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 440, border: '1px solid #E5E7EB', boxShadow: '0 24px 48px rgba(0,0,0,0.15)', maxHeight: '92vh', overflowY: 'auto' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: 16, padding: isMobile ? '1.5rem' : '2rem', width: '100%', maxWidth: 440, border: '1px solid #E5E7EB', boxShadow: '0 24px 48px rgba(0,0,0,0.15)', maxHeight: '92vh', overflowY: 'auto', boxSizing: 'border-box' }}>
                     {closeResult ? (
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
