@@ -9,9 +9,15 @@ type DiningTable = {
     seats: number
     isActive: boolean
     orders: { id: string }[]
+    posX: number
+    posY: number
+    width: number
+    height: number
+    shape: string
 }
 
 type PanelState = 'list' | 'add-zone' | 'add-table' | 'edit-table' | 'manage-zones'
+import TableLayoutEditor from './TableLayoutEditor'
 
 const inputStyle: React.CSSProperties = {
     width: '100%', padding: '0.55rem 0.85rem', fontSize: '0.875rem',
@@ -41,6 +47,7 @@ export default function TableManagerPanel({ onClose }: { onClose: () => void }) 
     const [zones, setZones] = useState<string[]>([])
     const [activeZone, setActiveZone] = useState<string>('ALL')
     const [panel, setPanel] = useState<PanelState>('list')
+    const [showLayoutEditor, setShowLayoutEditor] = useState(false)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -208,6 +215,31 @@ export default function TableManagerPanel({ onClose }: { onClose: () => void }) 
         ? tables.filter(t => t.isActive)
         : tables.filter(t => t.zone === activeZone && t.isActive)
 
+    if (showLayoutEditor && activeZone !== 'ALL') {
+        return (
+            <TableLayoutEditor 
+                zone={activeZone}
+                tables={displayTables}
+                onClose={() => setShowLayoutEditor(false)}
+                onSave={async (updated) => {
+                    const res = await fetch('/api/settings/tables/layout', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tables: updated })
+                    })
+                    const d = await res.json()
+                    if (d.success) {
+                        flash(true, '✅ บันทึกผังร้านแล้ว')
+                        setShowLayoutEditor(false)
+                        load()
+                    } else {
+                        flash(false, d.error || 'เกิดข้อผิดพลาด')
+                    }
+                }}
+            />
+        )
+    }
+
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 800,
@@ -275,6 +307,14 @@ export default function TableManagerPanel({ onClose }: { onClose: () => void }) 
                             >
                                 ⚙️ จัดการโซน
                             </button>
+                            {activeZone !== 'ALL' && (
+                                <button
+                                    onClick={() => setShowLayoutEditor(true)}
+                                    style={{ ...btnSecondary, color: '#38bdf8', borderColor: 'rgba(56,189,248,0.3)' }}
+                                >
+                                    🗺️ ผังร้าน
+                                </button>
+                            )}
                             <button
                                 onClick={() => {
                                     setForm({ name: '', zone: activeZone !== 'ALL' ? activeZone : (zones[0] || ''), seats: 4 })

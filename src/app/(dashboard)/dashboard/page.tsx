@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
 import { useCurrency } from '@/context/TenantContext'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 
 interface RecentOrder {
     id: string
@@ -40,6 +41,8 @@ interface DashboardData {
     }
     purchase: { total: number; orders: number }
     lowStock: { count: number; items: { productName: string; locationName: string; qty: number; minQty: number }[] }
+    hourlyChart: { time: string; total: number }[]
+    topItems: { name: string; qty: number; total: number }[]
 }
 
 export default function DashboardPage() {
@@ -243,6 +246,65 @@ export default function DashboardPage() {
                                     {showLowStock ? 'ซ่อน ↑' : 'คลิกดูรายการ ↓'}
                                 </p>
                             )}
+                        </div>
+                    </div>
+
+                    {/* ── Charts & Top Items ── */}
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 16, marginBottom: 20 }}>
+                        {/* Hourly Chart */}
+                        <div className="card">
+                            <h3 style={{ fontWeight: 600, color: '#1A1D26', marginBottom: 14, fontSize: '0.9rem' }}>📈 ยอดขายรายชั่วโมง (Hourly Sales)</h3>
+                            <div style={{ width: '100%', height: 260 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={data.hourlyChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                                                <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                        <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} minTickGap={20} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} tickFormatter={val => val >= 1000 ? (val/1000).toFixed(0) + 'k' : val} />
+                                        <Tooltip 
+                                            formatter={(value: number) => [fmt(value), 'ยอดขาย']}
+                                            labelStyle={{ color: '#111827', fontWeight: 600 }}
+                                            contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                        />
+                                        <Area type="monotone" dataKey="total" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Top Items */}
+                        <div className="card">
+                            <h3 style={{ fontWeight: 600, color: '#1A1D26', marginBottom: 14, fontSize: '0.9rem' }}>🏆 5 อันดับเมนูขายดี</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                {data.topItems.length > 0 ? data.topItems.map((item, idx) => (
+                                    <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ 
+                                            width: 28, height: 28, borderRadius: '50%', 
+                                            background: idx === 0 ? '#FEF08A' : idx === 1 ? '#E2E8F0' : idx === 2 ? '#FED7AA' : '#F3F4F6',
+                                            color: idx < 3 ? '#B45309' : '#6B7280',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem'
+                                        }}>
+                                            {idx + 1}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1F2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>ขายได้ {item.qty} รายการ</div>
+                                        </div>
+                                        <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.85rem' }}>
+                                            {fmt(item.total)}
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem 0', fontSize: '0.85rem' }}>
+                                        ยังไม่มีข้อมูลการขาย
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 

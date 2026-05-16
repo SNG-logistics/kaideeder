@@ -126,11 +126,20 @@ export default function KitchenPage() {
     }, [station, showServed])
 
     useEffect(() => { fetchQueue() }, [fetchQueue])
+
     useEffect(() => {
-        const iv = setInterval(fetchQueue, 3000)
-        return () => clearInterval(iv)
+        const source = new EventSource('/api/events')
+        source.onmessage = (event) => {
+            if (event.data === 'keepalive') return
+        }
+        source.addEventListener('ORDERS_UPDATED', () => {
+            fetchQueue()
+        })
+        return () => source.close()
     }, [fetchQueue])
+
     useEffect(() => {
+        // Redraw timestamps
         const t = setInterval(() => setQueue(q => [...q]), 30000)
         return () => clearInterval(t)
     }, [])

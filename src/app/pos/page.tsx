@@ -11,7 +11,7 @@ import { getPrinterSettings } from '@/lib/printerSettings'
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
 interface Topping { id: string; name: string; price: number; isActive: boolean }
 interface Product { id: string; sku: string; name: string; salePrice: number; unit: string; categoryId: string; category?: Category; productType: string; imageUrl?: string; toppingsJson?: string | null }
-interface DiningTable { id: string; number: number; name: string; zone: string; seats: number; status: string; orders?: Order[] }
+interface DiningTable { id: string; number: number; name: string; zone: string; seats: number; status: string; orders?: Order[]; posX?: number; posY?: number; width?: number; height?: number; shape?: string }
 interface OrderItemData { id?: string; productId: string; product?: Product; quantity: number; unitPrice: number; note?: string; isCancelled?: boolean; kitchenStatus?: string; toppingsJson?: string; toppingsTotal?: number }
 interface Order { id: string; orderNumber: string; tableId: string; table?: DiningTable; status: string; subtotal: number; discount: number; discountType: string; serviceCharge: number; vat: number; totalAmount: number; note?: string; items: OrderItemData[]; payments?: Payment[] }
 interface Payment { id: string; method: string; amount: number; receivedAmount: number; changeAmount: number }
@@ -206,6 +206,7 @@ export default function POSPage() {
     const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())  // ซ่อนหมวด
     const [catEditMode, setCatEditMode] = useState(false)  // mode แก้ไขการมองเห็นหมวด
     const [deliveryMode, setDeliveryMode] = useState(false)
+    const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid')
     const [deliveryOrders, setDeliveryOrders] = useState<any[]>([])
     const [showDeliveryModal, setShowDeliveryModal] = useState(false)
     const [deliveryForm, setDeliveryForm] = useState({
@@ -1189,24 +1190,78 @@ return (
                 </div>
             )}
 
-            {/* Zone Tabs */}
+            {/* Zone Tabs & View Mode Toggle */}
             {!deliveryMode && (
-                <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, borderBottom: '1px solid #E5E7EB', background: '#FAFBFD' }}>
-                    {['ALL', ...zones].map(zone => {
-                        const isActive = selectedZone === zone
-                        const hasOccupied = (zone === 'ALL' ? tables : tablesByZone[zone] || []).some(t => t.orders && t.orders.length > 0)
-                        return (
-                            <button key={zone} onClick={() => setSelectedZone(zone)} style={{ padding: '0.65rem 1rem', border: 'none', background: 'transparent', fontFamily: 'inherit', cursor: 'pointer', fontWeight: isActive ? 700 : 500, fontSize: '0.82rem', whiteSpace: 'nowrap', color: isActive ? '#E8364E' : '#6B7280', borderBottom: isActive ? '2.5px solid #E8364E' : '2.5px solid transparent', position: 'relative' }}>
-                                {zone === 'ALL' ? '📋 ทั้งหมด' : `📍 ${zone}`}
-                                {hasOccupied && zone !== 'ALL' && <span style={{ position: 'absolute', top: 8, right: 6, width: 7, height: 7, borderRadius: '50%', background: '#E8364E' }} />}
-                            </button>
-                        )
-                    })}
+                <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', background: '#FAFBFD' }}>
+                    <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, flex: 1 }}>
+                        {['ALL', ...zones].map(zone => {
+                            const isActive = selectedZone === zone
+                            const hasOccupied = (zone === 'ALL' ? tables : tablesByZone[zone] || []).some(t => t.orders && t.orders.length > 0)
+                            return (
+                                <button key={zone} onClick={() => setSelectedZone(zone)} style={{ padding: '0.65rem 1rem', border: 'none', background: 'transparent', fontFamily: 'inherit', cursor: 'pointer', fontWeight: isActive ? 700 : 500, fontSize: '0.82rem', whiteSpace: 'nowrap', color: isActive ? '#E8364E' : '#6B7280', borderBottom: isActive ? '2.5px solid #E8364E' : '2.5px solid transparent', position: 'relative' }}>
+                                    {zone === 'ALL' ? '📋 ทั้งหมด' : `📍 ${zone}`}
+                                    {hasOccupied && zone !== 'ALL' && <span style={{ position: 'absolute', top: 8, right: 6, width: 7, height: 7, borderRadius: '50%', background: '#E8364E' }} />}
+                                </button>
+                            )
+                        })}
+                    </div>
+                    {/* View Mode Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '0 1rem', gap: 4, flexShrink: 0, borderLeft: '1px solid #E5E7EB' }}>
+                        <button onClick={() => setViewMode('grid')} style={{ padding: '0.4rem', borderRadius: 6, background: viewMode === 'grid' ? 'rgba(232,54,78,0.1)' : 'transparent', border: '1px solid', borderColor: viewMode === 'grid' ? 'rgba(232,54,78,0.3)' : 'transparent', color: viewMode === 'grid' ? '#E8364E' : '#9CA3AF', cursor: 'pointer' }} title="Grid View">🔲</button>
+                        <button onClick={() => setViewMode('map')} style={{ padding: '0.4rem', borderRadius: 6, background: viewMode === 'map' ? 'rgba(232,54,78,0.1)' : 'transparent', border: '1px solid', borderColor: viewMode === 'map' ? 'rgba(232,54,78,0.3)' : 'transparent', color: viewMode === 'map' ? '#E8364E' : '#9CA3AF', cursor: 'pointer' }} title="Map View">🗺️</button>
+                    </div>
                 </div>
             )}
 
-            {/* Table Grid */}
-            {!deliveryMode && (
+            {/* Table Grid / Map */}
+            {!deliveryMode && viewMode === 'map' ? (
+                <div style={{ flex: 1, overflow: 'auto', background: '#F3F4F6', position: 'relative' }}>
+                    <div style={{ position: 'relative', width: 1200, height: 1600, margin: '1rem', background: '#fff', borderRadius: 16, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                        {displayTables.map(table => {
+                            const hasOrder = !!(table.orders && table.orders.length > 0)
+                            const allOrders = (table.orders ?? []) as Order[]
+                            const hasPending = allOrders.some(o => o.status === 'PENDING_CONFIRM')
+                            const isSelected = selectedTable?.id === table.id
+                            let bg = isSelected ? '#1A1D26' : hasOrder ? '#1E2533' : '#FFFFFF'
+                            let color = (hasOrder || isSelected) ? '#FFFFFF' : '#1A1D26'
+                            let borderColor = isSelected ? '#E8364E' : hasPending ? '#F59E0B' : hasOrder ? '#374151' : '#E5E7EB'
+                            
+                            const tShape = table.shape || 'square'
+                            const tWidth = table.width || 80
+                            const tHeight = table.height || 80
+                            const tX = table.posX || 0
+                            const tY = table.posY || 0
+
+                            return (
+                                <button
+                                    key={table.id}
+                                    onClick={() => selectTable(table)}
+                                    style={{
+                                        position: 'absolute', left: tX, top: tY,
+                                        width: tWidth, height: tHeight,
+                                        borderRadius: tShape === 'circle' ? '50%' : 8,
+                                        background: bg, border: `2px solid ${borderColor}`, color,
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', fontFamily: 'inherit',
+                                        boxShadow: hasOrder ? '0 4px 16px rgba(0,0,0,0.18)' : '0 2px 4px rgba(0,0,0,0.05)',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                >
+                                    <span style={{ fontWeight: 800, fontSize: tShape === 'rectangle' ? '1rem' : '0.9rem' }}>{table.name}</span>
+                                    {hasPending && <span style={{ position: 'absolute', top: -6, right: -6, width: 14, height: 14, borderRadius: '50%', background: '#F59E0B', border: '2px solid #fff' }} />}
+                                    {hasOrder && !hasPending && <span style={{ position: 'absolute', top: -6, right: -6, width: 14, height: 14, borderRadius: '50%', background: '#FB7185', border: '2px solid #fff' }} />}
+                                </button>
+                            )
+                        })}
+                        {displayTables.length === 0 && (
+                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
+                                <div style={{ fontSize: '2rem', marginBottom: 8 }}>🪑</div>
+                                <div style={{ fontWeight: 600 }}>ไม่มีโต๊ะในโซนนี้</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ) : !deliveryMode && viewMode === 'grid' && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: '0.6rem', alignContent: 'start' }}>
                     {displayTables.map(table => {
                         const hasOrder = !!(table.orders && table.orders.length > 0)

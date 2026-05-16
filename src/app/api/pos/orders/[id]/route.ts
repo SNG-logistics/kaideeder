@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
+import { getEventEmitter } from '@/lib/events'
 
 const updateOrderSchema = z.object({
     items: z.array(z.object({
@@ -145,6 +146,72 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
             },
         })
 
+        const emitter = getEventEmitter()
+        emitter.emit('ORDERS_UPDATED', tenantId)
+        if (order.orderType === 'DELIVERY') {
+            emitter.emit('DELIVERY_UPDATED', tenantId)
+        }
+
+        // --- Auto-Print Logic for NEW items ---
+        if (data.items && data.items.length > 0 && !data.skipKitchen) {
+            prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { autoPrintEnabled: true, kitchenPrinterIp: true, barPrinterIp: true }
+            }).then(tenant => {
+                if (!tenant?.autoPrintEnabled) return
+                
+                // Group newly added items
+                const newItemsWithProducts = data.items!.map(item => {
+                    const prod = updated.items.find(ui => ui.productId === item.productId && ui.quantity === item.quantity && ui.stationId !== 'SKIP')
+                    return {
+                        name: prod?.product?.name || 'Unknown',
+                        quantity: item.quantity,
+                        note: item.note,
+                        stationId: prod?.stationId
+                    }
+                })
+
+                const kitchenItems = newItemsWithProducts.filter(i => i.stationId === 'KITCHEN')
+                const barItems = newItemsWithProducts.filter(i => i.stationId === 'BAR')
+
+                const printUrl = new URL('/api/print/raw', req.url).toString()
+                
+                if (kitchenItems.length > 0 && tenant.kitchenPrinterIp) {
+                    fetch(printUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ip: tenant.kitchenPrinterIp,
+                            port: 9100,
+                            station: 'KITCHEN',
+                            tableName: updated.table?.name || 'Takeaway',
+                            orderNumber: updated.orderNumber,
+                            items: kitchenItems,
+                            autoCut: true,
+                            copies: 1
+                        })
+                    }).catch(err => console.error('[AutoPrint Kitchen Error]', err))
+                }
+
+                if (barItems.length > 0 && tenant.barPrinterIp) {
+                    fetch(printUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ip: tenant.barPrinterIp,
+                            port: 9100,
+                            station: 'BAR',
+                            tableName: updated.table?.name || 'Takeaway',
+                            orderNumber: updated.orderNumber,
+                            items: barItems,
+                            autoCut: true,
+                            copies: 1
+                        })
+                    }).catch(err => console.error('[AutoPrint Bar Error]', err))
+                }
+            }).catch(err => console.error('[AutoPrint Tenant Fetch Error]', err))
+        }
+
         return ok(updated)
     } catch (error) {
         if (error instanceof z.ZodError) return err(error.errors.map(e => e.message).join(', '))
@@ -181,6 +248,12 @@ export const DELETE = withAuth(async (_req: NextRequest, ctx) => {
                 data: { status: 'AVAILABLE' },
             })
         }
+    }
+
+    const emitter = getEventEmitter()
+    emitter.emit('ORDERS_UPDATED', tenantId)
+    if (order.orderType === 'DELIVERY') {
+        emitter.emit('DELIVERY_UPDATED', tenantId)
     }
 
     return ok({ voided: true })

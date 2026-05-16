@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
+import { getEventEmitter } from '@/lib/events'
 
 type ConsumeFailType =
     | 'NO_BOM'
@@ -278,6 +279,12 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             })
         } catch (eventErr) {
             console.error('[close] SalesEvent write failed (non-fatal):', eventErr)
+        }
+
+        const emitter = getEventEmitter()
+        emitter.emit('ORDERS_UPDATED', tenantId)
+        if (order.orderType === 'DELIVERY') {
+            emitter.emit('DELIVERY_UPDATED', tenantId)
         }
 
         return ok({

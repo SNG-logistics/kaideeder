@@ -93,9 +93,16 @@ export default function WaiterPage() {
     }, [])
 
     useEffect(() => { fetchReady() }, [fetchReady])
+
     useEffect(() => {
-        const iv = setInterval(fetchReady, 3000)
-        return () => clearInterval(iv)
+        const source = new EventSource('/api/events')
+        source.onmessage = (event) => {
+            if (event.data === 'keepalive') return
+        }
+        source.addEventListener('ORDERS_UPDATED', () => {
+            fetchReady()
+        })
+        return () => source.close()
     }, [fetchReady])
 
     const markItem = async (itemId: string) => {

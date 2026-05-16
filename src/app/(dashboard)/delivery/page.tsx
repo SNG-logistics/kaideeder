@@ -398,9 +398,20 @@ export default function DeliveryQueuePage() {
     }, [])
 
     useEffect(() => { fetchOrders() }, [fetchOrders])
+
     useEffect(() => {
-        const t = setInterval(fetchOrders, 30_000)
-        return () => clearInterval(t)
+        const source = new EventSource('/api/events')
+        source.onmessage = (event) => {
+            if (event.data === 'keepalive') return
+        }
+        source.addEventListener('DELIVERY_UPDATED', () => {
+            fetchOrders()
+        })
+        // Also listen to ORDERS_UPDATED since standard order actions might affect delivery
+        source.addEventListener('ORDERS_UPDATED', () => {
+            fetchOrders()
+        })
+        return () => source.close()
     }, [fetchOrders])
 
     const activeOrders = orders.filter(o => !['DELIVERED', 'CANCELLED'].includes(o.deliveryInfo.deliveryStatus))

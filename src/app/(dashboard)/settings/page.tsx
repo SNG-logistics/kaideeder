@@ -1391,12 +1391,12 @@ function StationPrinterCard({ stationKey, label, icon, accentColor, stationType 
                     ip: cfg.ip,
                     port: cfg.port,
                     station: stationType === 'RECEIPT' ? 'KITCHEN' : stationType,
-                    tableName: 'TEST',
-                    orderNumber: 'T001',
+                    tableName: 'ทดสอบ',
+                    orderNumber: 'TEST',
                     items: [
-                        { name: `${icon} ${label} — TEST PRINT`, quantity: 1 },
-                        { name: `IP: ${cfg.ip}:${cfg.port}`, quantity: 1 },
-                        { name: `Paper: ${cfg.paperWidth}  Cut: ${cfg.autoCut ? 'ON' : 'OFF'}`, quantity: 1 },
+                        { name: `${icon} ${label} — ทดสอบการพิมพ์`, quantity: 1 },
+                        { name: `ไอพี: ${cfg.ip}:${cfg.port}`, quantity: 1 },
+                        { name: `กระดาษ: ${cfg.paperWidth}  ตัด: ${cfg.autoCut ? 'เปิด' : 'ปิด'}`, quantity: 1 },
                         { name: 'KAIDEEDER POS', quantity: 1 },
                     ],
                     autoCut: cfg.autoCut,
@@ -1423,10 +1423,10 @@ function StationPrinterCard({ stationKey, label, icon, accentColor, stationType 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap" rel="stylesheet">
 <style>*{margin:0;padding:0;box-sizing:border-box}@page{size:${mm} auto;margin:3mm 2mm}body{font-family:'Noto Sans Lao','Noto Sans Thai','Courier New',monospace;font-size:14px;width:${mm === '58mm' ? '54mm' : '76mm'}}.t{font-weight:900;font-size:16px;text-align:center;margin-bottom:6px}.d{font-size:11px;text-align:center;color:#444}.line{border-top:1px dashed #000;margin:6px 0}</style></head><body>
 <div class="t">${icon} ${label}</div>
-<div class="d">TEST PRINT — Browser</div>
+<div class="d">ทดสอบพิมพ์ — Browser</div>
 <div class="line"></div>
-<div class="d">Paper: ${mm} | Copies: ${cfg.copies}</div>
-<div class="d">AutoCut: ${cfg.autoCut ? 'ON' : 'OFF'}</div>
+<div class="d">กระดาษ: ${mm} | สำเนา: ${cfg.copies}</div>
+<div class="d">ตัดอัตโนมัติ: ${cfg.autoCut ? 'เปิด' : 'ปิด'}</div>
 <div class="line"></div>
 <div class="d">KAIDEEDER POS</div>
 <script>(function(){window.addEventListener('afterprint',function(){window.close()});window.onload=function(){window.focus();window.print()};})()</scr` + `ipt></body></html>`)
@@ -1587,6 +1587,102 @@ function PrinterSettingsCard() {
             <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(245,158,11,0.06)', borderRadius: 8, fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                 ⚠️ <strong>ต้องอยู่ network เดียวกัน</strong> — เซิร์ฟเวอร์ส่ง TCP ไปที่ IP:Port โดยตรง<br />
                 💡 ถ้า TCP ล้มเหลว ระบบจะ fallback เป็น Browser print อัตโนมัติ
+            </div>
+        </div>
+    )
+}
+
+// ─── Server-Side Auto-Printer Settings (Global) ───────────────────────────
+function ServerPrinterSettingsCard() {
+    const [cfg, setCfg] = useState({ kitchenPrinterIp: '', barPrinterIp: '', autoPrintEnabled: false })
+    const [saving, setSaving] = useState(false)
+    const [testing, setTesting] = useState(false)
+
+    useEffect(() => {
+        fetch('/api/settings/store').then(r => r.json()).then(d => {
+            if (d.success) setCfg({
+                kitchenPrinterIp: d.data.kitchenPrinterIp || '',
+                barPrinterIp: d.data.barPrinterIp || '',
+                autoPrintEnabled: d.data.autoPrintEnabled || false,
+            })
+        })
+    }, [])
+
+    async function save() {
+        setSaving(true)
+        const r = await fetch('/api/settings/store', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cfg),
+        }).then(r => r.json())
+        setSaving(false)
+        if (r.success) toast.success('✅ บันทึกตั้งค่า Auto-Print แล้ว')
+        else toast.error(r.error || 'บันทึกไม่สำเร็จ')
+    }
+
+    async function testPrint(station: 'KITCHEN' | 'BAR', ip: string) {
+        if (!ip) return toast.error('กรุณาระบุ IP ก่อน')
+        setTesting(true)
+        try {
+            const res = await fetch('/api/print/raw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ip,
+                    port: 9100,
+                    station,
+                    tableName: 'ทดสอบ',
+                    orderNumber: 'TEST',
+                    items: [{ name: `ทดสอบพิมพ์ (${station === 'KITCHEN' ? 'ครัว' : 'บาร์'})`, quantity: 1 }],
+                    autoCut: true,
+                    copies: 1,
+                }),
+            })
+            const d = await res.json()
+            if (d.ok) toast.success(`✅ พิมพ์สำเร็จ (${d.bytes} bytes)`)
+            else toast.error(`❌ ${d.error}`)
+        } catch (e: any) { toast.error(`Error: ${e.message}`) }
+        finally { setTesting(false) }
+    }
+
+    const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 9, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(234,88,12,0.2)', background: 'rgba(234,88,12,0.02)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <h2 style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>🖨️</span> ระบบ Auto-Print กลาง (เซิร์ฟเวอร์)
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: cfg.autoPrintEnabled ? '#059669' : 'var(--text-muted)' }}>
+                        {cfg.autoPrintEnabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}
+                    </span>
+                    <Toggle val={cfg.autoPrintEnabled} onChange={v => setCfg(p => ({ ...p, autoPrintEnabled: v }))} />
+                </div>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>ตั้งค่า IP เครื่องปริ้นความร้อนเพื่อให้ออเดอร์วิ่งเข้าครัว/บาร์อัตโนมัติเมื่อกดสั่งอาหาร (อิงตามเซิร์ฟเวอร์หลัก)</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>🍳 IP เครื่องปริ้นครัว</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <input style={inp} placeholder="192.168.1.xxx" value={cfg.kitchenPrinterIp} onChange={e => setCfg(p => ({ ...p, kitchenPrinterIp: e.target.value }))} />
+                        <button onClick={() => testPrint('KITCHEN', cfg.kitchenPrinterIp)} disabled={testing} style={{ padding: '0 12px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontSize: '0.8rem' }}>ทดสอบ</button>
+                    </div>
+                </div>
+                <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>🍹 IP เครื่องปริ้นบาร์</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <input style={inp} placeholder="192.168.1.yyy" value={cfg.barPrinterIp} onChange={e => setCfg(p => ({ ...p, barPrinterIp: e.target.value }))} />
+                        <button onClick={() => testPrint('BAR', cfg.barPrinterIp)} disabled={testing} style={{ padding: '0 12px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontSize: '0.8rem' }}>ทดสอบ</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={save} disabled={saving} className="btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}>
+                    {saving ? '⏳...' : '💾 บันทึก IP เครื่องปริ้น'}
+                </button>
             </div>
         </div>
     )
@@ -2070,7 +2166,10 @@ export default function SettingsPage() {
                 {/* ── Notification Test ── */}
                 <NotificationTestCard />
 
-                {/* ── Printer Settings ── */}
+                {/* ── Server Auto Print ── */}
+                <ServerPrinterSettingsCard />
+
+                {/* ── Local Printer Settings (Legacy) ── */}
                 <PrinterSettingsCard />
 
 

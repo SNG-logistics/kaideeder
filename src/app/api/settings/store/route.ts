@@ -24,6 +24,9 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
             phone: true,
             address: true,
             closingHour: true,
+            kitchenPrinterIp: true,
+            barPrinterIp: true,
+            autoPrintEnabled: true,
         },
     })
     
@@ -44,6 +47,9 @@ const patchSchema = z.object({
     displayName: z.string().min(1).max(100).optional(),
     logoUrl: z.string().url().or(z.string().startsWith('/')).nullable().optional(),
     closingHour: z.number().int().min(0).max(12).optional(), // 0=midnight, 1-12 = business boundary hour
+    kitchenPrinterIp: z.string().nullable().optional(),
+    barPrinterIp: z.string().nullable().optional(),
+    autoPrintEnabled: z.boolean().optional(),
 })
 
 export const PATCH = withAuth(async (req: NextRequest, ctx) => {
@@ -56,6 +62,9 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
                 ...(body.displayName !== undefined && { displayName: body.displayName }),
                 ...(body.logoUrl !== undefined && { logoUrl: body.logoUrl }),
                 ...(body.closingHour !== undefined && { closingHour: body.closingHour }),
+                ...(body.kitchenPrinterIp !== undefined && { kitchenPrinterIp: body.kitchenPrinterIp }),
+                ...(body.barPrinterIp !== undefined && { barPrinterIp: body.barPrinterIp }),
+                ...(body.autoPrintEnabled !== undefined && { autoPrintEnabled: body.autoPrintEnabled }),
             },
             select: {
                 id: true,
@@ -68,6 +77,9 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
                 phone: true,
                 address: true,
                 closingHour: true,
+                kitchenPrinterIp: true,
+                barPrinterIp: true,
+                autoPrintEnabled: true,
             },
         })
         return ok(updated)

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
+import { getEventEmitter } from '@/lib/events'
 
 const statusSchema = z.object({
     status: z.enum(['ACCEPTED', 'COOKING', 'READY', 'SERVED']),
@@ -60,6 +61,9 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
                 statusChangedBy: { select: { name: true } },
             },
         })
+
+        const emitter = getEventEmitter()
+        emitter.emit('ORDERS_UPDATED', tenantId)
 
         return ok(updated)
     } catch (error) {

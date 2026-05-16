@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
 import { z } from 'zod'
+import { getEventEmitter } from '@/lib/events'
 
 function generateOrderNumber(): string {
     const now = new Date()
@@ -164,6 +165,60 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
                 where: { id: data.tableId },
                 data: { status: 'OCCUPIED' },
             })
+        }
+
+        const emitter = getEventEmitter()
+        emitter.emit('ORDERS_UPDATED', tenantId)
+        if (isDelivery) emitter.emit('DELIVERY_UPDATED', tenantId)
+
+        // --- Auto-Print Logic ---
+        if (!data.skipKitchen && itemsToCreate.length > 0) {
+            prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { autoPrintEnabled: true, kitchenPrinterIp: true, barPrinterIp: true }
+            }).then(tenant => {
+                if (!tenant?.autoPrintEnabled) return
+                
+                // Group items by station
+                const kitchenItems = order.items.filter(i => i.stationId === 'KITCHEN')
+                const barItems = order.items.filter(i => i.stationId === 'BAR')
+
+                const printUrl = new URL('/api/print/raw', req.url).toString()
+                
+                if (kitchenItems.length > 0 && tenant.kitchenPrinterIp) {
+                    fetch(printUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ip: tenant.kitchenPrinterIp,
+                            port: 9100,
+                            station: 'KITCHEN',
+                            tableName: order.table?.name || 'Takeaway',
+                            orderNumber: order.orderNumber,
+                            items: kitchenItems.map(i => ({ name: i.product.name, quantity: i.quantity, note: i.note })),
+                            autoCut: true,
+                            copies: 1
+                        })
+                    }).catch(err => console.error('[AutoPrint Kitchen Error]', err))
+                }
+
+                if (barItems.length > 0 && tenant.barPrinterIp) {
+                    fetch(printUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ip: tenant.barPrinterIp,
+                            port: 9100,
+                            station: 'BAR',
+                            tableName: order.table?.name || 'Takeaway',
+                            orderNumber: order.orderNumber,
+                            items: barItems.map(i => ({ name: i.product.name, quantity: i.quantity, note: i.note })),
+                            autoCut: true,
+                            copies: 1
+                        })
+                    }).catch(err => console.error('[AutoPrint Bar Error]', err))
+                }
+            }).catch(err => console.error('[AutoPrint Tenant Fetch Error]', err))
         }
 
         return ok(order)

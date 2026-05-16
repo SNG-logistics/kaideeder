@@ -33,7 +33,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
                 closedAt: { gte: startOfDay, lte: endOfDay },
             },
             include: {
-                items: { where: { isCancelled: false } },
+                items: { where: { isCancelled: false }, include: { product: true } },
                 payments: true,
                 table: true,
             },
@@ -116,6 +116,39 @@ export const GET = withAuth(async (req: NextRequest, context) => {
         itemCount: o.items.length,
     }))
 
+    // === Hourly Sales ===
+    const hourlySales: Record<string, number> = {}
+    // Pre-fill business hours (e.g., 08:00 to 22:00)
+    for (let i = 6; i <= 23; i++) {
+        hourlySales[i.toString().padStart(2, '0') + ':00'] = 0
+    }
+    for (const o of posOrders) {
+        if (o.closedAt) {
+            const thTime = new Date(o.closedAt.getTime() + 7 * 3600 * 1000)
+            const h = thTime.getUTCHours().toString().padStart(2, '0') + ':00'
+            hourlySales[h] = (hourlySales[h] || 0) + o.totalAmount
+        }
+    }
+    const hourlyChart = Object.entries(hourlySales)
+        .map(([time, total]) => ({ time, total }))
+        .sort((a, b) => a.time.localeCompare(b.time))
+
+    // === Top Items ===
+    const itemSales: Record<string, { qty: number, total: number }> = {}
+    for (const o of posOrders) {
+        for (const item of o.items) {
+            const name = item.product.name
+            const itemTotal = (item.unitPrice * item.quantity) + item.toppingsTotal
+            if (!itemSales[name]) itemSales[name] = { qty: 0, total: 0 }
+            itemSales[name].qty += item.quantity
+            itemSales[name].total += itemTotal
+        }
+    }
+    const topItems = Object.entries(itemSales)
+        .map(([name, stats]) => ({ name, qty: stats.qty, total: stats.total }))
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 5)
+
     // === Stock value ===
     const totalStockValue = stockValue.reduce((sum, inv) => sum + inv.quantity * inv.avgCost, 0)
     const stockByLocation = stockValue.reduce((acc, inv) => {
@@ -165,6 +198,8 @@ export const GET = withAuth(async (req: NextRequest, context) => {
             },
         },
         recentOrders,
+        hourlyChart,
+        topItems,
         stock: {
             total: totalStockValue,
             byLocation: stockByLocation,

@@ -41,7 +41,9 @@ model Tenant {
   paymentConfigJson String? @db.Text   // JSON config สำหรับ Payment Gateway เช่น PromptPay, Stripe
   timezone        String  @default("Asia/Vientiane")
   closingHour     Int     @default(0) // Business day boundary hour: 0=midnight, 2=2AM (orders before this belong to prev day)
-
+  kitchenPrinterIp String?
+  barPrinterIp     String?
+  autoPrintEnabled Boolean @default(false)
 
   // Store data relations
   users            User[]
@@ -786,6 +788,11 @@ model DiningTable {
   seats    Int         @default(4)
   status   TableStatus @default(AVAILABLE)
   isActive Boolean     @default(true)
+  posX     Int         @default(0)
+  posY     Int         @default(0)
+  width    Int         @default(80)
+  height   Int         @default(80)
+  shape    String      @default("square") // square, rectangle, circle
 
   tenant Tenant  @relation(fields: [tenantId], references: [id])
   orders Order[]
