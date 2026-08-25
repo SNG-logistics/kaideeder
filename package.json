@@ -46,6 +46,12 @@
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
+  "browserslist": [
+    "defaults",
+    "Android >= 5",
+    "ChromeAndroid >= 50",
+    "not dead"
+  ],
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
