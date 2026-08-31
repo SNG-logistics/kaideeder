@@ -11,20 +11,21 @@ const QR_EXPIRES = '8h'
  * Body: { locationId }
  * Returns: array of { sku, productName, token, qrUrl }
  */
-export const POST = withAuth(async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, context) => {
     try {
+        const { tenantId } = context
         const { locationId } = await req.json()
         if (!locationId) return err('กรุณาระบุ locationId')
 
-        const location = await prisma.location.findUnique({
-            where: { id: locationId },
+        const location = await prisma.location.findFirst({
+            where: { id: locationId, tenantId },
             select: { id: true, code: true, name: true }
         })
         if (!location) return err('ไม่พบ location')
 
         // หาสินค้าทั้งหมดใน location นี้
         const inventories = await prisma.inventory.findMany({
-            where: { locationId },
+            where: { tenantId, locationId },
             include: { product: { select: { id: true, sku: true, name: true, unit: true } } },
             orderBy: { product: { name: 'asc' } }
         })
@@ -35,6 +36,7 @@ export const POST = withAuth(async (req: NextRequest) => {
 
         const tokens = inventories.map(inv => {
             const payload = {
+                tenantId,
                 productId: inv.productId,
                 locationId: inv.locationId,
                 sku: inv.product.sku,

@@ -2246,6 +2246,21 @@ return (
                                     )
                                 })}
                             </div>
+                            {/* Refresh */}
+                            <button onClick={() => {
+                                fetch('/api/kitchen/queue?status=PENDING,ACCEPTED,COOKING,READY')
+                                    .then(r => r.json())
+                                    .then(d => {
+                                        if (d.success) {
+                                            setKitchenQueue(d.data.queue ?? [])
+                                            setSelectedKitchenOrder((prev: any) => d.data.queue?.find((o: any) => o.orderId === prev?.orderId) ?? d.data.queue?.[0] ?? null)
+                                        }
+                                    })
+                            }} style={{ marginLeft: 12, padding: '5px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                                🔄 รีเฟรช
+                            </button>
+                            <button onClick={() => setShowKitchenPopup(false)}
+                                style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}>✕</button>
                         </div>
 
                         {/* Right — items detail */}

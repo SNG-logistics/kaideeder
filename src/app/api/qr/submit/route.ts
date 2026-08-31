@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken'
 const QR_SECRET = process.env.JWT_SECRET + '_qr'
 
 interface QRPayload {
+    tenantId: string
     productId: string
     locationId: string
     sku: string
@@ -43,11 +44,11 @@ export async function POST(req: NextRequest) {
             return err('QR code หมดอายุหรือไม่ถูกต้อง กรุณาขอ Sheet ใหม่จาก Manager', 401)
         }
 
-        const { productId, locationId, productName, locationCode } = payload
+        const { tenantId, productId, locationId, productName, locationCode } = payload
 
         // อ่านสต็อคปัจจุบัน
-        const inv = await prisma.inventory.findFirst({
-            where: { productId, locationId }
+        const inv = await prisma.inventory.findUnique({
+            where: { tenantId_productId_locationId: { tenantId, productId, locationId } }
         })
         const systemQty = inv?.quantity || 0
         const diffQty = actualQty - systemQty
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
         const adjustment = await prisma.$transaction(async (tx) => {
             const adj = await tx.stockAdjustment.create({
                 data: {
+                    tenantId,
                     locationId,
                     status: 'APPROVED',
                     reason: 'QR Scan',
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
 
             await tx.adjustmentItem.create({
                 data: {
+                    tenantId,
                     adjustmentId: adj.id,
                     productId,
                     locationId,
@@ -77,15 +80,16 @@ export async function POST(req: NextRequest) {
 
             // อัปเดตสต็อค
             await tx.inventory.upsert({
-                where: { tenantId_productId_locationId: { tenantId: inv?.tenantId || '', productId, locationId } },
+                where: { tenantId_productId_locationId: { tenantId, productId, locationId } },
                 update: { quantity: actualQty },
-                create: { productId, locationId, quantity: actualQty, avgCost: 0 }
+                create: { tenantId, productId, locationId, quantity: actualQty, avgCost: 0 }
             })
 
             // Movement ถ้ามีส่วนต่าง
             if (diffQty !== 0) {
                 await tx.stockMovement.create({
                     data: {
+                        tenantId,
                         productId,
                         ...(diffQty > 0
                             ? { toLocationId: locationId }

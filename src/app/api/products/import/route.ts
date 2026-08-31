@@ -26,9 +26,9 @@ const FOOD_CATEGORIES = new Set([
     'FOOD_SEA', 'FOOD_VEG', 'FOOD_LAAB', 'SET',
 ])
 
-export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
+export const POST = withAuth<any>(async (req: NextRequest, context) => {
     try {
-        const { tenantId } = ctx
+        const { tenantId } = context
         const formData = await req.formData()
         const file = formData.get('file') as File | null
         if (!file) {
@@ -44,7 +44,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             return NextResponse.json({ success: false, error: 'ไฟล์ไม่มีข้อมูล' }, { status: 400 })
         }
 
-        const dbCategories = await prisma.category.findMany()
+        const dbCategories = await prisma.category.findMany({ where: { tenantId } })
         const catByCode = new Map(dbCategories.map(c => [c.code.toLowerCase(), c]))
         const catByName = new Map(dbCategories.map(c => [c.name.toLowerCase(), c]))
 
@@ -53,7 +53,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
             return catByCode.get(v) || catByName.get(v) || null
         }
 
-        const existing = await prisma.product.findMany({ select: { sku: true, name: true } })
+        const existing = await prisma.product.findMany({ where: { tenantId }, select: { sku: true, name: true } })
         const existingSkus = new Set(existing.map(p => p.sku))
         const existingNames = new Set(existing.map(p => p.name.toLowerCase()))
 
@@ -153,7 +153,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
                 let recipeCreated = false
                 if (FOOD_CATEGORIES.has(category.code)) {
                     const recipeExists = await prisma.recipe.findFirst({
-                        where: { menuName: name, isActive: true },
+                        where: { tenantId, menuName: name, isActive: true },
                     })
                     if (!recipeExists) {
                         await prisma.recipe.create({
