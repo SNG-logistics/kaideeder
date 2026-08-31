@@ -36,7 +36,7 @@ class SunmiPrinterManager(private val context: Context) {
         val printer = requirePrinter()
         printer.printerInit(null)
         printer.setAlignment(1, null)
-        printer.printTextWithFont("43 GARDEN\n", null, 36f, null)
+        printer.printTextWithFont("KAIDEEDER POS\n", null, 36f, null)
         printer.printText("SUNMI D2s Plus printer connected\n", null)
         printer.printText("ทดสอบภาษาไทย / ທົດສອບພາສາລາວ\n", null)
         printer.lineWrap(4, null)
@@ -51,7 +51,7 @@ class SunmiPrinterManager(private val context: Context) {
             printer.printerInit(null)
             printer.setAlignment(1, null)
             receipt.logoPngBase64?.let { printLogo(printer, it) }
-            printer.printTextWithFont("43 GARDEN\n", null, 38f, null)
+            printer.printTextWithFont("KAIDEEDER\n", null, 38f, null)
             printer.printText("ใบเสร็จรับเงิน / ໃບຮັບເງິນ\n", null)
             printer.setAlignment(0, null)
             printer.printText("เลขที่: ${receipt.receiptNo}\n", null)

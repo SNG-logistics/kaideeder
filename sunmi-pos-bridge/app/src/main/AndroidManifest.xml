@@ -4,13 +4,15 @@
 
     <application
         android:allowBackup="false"
-        android:label="43 Garden POS"
+        android:label="KAIDEEDER POS"
         android:usesCleartextTraffic="${usesCleartextTraffic}"
         android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="true">
+            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true"
+            android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
