@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KAIDEEDER POS</string>
+    <string name="offline_title">KAIDEEDER POS ไม่สามารถเชื่อมต่อได้</string>
+    <string name="offline_detail">ตรวจสอบ Wi-Fi หรืออินเทอร์เน็ต แล้วกดลองใหม่\nข้อมูลการชำระเงินจะไม่ถูกส่งซ้ำจากหน้านี้</string>
+    <string name="retry_connection">ลองเชื่อมต่อใหม่</string>
+</resources>
