@@ -1965,6 +1965,55 @@ function ImportProductsModal({ onClose }: { onClose: () => void }) {
     )
 }
 
+const ANDROID_POS_APK = {
+    href: '/downloads/kaideeder-pos-sunmi-v1.1.0-debug.apk',
+    version: '1.1.0-debug',
+    size: '3.12 MB',
+}
+
+function AndroidPosDownloadCard() {
+    return (
+        <div className="card" style={{ borderColor: 'rgba(22,163,74,0.3)', background: 'rgba(22,163,74,0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+                <div>
+                    <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>📱</span> KAIDEEDER POS สำหรับ SUNMI
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                        Android WebView Bridge สำหรับพิมพ์ใบเสร็จผ่านเครื่องพิมพ์ SUNMI ในตัว
+                    </p>
+                </div>
+                <span style={{ background: 'rgba(22,163,74,0.12)', color: '#15803D', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 999, padding: '0.3rem 0.7rem', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    SUNMI D2s Plus
+                </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', padding: '1rem', borderRadius: 12, border: '1px solid rgba(22,163,74,0.2)', background: 'var(--white)' }}>
+                <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.87rem', color: 'var(--text)', marginBottom: 4 }}>
+                        KAIDEEDER POS v{ANDROID_POS_APK.version}
+                    </div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.73rem' }}>
+                        Android 6.0 ขึ้นไป · ขนาด {ANDROID_POS_APK.size} · รองรับภาษาไทย/ลาว/อังกฤษ
+                    </div>
+                </div>
+                <a
+                    href={ANDROID_POS_APK.href}
+                    download="kaideeder-pos-sunmi-v1.1.0-debug.apk"
+                    aria-label="ดาวน์โหลด KAIDEEDER POS APK สำหรับ SUNMI"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 42, padding: '0.6rem 1.2rem', borderRadius: 10, background: '#16A34A', color: '#fff', fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(22,163,74,0.25)' }}
+                >
+                    ⬇️ ดาวน์โหลด APK
+                </a>
+            </div>
+
+            <p style={{ color: '#B45309', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 9, padding: '0.65rem 0.8rem', fontSize: '0.72rem', lineHeight: 1.55, margin: '12px 0 0' }}>
+                ⚠️ รุ่นนี้เป็น Debug APK สำหรับทดสอบหน้างาน อาจต้องอนุญาต “ติดตั้งแอปที่ไม่รู้จัก” บนเครื่องก่อนติดตั้ง
+            </p>
+        </div>
+    )
+}
+
 export default function SettingsPage() {
     useRoleGuard(['owner'])
     const [posConfig, setPosConfig] = useState<PosConfig>(defaultConfig)
@@ -2165,6 +2214,9 @@ export default function SettingsPage() {
 
                 {/* ── Notification Test ── */}
                 <NotificationTestCard />
+
+                {/* ── SUNMI Android POS APK ── */}
+                <AndroidPosDownloadCard />
 
                 {/* ── Server Auto Print ── */}
                 <ServerPrinterSettingsCard />
