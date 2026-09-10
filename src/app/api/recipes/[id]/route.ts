@@ -29,7 +29,7 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
         if (!existing) return err('ไม่พบสูตร', 404)
 
         const recipe = await prisma.$transaction(async (tx) => {
-            await tx.recipeBOM.deleteMany({ where: { recipeId: id } })
+            await tx.recipeBOM.deleteMany({ where: { tenantId, recipeId: id } })
 
             // อัปเดต recipe + สร้าง BOM ใหม่
             return tx.recipe.update({

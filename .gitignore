@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-/.pnp
+node_modules.*/
+.pnp
 .pnp.js
 
 # Next.js build output
@@ -16,6 +17,10 @@ build/
 *.pem
 .vercel
 *.log
+*.bak
+cached
+ts-error.txt
+tmp/
 tsconfig.tsbuildinfo
 
 # Environment variables (secrets — never commit these)

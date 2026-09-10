@@ -7,9 +7,9 @@ import { getAiConfig } from '@/lib/ai-config'
  * POST /api/ai/suggest-bom
  * Body: { menuName, clarification?, debug? }
  */
-export const POST = withAuth(async (req: NextRequest, ctx: any) => {
+export const POST = withAuth(async (req: NextRequest, context) => {
   try {
-    const { tenantId } = ctx
+    const { tenantId } = context
     const body = await req.json()
     const { menuName, clarification, debug } = body as { menuName?: string; clarification?: string; debug?: boolean }
     if (!menuName) return err('กรุณาระบุชื่อเมนู')
@@ -37,7 +37,7 @@ export const POST = withAuth(async (req: NextRequest, ctx: any) => {
     })
 
     const existingRecipes = await prisma.recipe.findMany({
-      take: 20,
+      take: 30,
       where: { tenantId, isActive: true },
       select: {
         menuName: true,

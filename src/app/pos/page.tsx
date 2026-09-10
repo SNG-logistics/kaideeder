@@ -6,7 +6,15 @@ import { useCurrency, useTenant } from '@/context/TenantContext'
 import NewOrderAlert from '@/components/NewOrderAlert'
 import { useNotification } from '@/components/NotificationContext'
 import { getPrinterSettings } from '@/lib/printerSettings'
-import { isNativePrinterAvailable, printKitchenTicketNative, printReceiptNative, receiptDataFromOrder, type ReceiptStoreInfo } from '@/lib/nativePrinter'
+import {
+    buildAndroidPOSReceiptPayload,
+    createReceiptRequestId,
+    isAndroidPOSApp,
+    printAndroidPOSReceipt,
+    reprintAndroidPOSReceipt,
+    type AndroidPOSReceiptPayload,
+    type AndroidPOSResult,
+} from '@/lib/android-pos'
 
 // ─── Types ───────────────────────────────────────────────────
 interface Category { id: string; code: string; name: string; icon: string | null; color: string | null }
@@ -14,8 +22,16 @@ interface Topping { id: string; name: string; price: number; isActive: boolean }
 interface Product { id: string; sku: string; name: string; salePrice: number; unit: string; categoryId: string; category?: Category; productType: string; imageUrl?: string; toppingsJson?: string | null }
 interface DiningTable { id: string; number: number; name: string; zone: string; seats: number; status: string; orders?: Order[]; posX?: number; posY?: number; width?: number; height?: number; shape?: string }
 interface OrderItemData { id?: string; productId: string; product?: Product; quantity: number; unitPrice: number; note?: string; isCancelled?: boolean; kitchenStatus?: string; toppingsJson?: string; toppingsTotal?: number }
-interface Order { id: string; orderNumber: string; tableId: string; table?: DiningTable; status: string; subtotal: number; discount: number; discountType: string; serviceCharge: number; vat: number; totalAmount: number; note?: string; items: OrderItemData[]; payments?: Payment[] }
+interface Order { id: string; orderNumber: string; tableId: string; table?: DiningTable; status: string; subtotal: number; discount: number; discountType: string; serviceCharge: number; vat: number; totalAmount: number; note?: string; openedAt?: string; closedAt?: string; items: OrderItemData[]; payments?: Payment[] }
 interface Payment { id: string; method: string; amount: number; receivedAmount: number; changeAmount: number }
+
+interface CloseResult {
+    changeAmount: number
+    orderId: string
+    stockWarnings?: string[]
+    receiptPayload?: AndroidPOSReceiptPayload
+    nativePrint?: AndroidPOSResult
+}
 
 // ─── Format LAK ──────────────────────────────────────────────
 function formatLAK(n: number): string {
@@ -53,13 +69,6 @@ function printKitchenTicket(opts: {
         note: i.note || undefined,
     }))
 
-    // ── 0. ปริ้นเตอร์ในตัวเครื่อง (Sunmi) ผ่าน bridge ของแอป APK ──
-    if (allSettings.nativePrinterEnabled && isNativePrinterAvailable()) {
-        printKitchenTicketNative({ station, tableName, orderNumber, items: printItems }, allSettings.nativePaperWidth)
-            .then(ok => { if (!ok) doBrowserPrint() })
-        return
-    }
-
     if (enabled && ip) {
         fetch('/api/print/raw', {
             method: 'POST',
@@ -83,6 +92,12 @@ function printKitchenTicket(opts: {
 
     // ── 2. Browser fallback ───────────────────────────────────
     function doBrowserPrint() {
+        // ในแอป KAIDEEDER POS (Android WebView) window.open จะ navigate หน้า POS ทิ้งแทนการเปิด popup
+        // และ window.print ไม่ทำงาน — slip ครัว/บาร์ ในแอปต้องพิมพ์ผ่านเครื่องพิมพ์ LAN (TCP) เท่านั้น
+        if (isAndroidPOSApp()) {
+            console.warn(`[print] ${station}: browser print is unavailable inside the Android POS app — set up a LAN printer in Settings`)
+            return
+        }
         const isBar = station === 'BAR'
         const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
         const bodyWidth = paperWidth === '58mm' ? '54mm' : '76mm'
@@ -164,11 +179,11 @@ function Toast({ message, type, onClose }: { message: string; type: 'error' | 's
 
 // ─── Main POS Component ─────────────────────────────────────
 export default function POSPage() {
-    const { fmt } = useCurrency();
+    const { fmt, currency } = useCurrency();
+    const { settings: tenantSettings } = useTenant()
 
     useRoleGuard(['owner', 'manager', 'cashier'])
     const branding = useStoreBranding()
-    const { settings: tenantSettings } = useTenant()
     const [tables, setTables] = useState<DiningTable[]>([])
     const [categories, setCategories] = useState<Category[]>([])
     const [products, setProducts] = useState<Product[]>([])
@@ -185,7 +200,8 @@ export default function POSPage() {
     const [discount, setDiscount] = useState(0)
     const [discountType, setDiscountType] = useState<string>('AMOUNT')
     const [paymentLoading, setPaymentLoading] = useState(false)
-    const [closeResult, setCloseResult] = useState<{ changeAmount: number; orderId?: string; stockWarnings?: string[] } | null>(null)
+    const [closeResult, setCloseResult] = useState<CloseResult | null>(null)
+    const [nativeReprintLoading, setNativeReprintLoading] = useState(false)
     const [isMobile, setIsMobile] = useState(false)
     const [isTablet, setIsTablet] = useState(false)
     const [showOrderPanel, setShowOrderPanel] = useState(true)
@@ -641,29 +657,48 @@ const confirmAndSaveOrder = async () => {
     }
 }
 
-// ─── Print receipt: in-device printer (Sunmi bridge) first, else the browser receipt page ──
+// ─── Store block shared by every AndroidPOS receipt payload ──────────────
+const receiptStoreInfo = (): AndroidPOSReceiptPayload['store'] => ({
+    name: branding.displayName || tenantSettings?.displayName || tenantSettings?.name || 'KAIDEEDER',
+    nameLao: tenantSettings?.storeNameLao || undefined,
+    phone: tenantSettings?.phone || undefined,
+    address: tenantSettings?.address || undefined,
+    taxId: tenantSettings?.taxId || undefined,
+    receiptHeader: tenantSettings?.receiptHeader || undefined,
+    logoUrl: branding.logoUrl || tenantSettings?.logoUrl || undefined,
+})
+
+// ─── Print a receipt for any order (pre-bill preview / history reprint) ──────
+// ในแอป KAIDEEDER POS (SUNMI): ส่งผ่าน window.AndroidPOS.reprintReceipt — ออกมาเป็น "สำเนา"
+// (ใบเสร็จต้นฉบับพิมพ์อัตโนมัติตอนชำระเงินใน confirmPayment แล้ว และ APK กันพิมพ์ต้นฉบับซ้ำ)
+// ในเบราว์เซอร์ปกติ: เปิดหน้า /receipt/[orderId] แล้วให้ browser print
 const printReceipt = async (orderId: string, preview: boolean) => {
-    const s = getPrinterSettings()
-    if (s.nativePrinterEnabled && isNativePrinterAvailable()) {
-        try {
-            const res = await fetch(`/api/pos/orders/${orderId}`)
-            const json = await res.json()
-            if (json.success) {
-                const store: ReceiptStoreInfo = {
-                    storeName: branding.displayName || tenantSettings?.name || 'ร้านอาหาร',
-                    storeNameLo: tenantSettings?.storeNameLao,
-                    phone: tenantSettings?.phone,
-                    header: tenantSettings?.receiptHeader,
-                    footer: (tenantSettings as { receiptFooter?: string | null } | null)?.receiptFooter,
-                }
-                if (await printReceiptNative(receiptDataFromOrder(json.data, store, fmt), s.nativePaperWidth)) return
-            }
-        } catch (e) {
-            console.warn('[print] native receipt failed:', e)
-        }
-        setToast({ message: 'พิมพ์ผ่านปริ้นเตอร์ในตัวไม่สำเร็จ — เปิดหน้าใบเสร็จแทน', type: 'warning' })
+    if (!isAndroidPOSApp()) {
+        window.open(`/receipt/${orderId}${preview ? '?preview=1' : ''}`, '_blank', 'width=380,height=700')
+        return
     }
-    window.open(`/receipt/${orderId}${preview ? '?preview=1' : ''}`, '_blank', 'width=380,height=700')
+    if (nativeReprintLoading) return
+    setNativeReprintLoading(true)
+    try {
+        const res = await fetch(`/api/pos/orders/${orderId}`)
+        const json = await res.json()
+        if (!json.success) {
+            setToast({ message: json.error || 'โหลดออเดอร์ไม่สำเร็จ', type: 'error' })
+            return
+        }
+        const payload = buildAndroidPOSReceiptPayload(json.data, receiptStoreInfo(), currency, {
+            cutPaper: getPrinterSettings().receiptPrinter.autoCut,
+        })
+        const result = reprintAndroidPOSReceipt(payload)
+        setToast(result.ok
+            ? { message: preview ? 'ส่งใบแจ้งยอด (สำเนา) ไปยังเครื่องพิมพ์ SUNMI แล้ว' : 'ส่งใบเสร็จ (สำเนา) ไปยังเครื่องพิมพ์ SUNMI แล้ว', type: 'success' }
+            : { message: `พิมพ์ไม่สำเร็จ (${result.code})`, type: 'warning' })
+    } catch (e) {
+        console.warn('[print] AndroidPOS reprint failed:', e)
+        setToast({ message: 'ไม่สามารถส่งงานพิมพ์ไปยังเครื่องพิมพ์ SUNMI ได้', type: 'warning' })
+    } finally {
+        setNativeReprintLoading(false)
+    }
 }
 
 // ─── Close Bill ───────────────────────────────────────────
@@ -743,12 +778,73 @@ const confirmPayment = async () => {
         }
         const json = await res.json()
         if (json.success) {
+            const closedOrder = json.data.order as Order
+            const confirmedSubtotal = Number(closedOrder.subtotal || 0)
+            const confirmedDiscount = closedOrder.discountType === 'PERCENT'
+                ? confirmedSubtotal * (Number(closedOrder.discount || 0) / 100)
+                : Number(closedOrder.discount || 0)
+            const receiptPrinter = getPrinterSettings().receiptPrinter
+            const receiptPayload: AndroidPOSReceiptPayload = {
+                schemaVersion: 1,
+                requestId: createReceiptRequestId(orderId, 'ORIGINAL'),
+                receiptType: 'ORIGINAL',
+                orderId,
+                receiptNo: closedOrder.orderNumber,
+                saleDateTime: closedOrder.closedAt || new Date().toISOString(),
+                store: receiptStoreInfo(),
+                items: closedOrder.items
+                    .filter(item => !item.isCancelled)
+                    .map(item => ({
+                        name: item.product?.name || item.productId,
+                        quantity: Number(item.quantity),
+                        unitPrice: Number(item.unitPrice),
+                        total: Number(item.quantity) * Number(item.unitPrice),
+                        note: item.note || undefined,
+                    })),
+                subtotal: confirmedSubtotal,
+                discount: confirmedDiscount,
+                serviceCharge: Number(closedOrder.serviceCharge || 0),
+                vat: Number(closedOrder.vat || 0),
+                grandTotal: Number(closedOrder.totalAmount || 0),
+                currency,
+                payment: {
+                    method: paymentMethod,
+                    receivedAmount: received,
+                    changeAmount: Number(json.data.changeAmount || 0),
+                },
+                options: {
+                    // Android PosSettings is the final gate; reprints always force this false.
+                    openCashDrawer: paymentMethod === 'CASH',
+                    cutPaper: receiptPrinter.autoCut,
+                },
+            }
+
+            let nativePrint: AndroidPOSResult | undefined
+            if (isAndroidPOSApp()) {
+                try {
+                    nativePrint = printAndroidPOSReceipt(receiptPayload)
+                    setToast(nativePrint.ok
+                        ? { message: 'ส่งใบเสร็จไปยังเครื่องพิมพ์ SUNMI แล้ว', type: 'success' }
+                        : { message: `ชำระเงินสำเร็จ แต่พิมพ์ใบเสร็จไม่สำเร็จ (${nativePrint.code})`, type: 'warning' })
+                } catch (printError) {
+                    nativePrint = {
+                        ok: false,
+                        code: 'BRIDGE_ERROR',
+                        message: printError instanceof Error ? printError.message : 'AndroidPOS bridge error',
+                    }
+                    setToast({ message: 'ชำระเงินสำเร็จ แต่ไม่สามารถส่งใบเสร็จไปยัง SUNMI ได้', type: 'warning' })
+                }
+            }
+
             setCloseResult({
                 changeAmount: json.data.changeAmount,
-                orderId: orderId,
+                orderId,
                 stockWarnings: json.data.stockWarnings,
+                receiptPayload,
+                nativePrint,
             })
-            if (getPrinterSettings().autoReceipt) printReceipt(orderId, false)
+            // ในแอป SUNMI ต้นฉบับถูกส่งพิมพ์ด้านบนแล้ว — auto-receipt ใช้เฉพาะเบราว์เซอร์
+            if (!isAndroidPOSApp() && getPrinterSettings().autoReceipt) printReceipt(orderId, false)
         } else {
             setToast({ message: json.error || 'ปิดบิลไม่สำเร็จ', type: 'error' })
         }
@@ -757,6 +853,28 @@ const confirmPayment = async () => {
         setToast({ message: 'เกิดข้อผิดพลาดในการปิดบิล', type: 'error' })
     } finally {
         setPaymentLoading(false)
+    }
+}
+
+const printClosedReceipt = () => {
+    if (!closeResult?.orderId) return
+
+    if (!isAndroidPOSApp() || !closeResult.receiptPayload) {
+        window.open(`/receipt/${closeResult.orderId}`, '_blank', 'width=350,height=700')
+        return
+    }
+
+    if (nativeReprintLoading) return
+    setNativeReprintLoading(true)
+    try {
+        const result = reprintAndroidPOSReceipt(closeResult.receiptPayload)
+        setToast(result.ok
+            ? { message: 'ส่งคำขอพิมพ์ใบเสร็จซ้ำแล้ว', type: 'success' }
+            : { message: `พิมพ์ใบเสร็จซ้ำไม่สำเร็จ (${result.code})`, type: 'warning' })
+    } catch {
+        setToast({ message: 'ไม่สามารถส่งคำขอพิมพ์ใบเสร็จซ้ำไปยัง SUNMI ได้', type: 'warning' })
+    } finally {
+        setNativeReprintLoading(false)
     }
 }
 
@@ -773,6 +891,7 @@ const resetAfterClose = () => {
     setReceivedAmount('')
     setOrderStartTime(null)
     setNoKitchen(false)
+    setNativeReprintLoading(false)
     setSelectedTable(null)
     fetchTables()
 }
@@ -1956,10 +2075,17 @@ return (
                                     {closeResult.stockWarnings.map((w, i) => <div key={i} style={{ fontSize: '0.75rem', color: '#92400E', marginBottom: 2 }}>{w}</div>)}
                                 </div>
                             )}
+                            {closeResult.nativePrint && !closeResult.nativePrint.ok && (
+                                <div style={{ background: '#FFFBEB', borderRadius: 10, padding: '0.75rem', marginBottom: 12, textAlign: 'left', border: '1px solid #FDE68A', color: '#92400E', fontSize: '0.78rem' }}>
+                                    ชำระเงินและตัดสต็อกสำเร็จแล้ว แต่เครื่องพิมพ์ยังไม่รับงาน ({closeResult.nativePrint.code})
+                                </div>
+                            )}
                             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                                <button onClick={() => { if (closeResult.orderId) printReceipt(closeResult.orderId, false) }}
+                                <button onClick={printClosedReceipt} disabled={nativeReprintLoading}
                                     style={{ flex: 1, padding: '0.75rem', borderRadius: 10, border: '2px solid #2563EB', background: '#EFF6FF', color: '#2563EB', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, fontFamily: 'inherit', minHeight: 48 }}>
-                                    🖨️ พิมพ์บิล
+                                    {nativeReprintLoading
+                                        ? '⏳ กำลังส่งพิมพ์...'
+                                        : isAndroidPOSApp() ? '🖨️ พิมพ์ใบเสร็จซ้ำ' : '🖨️ พิมพ์บิล'}
                                 </button>
                                 <button onClick={resetAfterClose} style={{ flex: 1, padding: '0.75rem', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #E8364E, #FF6B81)', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(232,54,78,0.3)', minHeight: 48 }}>
                                     ✨ ออเดอร์ใหม่
@@ -2019,7 +2145,9 @@ return (
                             )}
                             <button onClick={confirmPayment} disabled={paymentLoading || (paymentMethod === 'CASH' && parseFloat(receivedAmount || '0') < totalAmount)}
                                 style={{ width: '100%', padding: '0.8rem', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #059669, #10B981)', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(5,150,105,0.3)', opacity: paymentLoading ? 0.6 : 1, minHeight: 48 }}>
-                                {paymentLoading ? '⏳ กำลังปิดบิล...' : '✅ ยืนยันการชำระเงิน'}
+                                {paymentLoading
+                                    ? '⏳ กำลังปิดบิล...'
+                                    : isAndroidPOSApp() ? '✅ ชำระเงินและพิมพ์ใบเสร็จ' : '✅ ยืนยันการชำระเงิน'}
                             </button>
                         </>
                     )}
@@ -2267,6 +2395,21 @@ return (
                                     )
                                 })}
                             </div>
+                            {/* Refresh */}
+                            <button onClick={() => {
+                                fetch('/api/kitchen/queue?status=PENDING,ACCEPTED,COOKING,READY')
+                                    .then(r => r.json())
+                                    .then(d => {
+                                        if (d.success) {
+                                            setKitchenQueue(d.data.queue ?? [])
+                                            setSelectedKitchenOrder((prev: any) => d.data.queue?.find((o: any) => o.orderId === prev?.orderId) ?? d.data.queue?.[0] ?? null)
+                                        }
+                                    })
+                            }} style={{ marginLeft: 12, padding: '5px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                                🔄 รีเฟรช
+                            </button>
+                            <button onClick={() => setShowKitchenPopup(false)}
+                                style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}>✕</button>
                         </div>
 
                         {/* Right — items detail */}

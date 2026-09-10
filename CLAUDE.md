@@ -190,14 +190,19 @@ first when working on any domain area, it's the map of the whole system:
   instead of `inset`, and `100vh` (with a `100dvh` override in `globals.css`) instead of bare
   `dvh`. Runtime APIs newer than ES2019 (`replaceAll`, `Array.at`, `structuredClone`) are not
   polyfilled either.
-- **Printing**: three paths, tried in this order — (1) the device's own printer through the APK's
-  JS bridge (`window.SunmiPrinter`, wrapped by `src/lib/nativePrinter.ts`, which renders the
-  ticket/receipt to a canvas PNG so Lao/Thai text prints correctly; Android side documented in
-  `docs/SUNMI_PRINTER.md`), (2) server-side TCP ESC/POS to a LAN thermal printer
-  (`/api/print/raw`), (3) browser `window.print()` via the `/receipt/[orderId]` page or a popup.
-  Printer settings are per-device in localStorage (`src/lib/printerSettings.ts`), not per-tenant.
-  `window.open`/`window.print` do nothing inside a plain WebView, so the bridge path is the only
-  one that works in the APK.
+- **Printing**: three paths — (1) inside the KAIDEEDER POS APK (`kaideeder-pos-android/`,
+  shipped at `public/downloads/`), the SUNMI in-device printer through the `window.AndroidPOS`
+  JS bridge, wrapped exclusively by `src/lib/android-pos.ts` (`isAndroidPOSApp`,
+  `printAndroidPOSReceipt` for the dedup-guarded original at payment time,
+  `reprintAndroidPOSReceipt`/`buildAndroidPOSReceiptPayload` for history, `/receipt` and pre-bill
+  reprints — the APK renders the receipt bitmap itself, see `ReceiptFormatter.kt`); the bridge
+  only knows receipts, so kitchen/bar slips in the APK need path 2. (2) Server-side TCP ESC/POS to
+  a LAN thermal printer (`/api/print/raw`). (3) Browser `window.print()` via the
+  `/receipt/[orderId]` page or a popup. Printer settings are per-device in localStorage
+  (`src/lib/printerSettings.ts`), not per-tenant. The APK's WebView has multiple windows disabled,
+  so `window.open` navigates the POS page away and `window.print` is a no-op — always branch on
+  `isAndroidPOSApp()` before using either in POS-facing code. Operator guide (Thai) and status
+  codes: `docs/SUNMI_PRINTER.md`; Android build/ADB: `README_ANDROID_POS.md`.
 
 ## Deployment
 

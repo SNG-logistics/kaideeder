@@ -114,8 +114,8 @@ const SKU_PREFIX: Record<string, string> = {
 }
 
 /** Build per-prefix counter from existing SKUs in DB */
-async function buildSkuCounters(): Promise<Record<string, number>> {
-    const products = await prisma.product.findMany({ select: { sku: true } })
+async function buildSkuCounters(tenantId: string): Promise<Record<string, number>> {
+    const products = await prisma.product.findMany({ where: { tenantId }, select: { sku: true } })
     const counters: Record<string, number> = {}
     for (const { sku } of products) {
         const match = sku.match(/^([A-Z]{2})(\d+)$/)
@@ -136,9 +136,9 @@ function nextSku(prefix: string, counters: Record<string, number>): string {
 // ─── API Handler ─────────────────────────────────────────────────────────────
 // POST /api/system/import-products — OWNER only
 // Form: file (xlsx/xls), mode = 'upsert' | 'clear_reimport'
-export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
+export const POST = withAuth<any>(async (req: NextRequest, context) => {
     try {
-        const { tenantId } = ctx
+        const { tenantId } = context
         const formData = await req.formData()
         const file = formData.get('file') as File | null
         const mode = (formData.get('mode') as string) || 'upsert'
@@ -149,28 +149,28 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
         const wb = XLSX.read(buf, { type: 'buffer' })
 
         // Load categories from DB
-        const cats = await prisma.category.findMany()
+        const cats = await prisma.category.findMany({ where: { tenantId } })
         const catMap = Object.fromEntries(cats.map(c => [c.code, c]))
 
         // ── CLEAR mode ────────────────────────────────────────────────
         let cleared = 0
         if (mode === 'clear_reimport') {
             await prisma.$transaction([
-                prisma.recipeBOM.deleteMany({}),
-                prisma.inventory.deleteMany({}),
-                prisma.purchaseItem.deleteMany({}),
-                prisma.purchaseOrder.deleteMany({}),
-                prisma.transferItem.deleteMany({}),
-                prisma.stockTransfer.deleteMany({}),
-                prisma.adjustmentItem.deleteMany({}),
-                prisma.stockAdjustment.deleteMany({}),
+                prisma.recipeBOM.deleteMany({ where: { tenantId } }),
+                prisma.inventory.deleteMany({ where: { tenantId } }),
+                prisma.purchaseItem.deleteMany({ where: { tenantId } }),
+                prisma.purchaseOrder.deleteMany({ where: { tenantId } }),
+                prisma.transferItem.deleteMany({ where: { tenantId } }),
+                prisma.stockTransfer.deleteMany({ where: { tenantId } }),
+                prisma.adjustmentItem.deleteMany({ where: { tenantId } }),
+                prisma.stockAdjustment.deleteMany({ where: { tenantId } }),
             ])
-            const del = await prisma.product.deleteMany({})
+            const del = await prisma.product.deleteMany({ where: { tenantId } })
             cleared = del.count
         }
 
         // ── Build SKU counters from current DB ────────────────────────
-        const skuCounters = await buildSkuCounters()
+        const skuCounters = await buildSkuCounters(tenantId)
         const unknownNames: string[] = []
 
         // ── Import from Excel ────────────────────────────────────────
@@ -241,7 +241,7 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
                 const productType = isRaw ? 'RAW_MATERIAL' : 'SALE_ITEM'
 
                 try {
-                    const existing = await prisma.product.findFirst({ where: { sku: finalSku } })
+                    const existing = await prisma.product.findFirst({ where: { tenantId, sku: finalSku } })
                     if (existing) {
                         await prisma.product.update({
                             where: { id: existing.id },
@@ -254,22 +254,14 @@ export const POST = withAuth<any>(async (req: NextRequest, ctx: any) => {
                         })
                         // Opening stock
                         if (qty > 0) {
-                            const loc = await prisma.location.findFirst({ where: { code: locationCode } })
-                                ?? await prisma.location.findFirst({ where: { code: 'WH_MAIN' } })
+                            const loc = await prisma.location.findFirst({ where: { tenantId, code: locationCode } })
+                                ?? await prisma.location.findFirst({ where: { tenantId, code: 'WH_MAIN' } })
                             if (loc) {
-                                const existingInv = await prisma.inventory.findFirst({
-                                    where: { productId: product.id, locationId: loc.id }
+                                await prisma.inventory.upsert({
+                                    where: { tenantId_productId_locationId: { tenantId, productId: product.id, locationId: loc.id } },
+                                    update: { quantity: qty, avgCost: costPrice },
+                                    create: { tenantId, productId: product.id, locationId: loc.id, quantity: qty, avgCost: costPrice }
                                 })
-                                if (existingInv) {
-                                    await prisma.inventory.update({
-                                        where: { id: existingInv.id },
-                                        data: { quantity: qty, avgCost: costPrice }
-                                    })
-                                } else {
-                                    await prisma.inventory.create({
-                                        data: { tenantId, productId: product.id, locationId: loc.id, quantity: qty, avgCost: costPrice }
-                                    })
-                                }
                             }
                         }
                         created++

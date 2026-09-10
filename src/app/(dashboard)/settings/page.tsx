@@ -7,7 +7,7 @@ import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBrand
 import QRCode from 'qrcode'
 import { useTenant } from '@/context/TenantContext'
 import { getPrinterSettings, setPrinterSettings, setStationPrinter, type PrinterSettings, type StationPrinterConfig } from '@/lib/printerSettings'
-import { getNativePrinter, isNativePrinterAvailable, printLinesNative } from '@/lib/nativePrinter'
+import { getAndroidPOSPrinterStatus, isAndroidPOSApp, testAndroidPOSPrint, type AndroidPOSResult } from '@/lib/android-pos'
 
 const LOCATION_TYPE_LABELS: Record<string, string> = {
     MAIN_WAREHOUSE: '🏪 คลังหลัก',
@@ -1301,87 +1301,78 @@ function NotificationTestCard() {
     )
 }
 
-// ─── In-device printer card (Sunmi inner printer via the APK's JS bridge) ─────────────
-function NativePrinterCard() {
-    const [s, setS] = useState<PrinterSettings | null>(null)
-    const [bridge, setBridge] = useState<'ready' | 'not-ready' | 'missing'>('missing')
-    const [testing, setTesting] = useState(false)
+// ─── SUNMI in-device printer (window.AndroidPOS — only present inside the KAIDEEDER POS APK) ──
+function AndroidPosPrinterCard() {
+    const [inApp, setInApp] = useState(false)
+    const [status, setStatus] = useState<AndroidPOSResult | null>(null)
+    const [busy, setBusy] = useState(false)
+
+    const refreshStatus = useCallback(() => {
+        try {
+            setStatus(getAndroidPOSPrinterStatus())
+        } catch (e) {
+            setStatus({ ok: false, code: 'BRIDGE_ERROR', message: e instanceof Error ? e.message : 'AndroidPOS bridge error' })
+        }
+    }, [])
 
     useEffect(() => {
-        setS(getPrinterSettings())
-        setBridge(getNativePrinter() ? (isNativePrinterAvailable() ? 'ready' : 'not-ready') : 'missing')
-    }, [])
-    if (!s) return null
+        const available = isAndroidPOSApp()
+        setInApp(available)
+        if (available) refreshStatus()
+    }, [refreshStatus])
 
-    function update(patch: Partial<PrinterSettings>) {
-        setS(setPrinterSettings(patch))
+    function testPrint() {
+        setBusy(true)
+        try {
+            const result = testAndroidPOSPrint()
+            if (result.ok) toast.success('✅ ส่งหน้าทดสอบไปยังเครื่องพิมพ์ SUNMI แล้ว — ตรวจดูว่ากระดาษออกและอ่านภาษาไทย/ลาวได้')
+            else toast.error(`❌ ทดสอบพิมพ์ไม่สำเร็จ (${result.code}) ${result.message}`)
+        } catch {
+            toast.error('❌ เรียก bridge ของแอปไม่สำเร็จ — ลองปิดแล้วเปิดแอปใหม่')
+        } finally {
+            setBusy(false)
+            refreshStatus()
+        }
     }
 
-    async function testPrint() {
-        if (!s) return
-        setTesting(true)
-        const ok = await printLinesNative([
-            { text: 'KAIDEEDER POS', size: 'xl', bold: true, align: 'center' },
-            { text: 'ทดสอบปริ้นเตอร์ในตัว · ທົດສອບເຄື່ອງພິມ', size: 'md', align: 'center' },
-            { divider: 'dashed' },
-            { text: 'กระดาษ', right: s.nativePaperWidth, size: 'md' },
-            { text: 'เวลา', right: new Date().toLocaleTimeString('th-TH'), size: 'md' },
-            { divider: 'dashed' },
-            { text: 'ພິມສຳເລັດ · พิมพ์สำเร็จ', size: 'lg', bold: true, align: 'center' },
-        ], s.nativePaperWidth)
-        setTesting(false)
-        if (ok) toast.success('✅ ส่งคำสั่งพิมพ์ไปที่ปริ้นเตอร์ในตัวแล้ว')
-        else toast.error('❌ ไม่พบ bridge ของแอป — ต้องเปิดผ่านแอป KAIDEEDER APK (ดู docs/SUNMI_PRINTER.md)')
-    }
+    const statusLine = !inApp
+        ? { color: 'var(--text-muted)', text: '⚠️ หน้านี้ไม่ได้เปิดจากแอป KAIDEEDER POS — เครื่องนี้จะพิมพ์ผ่านเครื่องพิมพ์ LAN (TCP) หรือ browser แทน' }
+        : !status
+            ? { color: 'var(--text-muted)', text: '⏳ กำลังตรวจสอบเครื่องพิมพ์...' }
+            : status.ok && status.code === 'READY'
+                ? { color: '#059669', text: '✅ เครื่องพิมพ์ในตัว SUNMI พร้อมใช้งาน (READY)' }
+                : { color: '#D97706', text: `⚠️ เครื่องพิมพ์ยังไม่พร้อม: ${status.code}${status.message ? ` — ${status.message}` : ''}` }
 
-    const status = bridge === 'ready'
-        ? { color: '#059669', text: '✅ พบ bridge ในแอป — พร้อมพิมพ์' }
-        : bridge === 'not-ready'
-            ? { color: '#D97706', text: '⏳ พบ bridge แต่ printer service ของเครื่องยังไม่พร้อม (ลองรีสตาร์ทแอป)' }
-            : { color: 'var(--text-muted)', text: '⚠️ ไม่พบ bridge — หน้านี้ไม่ได้เปิดจากแอป APK ที่ฝัง SunmiPrinter (จะใช้ TCP / Browser print แทน)' }
-
-    const rowStyle: React.CSSProperties = {
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '11px 14px', background: 'var(--white)', borderRadius: 10,
-        border: '1px solid var(--border)',
-    }
-    const labelStyle: React.CSSProperties = { fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }
-    const subStyle: React.CSSProperties = { fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }
+    const btn = (enabled: boolean, bg: string): React.CSSProperties => ({
+        flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none', minHeight: 42,
+        background: enabled ? bg : 'var(--border)', color: enabled ? '#fff' : 'var(--text-muted)',
+        cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 700,
+    })
 
     return (
         <div className="card" style={{ borderColor: 'rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.02)' }}>
             <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>📱</span> ปริ้นเตอร์ในตัวเครื่อง (Sunmi / แอป APK)
+                <span>🖨️</span> เครื่องพิมพ์ในตัว SUNMI
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 8 }}>
-                พิมพ์ slip ครัว/บาร์ และใบเสร็จผ่านปริ้นเตอร์ในตัวของแท็บเล็ต Sunmi โดยไม่ต้องตั้ง IP —
-                ใช้ได้เมื่อเปิดผ่านแอป KAIDEEDER APK ที่ฝัง bridge (วิธีทำอยู่ใน <code>docs/SUNMI_PRINTER.md</code>)
+                ใช้ได้เมื่อเปิดหน้าขายผ่านแอป KAIDEEDER POS (APK ด้านบน) — ไม่ต้องตั้ง IP
+                ใบเสร็จจะพิมพ์อัตโนมัติเมื่อกดชำระเงิน และพิมพ์ซ้ำได้จากหน้าขาย/ประวัติออเดอร์
             </p>
-            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: status.color, marginBottom: 12 }}>{status.text}</div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: statusLine.color, marginBottom: 12 }}>{statusLine.text}</div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>ใช้ปริ้นเตอร์ในตัวก่อนเสมอ</div>
-                        <div style={subStyle}>ถ้ามี bridge จะพิมพ์ที่เครื่องนี้ก่อน แล้วค่อย fallback เป็น TCP / Browser</div>
-                    </div>
-                    <Toggle val={s.nativePrinterEnabled} onChange={v => update({ nativePrinterEnabled: v })} />
-                </div>
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>ความกว้างกระดาษ</div>
-                        <div style={subStyle}>D2s / D2 / T2 = 80mm · V2 / V2s / V3 = 58mm</div>
-                    </div>
-                    <select value={s.nativePaperWidth} onChange={e => update({ nativePaperWidth: e.target.value as '80mm' | '58mm' })}
-                        style={{ padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', fontSize: '0.85rem' }}>
-                        <option value="80mm">80mm</option>
-                        <option value="58mm">58mm</option>
-                    </select>
-                </div>
-                <button onClick={testPrint} disabled={testing || bridge === 'missing'}
-                    style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: bridge === 'missing' ? 'var(--border)' : '#059669', color: bridge === 'missing' ? 'var(--text-muted)' : '#fff', cursor: bridge === 'missing' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 700 }}>
-                    {testing ? '⏳ กำลังพิมพ์...' : '🖨️ ทดสอบพิมพ์ปริ้นเตอร์ในตัว'}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button onClick={refreshStatus} disabled={!inApp} style={btn(inApp, '#2563EB')}>
+                    🔄 ตรวจสอบสถานะ
                 </button>
+                <button onClick={testPrint} disabled={!inApp || busy} style={btn(inApp && !busy, '#059669')}>
+                    {busy ? '⏳ กำลังพิมพ์...' : '🖨️ ทดสอบพิมพ์'}
+                </button>
+            </div>
+
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+                <div>• ใบเสร็จลูกค้า → เครื่องพิมพ์ในตัว SUNMI (อัตโนมัติ)</div>
+                <div>• slip ครัว / บาร์ → ต้องตั้งค่าเครื่องพิมพ์ LAN ของครัว/บาร์ด้านล่าง (แอปไม่มี browser print)</div>
+                <div>• ถ้าสถานะไม่ใช่ READY: เช็คกระดาษ ปิดฝาเครื่องพิมพ์ แล้วกด “ตรวจสอบสถานะ” อีกครั้ง — รายละเอียดใน <code>docs/SUNMI_PRINTER.md</code></div>
             </div>
         </div>
     )
@@ -2052,6 +2043,55 @@ function ImportProductsModal({ onClose }: { onClose: () => void }) {
     )
 }
 
+const ANDROID_POS_APK = {
+    href: '/downloads/kaideeder-pos-sunmi-v1.1.0-debug.apk',
+    version: '1.1.0-debug',
+    size: '3.12 MB',
+}
+
+function AndroidPosDownloadCard() {
+    return (
+        <div className="card" style={{ borderColor: 'rgba(22,163,74,0.3)', background: 'rgba(22,163,74,0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+                <div>
+                    <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>📱</span> KAIDEEDER POS สำหรับ SUNMI
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                        Android WebView Bridge สำหรับพิมพ์ใบเสร็จผ่านเครื่องพิมพ์ SUNMI ในตัว
+                    </p>
+                </div>
+                <span style={{ background: 'rgba(22,163,74,0.12)', color: '#15803D', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 999, padding: '0.3rem 0.7rem', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    SUNMI D2s Plus
+                </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', padding: '1rem', borderRadius: 12, border: '1px solid rgba(22,163,74,0.2)', background: 'var(--white)' }}>
+                <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.87rem', color: 'var(--text)', marginBottom: 4 }}>
+                        KAIDEEDER POS v{ANDROID_POS_APK.version}
+                    </div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.73rem' }}>
+                        Android 6.0 ขึ้นไป · ขนาด {ANDROID_POS_APK.size} · รองรับภาษาไทย/ลาว/อังกฤษ
+                    </div>
+                </div>
+                <a
+                    href={ANDROID_POS_APK.href}
+                    download="kaideeder-pos-sunmi-v1.1.0-debug.apk"
+                    aria-label="ดาวน์โหลด KAIDEEDER POS APK สำหรับ SUNMI"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 42, padding: '0.6rem 1.2rem', borderRadius: 10, background: '#16A34A', color: '#fff', fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(22,163,74,0.25)' }}
+                >
+                    ⬇️ ดาวน์โหลด APK
+                </a>
+            </div>
+
+            <p style={{ color: '#B45309', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 9, padding: '0.65rem 0.8rem', fontSize: '0.72rem', lineHeight: 1.55, margin: '12px 0 0' }}>
+                ⚠️ รุ่นนี้เป็น Debug APK สำหรับทดสอบหน้างาน อาจต้องอนุญาต “ติดตั้งแอปที่ไม่รู้จัก” บนเครื่องก่อนติดตั้ง
+            </p>
+        </div>
+    )
+}
+
 export default function SettingsPage() {
     useRoleGuard(['owner'])
     const [posConfig, setPosConfig] = useState<PosConfig>(defaultConfig)
@@ -2253,8 +2293,11 @@ export default function SettingsPage() {
                 {/* ── Notification Test ── */}
                 <NotificationTestCard />
 
-                {/* ── In-device printer (Sunmi / APK bridge) ── */}
-                <NativePrinterCard />
+                {/* ── SUNMI Android POS APK ── */}
+                <AndroidPosDownloadCard />
+
+                {/* ── SUNMI in-device printer status / test print ── */}
+                <AndroidPosPrinterCard />
 
                 {/* ── Auto-print toggles (kitchen / bar / receipt) ── */}
                 <AutoPrintCard />
