@@ -242,7 +242,7 @@ export default function TableManagerPanel({ onClose }: { onClose: () => void }) 
 
     return (
         <div style={{
-            position: 'fixed', inset: 0, zIndex: 800,
+            position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 800,
             display: 'flex', alignItems: 'stretch',
         }}>
             {/* Backdrop */}

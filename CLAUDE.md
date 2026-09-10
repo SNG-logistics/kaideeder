@@ -183,6 +183,22 @@ first when working on any domain area, it's the map of the whole system:
   `src/lib/ai-config.ts`; used by the AI chat assistant (`/ai-chat`, `src/app/api/ai/chat`) and
   the inventory catalog's item classifier (`src/lib/inventory/ai-classifier.ts`).
 
+- **Old Android WebView compat (POS terminals)**: the POS runs inside a WebView APK on GMS-less
+  Sunmi terminals whose Chromium can be ~83 and never updates. In POS-facing code
+  (`src/app/pos/**`, `src/app/receipt/**`, shared components they render) avoid post-2020 CSS in
+  React inline styles — they bypass autoprefixer entirely. Concretely: `top/right/bottom/left`
+  instead of `inset`, and `100vh` (with a `100dvh` override in `globals.css`) instead of bare
+  `dvh`. Runtime APIs newer than ES2019 (`replaceAll`, `Array.at`, `structuredClone`) are not
+  polyfilled either.
+- **Printing**: three paths, tried in this order — (1) the device's own printer through the APK's
+  JS bridge (`window.SunmiPrinter`, wrapped by `src/lib/nativePrinter.ts`, which renders the
+  ticket/receipt to a canvas PNG so Lao/Thai text prints correctly; Android side documented in
+  `docs/SUNMI_PRINTER.md`), (2) server-side TCP ESC/POS to a LAN thermal printer
+  (`/api/print/raw`), (3) browser `window.print()` via the `/receipt/[orderId]` page or a popup.
+  Printer settings are per-device in localStorage (`src/lib/printerSettings.ts`), not per-tenant.
+  `window.open`/`window.print` do nothing inside a plain WebView, so the bridge path is the only
+  one that works in the APK.
+
 ## Deployment
 
 Production is a Plesk-managed Hostinger VPS running Node 20 + MariaDB behind PM2 and an nginx

@@ -14,7 +14,6 @@ function POSContent({ children }: { children: React.ReactNode }) {
                 marginLeft,
                 transition: 'margin-left 0.2s ease',
                 width: isMobile ? '100%' : `calc(100vw - ${marginLeft}px)`,
-                height: '100dvh',
                 overflow: 'hidden',
                 position: 'relative',
             }}>

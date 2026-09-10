@@ -27,6 +27,12 @@ export interface PrinterSettings {
     /** Auto-print ใบเสร็จหลังชำระเงิน */
     autoReceipt: boolean
 
+    // ── ปริ้นเตอร์ในตัวเครื่อง (Sunmi ฯลฯ) ผ่าน JS bridge ของแอป APK ──
+    /** ถ้าแอปมี window.SunmiPrinter ให้พิมพ์ครัว/บาร์/ใบเสร็จผ่านปริ้นเตอร์ในตัวก่อน */
+    nativePrinterEnabled: boolean
+    /** ความกว้างกระดาษของปริ้นเตอร์ในตัว (D2s/T2 = 80mm, V2/V2s = 58mm) */
+    nativePaperWidth: '80mm' | '58mm'
+
     // ── Per-station printers ──
     /** เครื่องปริ้น slip ครัว */
     kitchenPrinter: StationPrinterConfig
@@ -62,6 +68,9 @@ const DEFAULT: PrinterSettings = {
     autoKitchen: true,
     autoBar: true,
     autoReceipt: false,
+
+    nativePrinterEnabled: true,
+    nativePaperWidth: '80mm',
 
     kitchenPrinter: DEFAULT_STATION('192.168.18.100'),
     barPrinter:     DEFAULT_STATION('192.168.18.101'),

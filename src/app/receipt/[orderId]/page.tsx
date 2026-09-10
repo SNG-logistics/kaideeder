@@ -3,6 +3,8 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useParams } from 'next/navigation'
 import { useCurrency, useTenant } from '@/context/TenantContext'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
+import { getPrinterSettings } from '@/lib/printerSettings'
+import { isNativePrinterAvailable, printReceiptNative, receiptDataFromOrder } from '@/lib/nativePrinter'
 
 // ─── Types ───────────────────────────────────────────────────
 interface OrderItem {
@@ -61,15 +63,30 @@ function ReceiptContent({ orderId }: { orderId: string }) {
             .finally(() => setLoading(false))
     }, [orderId])
 
+    // ปริ้นเตอร์ในตัวเครื่อง (Sunmi bridge ในแอป APK) ก่อน — ถ้าไม่มีค่อยใช้ browser print
+    const doPrint = async () => {
+        if (!order) return
+        const s = getPrinterSettings()
+        if (s.nativePrinterEnabled && isNativePrinterAvailable()) {
+            const store = { storeName, storeNameLo, phone: storePhone, header: receiptHeader, footer: receiptFooter }
+            if (await printReceiptNative(receiptDataFromOrder(order, store, fmt), s.nativePaperWidth)) {
+                window.close()
+                return
+            }
+        }
+        window.addEventListener('afterprint', () => window.close(), { once: true })
+        window.print()
+    }
+
     useEffect(() => {
         if (order && !printed && !isPreview) {
             const t = setTimeout(() => {
-                window.addEventListener('afterprint', () => window.close(), { once: true })
-                window.print()
+                doPrint()
                 setPrinted(true)
             }, 500)
             return () => clearTimeout(t)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [order, printed, isPreview])
 
     if (loading) return (
@@ -127,7 +144,7 @@ function ReceiptContent({ orderId }: { orderId: string }) {
             )}
 
             <div className="no-print" style={{ display:'flex', gap:8, marginTop: isPreview ? 44 : 0, animation:'fadeIn 0.4s ease' }}>
-                <button onClick={() => { setPrinted(false); window.print() }} style={{ padding:'9px 20px', background:'#E8364E', color:'#fff', border:'none', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700, boxShadow:'0 4px 12px rgba(232,54,78,0.35)', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5 }}>
+                <button onClick={() => { setPrinted(false); doPrint() }} style={{ padding:'9px 20px', background:'#E8364E', color:'#fff', border:'none', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700, boxShadow:'0 4px 12px rgba(232,54,78,0.35)', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5 }}>
                     🖨️ ພິມ · พิมพ์
                 </button>
                 <button onClick={() => window.close()} style={{ padding:'9px 20px', background:'#fff', color:'#374151', border:'1.5px solid #E5E7EB', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit' }}>

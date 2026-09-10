@@ -132,7 +132,7 @@ export default function Sidebar() {
                 <div
                     onClick={() => setMobileOpen(false)}
                     style={{
-                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+                        position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.5)',
                         zIndex: 49, backdropFilter: 'blur(2px)',
                     }}
                 />

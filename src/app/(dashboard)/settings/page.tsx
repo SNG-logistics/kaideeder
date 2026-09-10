@@ -7,6 +7,7 @@ import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBrand
 import QRCode from 'qrcode'
 import { useTenant } from '@/context/TenantContext'
 import { getPrinterSettings, setPrinterSettings, setStationPrinter, type PrinterSettings, type StationPrinterConfig } from '@/lib/printerSettings'
+import { getNativePrinter, isNativePrinterAvailable, printLinesNative } from '@/lib/nativePrinter'
 
 const LOCATION_TYPE_LABELS: Record<string, string> = {
     MAIN_WAREHOUSE: '🏪 คลังหลัก',
@@ -1300,6 +1301,92 @@ function NotificationTestCard() {
     )
 }
 
+// ─── In-device printer card (Sunmi inner printer via the APK's JS bridge) ─────────────
+function NativePrinterCard() {
+    const [s, setS] = useState<PrinterSettings | null>(null)
+    const [bridge, setBridge] = useState<'ready' | 'not-ready' | 'missing'>('missing')
+    const [testing, setTesting] = useState(false)
+
+    useEffect(() => {
+        setS(getPrinterSettings())
+        setBridge(getNativePrinter() ? (isNativePrinterAvailable() ? 'ready' : 'not-ready') : 'missing')
+    }, [])
+    if (!s) return null
+
+    function update(patch: Partial<PrinterSettings>) {
+        setS(setPrinterSettings(patch))
+    }
+
+    async function testPrint() {
+        if (!s) return
+        setTesting(true)
+        const ok = await printLinesNative([
+            { text: 'KAIDEEDER POS', size: 'xl', bold: true, align: 'center' },
+            { text: 'ทดสอบปริ้นเตอร์ในตัว · ທົດສອບເຄື່ອງພິມ', size: 'md', align: 'center' },
+            { divider: 'dashed' },
+            { text: 'กระดาษ', right: s.nativePaperWidth, size: 'md' },
+            { text: 'เวลา', right: new Date().toLocaleTimeString('th-TH'), size: 'md' },
+            { divider: 'dashed' },
+            { text: 'ພິມສຳເລັດ · พิมพ์สำเร็จ', size: 'lg', bold: true, align: 'center' },
+        ], s.nativePaperWidth)
+        setTesting(false)
+        if (ok) toast.success('✅ ส่งคำสั่งพิมพ์ไปที่ปริ้นเตอร์ในตัวแล้ว')
+        else toast.error('❌ ไม่พบ bridge ของแอป — ต้องเปิดผ่านแอป KAIDEEDER APK (ดู docs/SUNMI_PRINTER.md)')
+    }
+
+    const status = bridge === 'ready'
+        ? { color: '#059669', text: '✅ พบ bridge ในแอป — พร้อมพิมพ์' }
+        : bridge === 'not-ready'
+            ? { color: '#D97706', text: '⏳ พบ bridge แต่ printer service ของเครื่องยังไม่พร้อม (ลองรีสตาร์ทแอป)' }
+            : { color: 'var(--text-muted)', text: '⚠️ ไม่พบ bridge — หน้านี้ไม่ได้เปิดจากแอป APK ที่ฝัง SunmiPrinter (จะใช้ TCP / Browser print แทน)' }
+
+    const rowStyle: React.CSSProperties = {
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '11px 14px', background: 'var(--white)', borderRadius: 10,
+        border: '1px solid var(--border)',
+    }
+    const labelStyle: React.CSSProperties = { fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }
+    const subStyle: React.CSSProperties = { fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }
+
+    return (
+        <div className="card" style={{ borderColor: 'rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.02)' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>📱</span> ปริ้นเตอร์ในตัวเครื่อง (Sunmi / แอป APK)
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 8 }}>
+                พิมพ์ slip ครัว/บาร์ และใบเสร็จผ่านปริ้นเตอร์ในตัวของแท็บเล็ต Sunmi โดยไม่ต้องตั้ง IP —
+                ใช้ได้เมื่อเปิดผ่านแอป KAIDEEDER APK ที่ฝัง bridge (วิธีทำอยู่ใน <code>docs/SUNMI_PRINTER.md</code>)
+            </p>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: status.color, marginBottom: 12 }}>{status.text}</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>ใช้ปริ้นเตอร์ในตัวก่อนเสมอ</div>
+                        <div style={subStyle}>ถ้ามี bridge จะพิมพ์ที่เครื่องนี้ก่อน แล้วค่อย fallback เป็น TCP / Browser</div>
+                    </div>
+                    <Toggle val={s.nativePrinterEnabled} onChange={v => update({ nativePrinterEnabled: v })} />
+                </div>
+                <div style={rowStyle}>
+                    <div>
+                        <div style={labelStyle}>ความกว้างกระดาษ</div>
+                        <div style={subStyle}>D2s / D2 / T2 = 80mm · V2 / V2s / V3 = 58mm</div>
+                    </div>
+                    <select value={s.nativePaperWidth} onChange={e => update({ nativePaperWidth: e.target.value as '80mm' | '58mm' })}
+                        style={{ padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', fontSize: '0.85rem' }}>
+                        <option value="80mm">80mm</option>
+                        <option value="58mm">58mm</option>
+                    </select>
+                </div>
+                <button onClick={testPrint} disabled={testing || bridge === 'missing'}
+                    style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: bridge === 'missing' ? 'var(--border)' : '#059669', color: bridge === 'missing' ? 'var(--text-muted)' : '#fff', cursor: bridge === 'missing' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 700 }}>
+                    {testing ? '⏳ กำลังพิมพ์...' : '🖨️ ทดสอบพิมพ์ปริ้นเตอร์ในตัว'}
+                </button>
+            </div>
+        </div>
+    )
+}
+
 // ─── Global Auto-Print Card ───────────────────────────────────────────────
 function AutoPrintCard() {
     const [s, setS] = useState<PrinterSettings | null>(null)
@@ -2165,6 +2252,12 @@ export default function SettingsPage() {
 
                 {/* ── Notification Test ── */}
                 <NotificationTestCard />
+
+                {/* ── In-device printer (Sunmi / APK bridge) ── */}
+                <NativePrinterCard />
+
+                {/* ── Auto-print toggles (kitchen / bar / receipt) ── */}
+                <AutoPrintCard />
 
                 {/* ── Server Auto Print ── */}
                 <ServerPrinterSettingsCard />
