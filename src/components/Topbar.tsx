@@ -154,7 +154,7 @@ export default function Topbar() {
 
                     {showDropdown && (
                         <>
-                            <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowDropdown(false)} />
+                            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 40 }} onClick={() => setShowDropdown(false)} />
                             <div style={{
                                 position: 'absolute', top: 44, right: 0, width: 320, background: '#fff',
                                 border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 10px 25px rgba(0,0,0,0.1)',

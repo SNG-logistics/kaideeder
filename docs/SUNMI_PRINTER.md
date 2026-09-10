@@ -1,0 +1,108 @@
+# พิมพ์ผ่านเครื่องพิมพ์ในตัวของแท็บเล็ต SUNMI (KAIDEEDER POS APK)
+
+คู่มือนี้อธิบายว่าทำไมหน้าขาย (`/pos`) ที่เปิดในแอป Android ถึงพิมพ์ไม่ออก และต้องทำอย่างไร
+ให้ใบเสร็จออกจากเครื่องพิมพ์ในตัวของ SUNMI D2s Plus (และรุ่นอื่นที่มี inner printer)
+
+โปรเจกต์ฝั่ง Android อยู่ที่ `kaideeder-pos-android/` — รายละเอียดการ build / sign / ADB
+อยู่ใน `README_ANDROID_POS.md` ที่ root ของ repo เอกสารนี้เน้นมุม "ทำยังไงให้พิมพ์ออก"
+
+---
+
+## 1. ทำไมพิมพ์จากแอปไม่ออก
+
+หน้าขายรันอยู่ใน Android **WebView** ไม่ใช่ Chrome — ในนั้น
+
+- `window.print()` **ไม่ทำอะไรเลย** (WebView ไม่มี print dialog)
+- `window.open()` **ไม่เปิดหน้าต่างใหม่** — แอปปิด multiple windows ไว้ URL จะถูกโหลดทับ
+  หน้า POS แทน (และถ้าเป็น `window.open('')` จะทำให้หน้าขายกลายเป็นหน้าว่าง)
+- เครื่องพิมพ์ในตัวของ SUNMI **ไม่มี IP** จึงใช้เส้นทาง LAN/TCP (`/api/print/raw`) ไม่ได้
+
+ดังนั้นการพิมพ์ในแอปต้องผ่าน **JS bridge** ที่แอปฉีดเข้ามาชื่อ `window.AndroidPOS`
+(ดู `src/lib/android-pos.ts` ฝั่งเว็บ และ `PosJavascriptBridge.kt` ฝั่ง Android)
+
+## 2. อะไรพิมพ์ผ่านเครื่องพิมพ์ในตัวได้บ้าง
+
+| งานพิมพ์ | ในแอป KAIDEEDER POS | ในเบราว์เซอร์ปกติ |
+| --- | --- | --- |
+| ใบเสร็จตอนกด "ชำระเงิน" | ✅ อัตโนมัติผ่าน `AndroidPOS.printReceipt` (ต้นฉบับ, กันพิมพ์ซ้ำต่อออเดอร์) | เปิดหน้า `/receipt/[id]` ถ้าเปิด Auto-Print ใบเสร็จ |
+| ปุ่ม "พิมพ์ใบเสร็จซ้ำ" หลังชำระ | ✅ `AndroidPOS.reprintReceipt` (มีหัว `REPRINT / สำเนา / ສຳເນົາ`, ไม่เปิดลิ้นชัก) | เปิดหน้า `/receipt/[id]` |
+| พิมพ์จากประวัติออเดอร์ | ✅ reprint (สำเนา) | เปิดหน้า `/receipt/[id]` |
+| "พิมพ์ให้ลูกค้าดู" (ใบแจ้งยอดก่อนจ่าย) | ✅ reprint — **ออกเป็นสำเนา** เพราะ APK v1.1.0 ยังไม่มี receipt type สำหรับใบแจ้งยอด | เปิด `/receipt/[id]?preview=1` |
+| หน้า `/receipt/[id]` ปุ่ม "พิมพ์" | ✅ reprint (สำเนา) · ปุ่ม "กลับ" ย้อนไปหน้าขาย | browser print |
+| slip ครัว / บาร์ | ❌ ต้องใช้ **เครื่องพิมพ์ LAN** (ตั้ง IP ที่ ตั้งค่า › เครื่องพิมพ์ครัว/บาร์) — bridge ยังไม่มีคำสั่งพิมพ์ข้อความอิสระ | LAN ก่อน ถ้าไม่มี → browser print |
+
+> ถ้าต้องการให้ slip ครัว/บาร์ หรือใบแจ้งยอดออกจากเครื่องพิมพ์ในตัวด้วย ต้องเพิ่ม method ใน
+> `PosJavascriptBridge.kt` + `SunmiPrinterManager.kt` (เช่น `printKitchenTicket(payloadJson)` หรือ
+> `ReceiptType.PREBILL`) แล้ว build APK ใหม่ — ดูข้อ 6
+
+## 3. ติดตั้งและตรวจสอบ (หน้างาน)
+
+1. บนแท็บเล็ต SUNMI เปิดเว็บ → ล็อกอิน → **ตั้งค่า** → การ์ด **"KAIDEEDER POS สำหรับ SUNMI"** →
+   ดาวน์โหลด APK (`public/downloads/kaideeder-pos-sunmi-v1.1.0-debug.apk`) แล้วติดตั้ง
+   (อนุญาต "ติดตั้งแอปที่ไม่รู้จัก" ถ้าเครื่องถาม)
+2. เปิดแอป **KAIDEEDER POS** — แอปจะโหลด `https://kaideeder.com/pos` เอง ล็อกอินตามปกติ
+3. ไปที่ **ตั้งค่า** (ในแอป) → การ์ด **"เครื่องพิมพ์ในตัว SUNMI"**
+   - ต้องขึ้น `✅ เครื่องพิมพ์ในตัว SUNMI พร้อมใช้งาน (READY)`
+   - กด **ทดสอบพิมพ์** → ต้องได้กระดาษที่มีข้อความ ไทย / ລາວ / English อ่านออกครบ
+4. เปิดโต๊ะ → เพิ่มเมนู → **ชำระเงิน** → ใบเสร็จต้องออกทันที และปุ่มจะเปลี่ยนเป็น
+   "🖨️ พิมพ์ใบเสร็จซ้ำ"
+5. กดพิมพ์ซ้ำ 1 ครั้ง → ต้องได้ใบที่มีหัว `*** REPRINT / สำเนา / ສຳເນົາ ***` และลิ้นชักไม่เด้ง
+
+ถ้าการ์ดขึ้น `⚠️ หน้านี้ไม่ได้เปิดจากแอป KAIDEEDER POS` แปลว่าเปิดผ่าน Chrome / เบราว์เซอร์อื่น —
+ต้องเปิดจากไอคอนแอป KAIDEEDER POS เท่านั้น bridge ถึงจะมี
+
+## 4. ถ้ายังไม่ออก — เช็คตามรหัสสถานะ
+
+รหัสมาจาก `AndroidPOS.getPrinterStatus()` / ผลลัพธ์การพิมพ์ (แสดงใน toast และการ์ดตั้งค่า)
+
+| รหัส | ความหมาย | แก้ยังไง |
+| --- | --- | --- |
+| `READY` | พร้อมพิมพ์ | — |
+| `BRIDGE_UNAVAILABLE` | ไม่มี `window.AndroidPOS` | ไม่ได้เปิดจากแอป หรือ APK เวอร์ชันเก่ากว่า 1.1.0 |
+| `UNTRUSTED_PAGE` | หน้าไม่ได้โหลดจาก host ที่อนุญาต | URL ต้องเป็น `https://kaideeder.com/...` (ดู `ALLOWED_HOSTS` ใน `gradle.properties`) หรือหน้ายังโหลดไม่เสร็จ — รอแล้วลองใหม่ |
+| `DISCONNECTED` | service ของ SUNMI ยังไม่ bind | ปิดแอปแล้วเปิดใหม่ / รีสตาร์ทเครื่อง |
+| `UNSUPPORTED` (505) | เครื่องรุ่นนี้ไม่มี inner printer | ใช้เครื่องพิมพ์ LAN แทน |
+| `OUT_OF_PAPER` | กระดาษหมด | ใส่กระดาษ 80mm (D2s Plus) |
+| `COVER_OPEN` | ฝาเปิด | ปิดฝาให้สนิท |
+| `OVERHEATED` | หัวพิมพ์ร้อน | พักเครื่องสักครู่ |
+| `CUTTER_ERROR` / `CUTTER_RECOVERING` | ใบมีดตัดค้าง | เปิดฝา เอากระดาษที่ค้างออก ปิดฝา |
+| `DUPLICATE_BLOCKED` | ต้นฉบับของออเดอร์นี้พิมพ์ไปแล้ว (หรือกดซ้ำเร็วเกิน 3 วิ) | ใช้ปุ่ม "พิมพ์ใบเสร็จซ้ำ" |
+| `INVALID_REQUEST` | payload ไม่ผ่าน validation (ไม่มีรายการ, จำนวน ≤ 0, > 200 รายการ) | เช็คออเดอร์ — ทุกรายการที่ไม่ถูกยกเลิกต้องมี quantity > 0 |
+| `PRINT_ERROR` / `NATIVE_ERROR` | SDK ของ SUNMI โยน error | ดู logcat (`adb logcat \| grep -E 'Sunmi\|kaideeder'`) |
+
+เพิ่มเติม:
+
+- ใบเสร็จออกแต่ **ภาษาไทย/ลาวเป็นสี่เหลี่ยม** → ไม่ควรเกิดกับ APK นี้ เพราะฝั่ง Android render
+  เป็นรูป (`ReceiptFormatter.kt`, 576px = 80mm) ไม่ได้ส่ง text ให้ firmware — ถ้าเกิด แปลว่าเป็น
+  APK/บิลด์อื่น
+- ใบเสร็จ **ไม่ตัดกระดาษ** → เปิด "ตัดกระดาษอัตโนมัติ" ในการ์ดเครื่องพิมพ์ใบเสร็จ (ค่า `autoCut`
+  ถูกส่งไปกับ payload เป็น `options.cutPaper`)
+- **ลิ้นชักไม่เปิด** → ค่าเริ่มต้นของ APK ปิดไว้ (`CASH_DRAWER_ENABLED=false` ใน `gradle.properties`)
+  ต้อง build APK ใหม่โดยเปิดค่านี้ก่อน และ reprint จะไม่เปิดลิ้นชักเสมอ
+
+## 5. เมนูอาหารไม่แสดงในแอป (ที่แก้ไปพร้อมกัน)
+
+WebView ของ SUNMI (Android 11, ไม่มี Google Play) ใช้ Chromium ประมาณ 83 และไม่อัปเดต
+CSS ใหม่ ๆ ใน inline style ของ React จึงไม่ถูก autoprefix — `inset`, `100dvh`, flex `gap`
+ทำให้ overlay เมนูสูง 0 หรืออยู่นอกจอ โค้ดหน้า POS ถูกแก้ให้ใช้ `top/right/bottom/left` และ
+`100vh` (มี `100dvh` ทับใน `globals.css`) แล้ว — ดูกติกาใน `CLAUDE.md` › Conventions ›
+"Old Android WebView compat"
+
+## 6. ฝั่ง Android — ถ้าต้องแก้ APK
+
+- โค้ด: `kaideeder-pos-android/app/src/main/java/com/kaideeder/pos/`
+  - `PosJavascriptBridge.kt` — method ที่ JS เรียกได้ (ทุก method คืน JSON `{ ok, code, message }`)
+  - `SunmiPrinterManager.kt` — bind `InnerPrinterManager`, สั่งพิมพ์ bitmap / ตัดกระดาษ / ลิ้นชัก
+  - `ReceiptFormatter.kt` — วาดใบเสร็จเป็น bitmap 576px
+  - `ReceiptModels.kt` — schema v1 ของ payload (validate ขนาด ≤ 256KB, 1–200 รายการ)
+  - `PosWebViewManager.kt` — WebView + host allow-list + inject bridge ชื่อ `AndroidPOS`
+- ค่าตั้ง: `kaideeder-pos-android/gradle.properties` (`POS_BASE_URL`, `ALLOWED_HOSTS`,
+  `CASH_DRAWER_ENABLED`, ...)
+- build: JDK 17 + Android SDK 34 → `./gradlew testDebugUnitTest assembleDebug` (ดู `README_ANDROID_POS.md`)
+- APK ที่แจกให้ร้านโหลดอยู่ที่ `public/downloads/` และ path/เวอร์ชันถูกอ้างในการ์ด
+  `AndroidPosDownloadCard` (`src/app/(dashboard)/settings/page.tsx`) — อัปเดตทั้งสองที่พร้อมกัน
+
+ฝั่งเว็บ ทุกอย่างที่คุยกับ bridge อยู่ใน `src/lib/android-pos.ts` เท่านั้น
+(`isAndroidPOSApp`, `printAndroidPOSReceipt`, `reprintAndroidPOSReceipt`,
+`buildAndroidPOSReceiptPayload`, `getAndroidPOSPrinterStatus`, `testAndroidPOSPrint`) —
+ห้ามเรียก `window.AndroidPOS` ตรง ๆ จาก component

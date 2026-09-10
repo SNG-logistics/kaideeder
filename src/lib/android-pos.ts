@@ -193,3 +193,96 @@ export function getAndroidPOSPrinterStatus(): AndroidPOSResult {
     }
     return parseBridgeResult(bridge.getPrinterStatus())
 }
+
+// ─── Receipt payload from an order fetched via GET /api/pos/orders/[id] ────────────────
+// Used for reprints (order history, /receipt page, pre-bill preview). The POS page builds
+// its ORIGINAL payload inline from the close-order response instead.
+
+/** Subset of the order shape returned by GET /api/pos/orders/[id] that a receipt needs */
+export interface AndroidPOSOrderSource {
+    id: string
+    orderNumber: string
+    subtotal?: number
+    discount?: number
+    discountType?: string
+    serviceCharge?: number
+    vat?: number
+    totalAmount?: number
+    openedAt?: string
+    closedAt?: string | null
+    createdBy?: { name: string } | null
+    items: {
+        productId?: string
+        product?: { name: string } | null
+        quantity: number
+        unitPrice: number
+        isCancelled?: boolean
+        note?: string | null
+    }[]
+    payments?: { method: string; receivedAmount: number; changeAmount: number }[]
+}
+
+export type AndroidPOSStoreInfo = AndroidPOSReceiptPayload['store']
+
+export function buildAndroidPOSReceiptPayload(
+    order: AndroidPOSOrderSource,
+    store: AndroidPOSStoreInfo,
+    currency: string,
+    options?: { cutPaper?: boolean; qrText?: string },
+): AndroidPOSReceiptPayload {
+    const items = order.items
+        .filter(item => !item.isCancelled)
+        .map(item => ({
+            name: item.product?.name || item.productId || '-',
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+            total: Number(item.quantity) * Number(item.unitPrice),
+            note: item.note || undefined,
+        }))
+
+    // The stored subtotal can be stale (0 after a merge) — recompute from live items like /receipt does
+    const subtotal = items.reduce((sum, item) => sum + item.total, 0) || Number(order.subtotal || 0)
+    const discount = order.discountType === 'PERCENT'
+        ? subtotal * (Number(order.discount || 0) / 100)
+        : Number(order.discount || 0)
+    const serviceCharge = Number(order.serviceCharge || 0)
+    const vat = Number(order.vat || 0)
+    const computedTotal = subtotal - discount + serviceCharge + vat
+    const payment = order.payments?.[0]
+
+    return {
+        schemaVersion: 1,
+        requestId: createReceiptRequestId(order.id, 'ORIGINAL'),
+        receiptType: 'ORIGINAL',
+        orderId: order.id,
+        receiptNo: order.orderNumber,
+        saleDateTime: order.closedAt || order.openedAt || new Date().toISOString(),
+        store,
+        cashier: order.createdBy?.name || undefined,
+        items,
+        subtotal,
+        discount,
+        serviceCharge,
+        vat,
+        grandTotal: computedTotal > 0 ? computedTotal : Number(order.totalAmount || 0),
+        currency,
+        payment: {
+            method: payment?.method || 'UNPAID',
+            receivedAmount: Number(payment?.receivedAmount || 0),
+            changeAmount: Number(payment?.changeAmount || 0),
+        },
+        options: {
+            openCashDrawer: false,
+            cutPaper: options?.cutPaper ?? true,
+        },
+        qrText: options?.qrText,
+    }
+}
+
+export function testAndroidPOSPrint(): AndroidPOSResult {
+    const bridge = getBridge()
+    if (!bridge) {
+        return { ok: false, code: 'BRIDGE_UNAVAILABLE', message: 'AndroidPOS bridge is unavailable' }
+    }
+    return parseBridgeResult(bridge.testPrint())
+}

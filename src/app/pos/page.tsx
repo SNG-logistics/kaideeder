@@ -7,6 +7,7 @@ import NewOrderAlert from '@/components/NewOrderAlert'
 import { useNotification } from '@/components/NotificationContext'
 import { getPrinterSettings } from '@/lib/printerSettings'
 import {
+    buildAndroidPOSReceiptPayload,
     createReceiptRequestId,
     isAndroidPOSApp,
     printAndroidPOSReceipt,
@@ -91,6 +92,12 @@ function printKitchenTicket(opts: {
 
     // ── 2. Browser fallback ───────────────────────────────────
     function doBrowserPrint() {
+        // ในแอป KAIDEEDER POS (Android WebView) window.open จะ navigate หน้า POS ทิ้งแทนการเปิด popup
+        // และ window.print ไม่ทำงาน — slip ครัว/บาร์ ในแอปต้องพิมพ์ผ่านเครื่องพิมพ์ LAN (TCP) เท่านั้น
+        if (isAndroidPOSApp()) {
+            console.warn(`[print] ${station}: browser print is unavailable inside the Android POS app — set up a LAN printer in Settings`)
+            return
+        }
         const isBar = station === 'BAR'
         const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
         const bodyWidth = paperWidth === '58mm' ? '54mm' : '76mm'
@@ -650,6 +657,50 @@ const confirmAndSaveOrder = async () => {
     }
 }
 
+// ─── Store block shared by every AndroidPOS receipt payload ──────────────
+const receiptStoreInfo = (): AndroidPOSReceiptPayload['store'] => ({
+    name: branding.displayName || tenantSettings?.displayName || tenantSettings?.name || 'KAIDEEDER',
+    nameLao: tenantSettings?.storeNameLao || undefined,
+    phone: tenantSettings?.phone || undefined,
+    address: tenantSettings?.address || undefined,
+    taxId: tenantSettings?.taxId || undefined,
+    receiptHeader: tenantSettings?.receiptHeader || undefined,
+    logoUrl: branding.logoUrl || tenantSettings?.logoUrl || undefined,
+})
+
+// ─── Print a receipt for any order (pre-bill preview / history reprint) ──────
+// ในแอป KAIDEEDER POS (SUNMI): ส่งผ่าน window.AndroidPOS.reprintReceipt — ออกมาเป็น "สำเนา"
+// (ใบเสร็จต้นฉบับพิมพ์อัตโนมัติตอนชำระเงินใน confirmPayment แล้ว และ APK กันพิมพ์ต้นฉบับซ้ำ)
+// ในเบราว์เซอร์ปกติ: เปิดหน้า /receipt/[orderId] แล้วให้ browser print
+const printReceipt = async (orderId: string, preview: boolean) => {
+    if (!isAndroidPOSApp()) {
+        window.open(`/receipt/${orderId}${preview ? '?preview=1' : ''}`, '_blank', 'width=380,height=700')
+        return
+    }
+    if (nativeReprintLoading) return
+    setNativeReprintLoading(true)
+    try {
+        const res = await fetch(`/api/pos/orders/${orderId}`)
+        const json = await res.json()
+        if (!json.success) {
+            setToast({ message: json.error || 'โหลดออเดอร์ไม่สำเร็จ', type: 'error' })
+            return
+        }
+        const payload = buildAndroidPOSReceiptPayload(json.data, receiptStoreInfo(), currency, {
+            cutPaper: getPrinterSettings().receiptPrinter.autoCut,
+        })
+        const result = reprintAndroidPOSReceipt(payload)
+        setToast(result.ok
+            ? { message: preview ? 'ส่งใบแจ้งยอด (สำเนา) ไปยังเครื่องพิมพ์ SUNMI แล้ว' : 'ส่งใบเสร็จ (สำเนา) ไปยังเครื่องพิมพ์ SUNMI แล้ว', type: 'success' }
+            : { message: `พิมพ์ไม่สำเร็จ (${result.code})`, type: 'warning' })
+    } catch (e) {
+        console.warn('[print] AndroidPOS reprint failed:', e)
+        setToast({ message: 'ไม่สามารถส่งงานพิมพ์ไปยังเครื่องพิมพ์ SUNMI ได้', type: 'warning' })
+    } finally {
+        setNativeReprintLoading(false)
+    }
+}
+
 // ─── Close Bill ───────────────────────────────────────────
 const closeBill = async () => {
     if (orderItems.length === 0) {
@@ -740,15 +791,7 @@ const confirmPayment = async () => {
                 orderId,
                 receiptNo: closedOrder.orderNumber,
                 saleDateTime: closedOrder.closedAt || new Date().toISOString(),
-                store: {
-                    name: branding.displayName || tenantSettings?.displayName || tenantSettings?.name || 'KAIDEEDER',
-                    nameLao: tenantSettings?.storeNameLao || undefined,
-                    phone: tenantSettings?.phone || undefined,
-                    address: tenantSettings?.address || undefined,
-                    taxId: tenantSettings?.taxId || undefined,
-                    receiptHeader: tenantSettings?.receiptHeader || undefined,
-                    logoUrl: branding.logoUrl || tenantSettings?.logoUrl || undefined,
-                },
+                store: receiptStoreInfo(),
                 items: closedOrder.items
                     .filter(item => !item.isCancelled)
                     .map(item => ({
@@ -800,6 +843,8 @@ const confirmPayment = async () => {
                 receiptPayload,
                 nativePrint,
             })
+            // ในแอป SUNMI ต้นฉบับถูกส่งพิมพ์ด้านบนแล้ว — auto-receipt ใช้เฉพาะเบราว์เซอร์
+            if (!isAndroidPOSApp() && getPrinterSettings().autoReceipt) printReceipt(orderId, false)
         } else {
             setToast({ message: json.error || 'ปิดบิลไม่สำเร็จ', type: 'error' })
         }
@@ -1040,7 +1085,7 @@ const btnStyle = (bg: string, disabled: boolean): CSSProperties => ({
 })
 
 return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', overflow: 'hidden', background: '#F0F2F5' }}>
+    <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, display: 'flex', overflow: 'hidden', background: '#F0F2F5' }}>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         {/* ── New order alert — POS page only ── */}
         <NewOrderAlert />
@@ -1051,7 +1096,7 @@ return (
             const availableToppings = parseToppings(proteinPendingProduct.toppingsJson).filter(t => t.isActive)
             const hasCatalogToppings = availableToppings.length > 0
             return (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '1rem' }}
+                <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '1rem' }}
                     onClick={() => { setProteinPendingProduct(null); setProteinComment(''); setProteinNote('') }}>
                     <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', maxHeight: '88vh', overflowY: 'auto' }}
                         onClick={e => e.stopPropagation()}>
@@ -1363,7 +1408,7 @@ return (
                             )
                         })}
                         {displayTables.length === 0 && (
-                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
+                            <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
                                 <div style={{ fontSize: '2rem', marginBottom: 8 }}>🪑</div>
                                 <div style={{ fontWeight: 600 }}>ไม่มีโต๊ะในโซนนี้</div>
                             </div>
@@ -1688,7 +1733,7 @@ return (
         {/* ════ MENU OVERLAY ════ */}
         {showMenuOverlay && (
             <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', background: '#F0F2F5' }}>
+                <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 200, display: 'flex', background: '#F0F2F5' }}>
                     {/* Left: Category tabs + Product grid */}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         {/* Category Horizontal Scroll */}
@@ -1786,7 +1831,7 @@ return (
                                         onMouseLeave={e => { const d = e.currentTarget as HTMLDivElement; d.style.transform = ''; d.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)' }}>
                                         {/* Emoji for no-image */}
                                         {!product.imageUrl && (
-                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3.5rem', opacity: 0.85 }}>
+                                            <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3.5rem', opacity: 0.85 }}>
                                                 {product.category?.icon || '🍽️'}
                                             </div>
                                         )}
@@ -1893,7 +1938,7 @@ return (
 
         {/* ════ RECEIPT PREVIEW MODAL ════ */}
         {showReceiptPreview && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
                 <div style={{ background: '#FFFFFF', borderRadius: 16, width: '100%', maxWidth: 400, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 48px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
                     <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                         <div>
@@ -1926,7 +1971,7 @@ return (
                         </div>
                     </div>
                     <div style={{ padding: '0.9rem 1.25rem', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8, flexShrink: 0, background: '#FAFBFD' }}>
-                        <button onClick={() => { if (currentOrder?.id) window.open(`/receipt/${currentOrder.id}?preview=1`, '_blank', 'width=380,height=700') }}
+                        <button onClick={() => { if (currentOrder?.id) printReceipt(currentOrder.id, true) }}
                             style={{ flex: 1, padding: '0.7rem', borderRadius: 10, border: '2px solid #2563EB', background: '#EFF6FF', color: '#2563EB', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, fontFamily: 'inherit', minHeight: 46 }}>
                             🖨️ พิมพ์ให้ลูกค้าดู
                         </button>
@@ -1946,7 +1991,7 @@ return (
 
         {/* ════ SEND TO KITCHEN MODAL ════ */}
         {sentItems && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
                 <div style={{ background: '#FFFFFF', borderRadius: 20, width: '100%', maxWidth: 400, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 56px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
 
                     {/* Bar Alert Banner — only when bar has items */}
@@ -2012,7 +2057,7 @@ return (
 
         {/* ════ PAYMENT MODAL ════ */}
         {showPaymentModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)', padding: '0.75rem' }}>
                 <div style={{ background: '#FFFFFF', borderRadius: 16, padding: isMobile ? '1.5rem' : '2rem', width: '100%', maxWidth: 440, border: '1px solid #E5E7EB', boxShadow: '0 24px 48px rgba(0,0,0,0.15)', maxHeight: '92vh', overflowY: 'auto', boxSizing: 'border-box' }}>
                     {closeResult ? (
                         <div style={{ textAlign: 'center' }}>
@@ -2112,7 +2157,7 @@ return (
 
         {/* ════ MOVE TABLE MODAL ════ */}
         {showMoveModal && selectedTable && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 700, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
                 <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', width: '90%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1A1D26', margin: 0 }}>⇄ ย้ายโต๊ะ</h2>
@@ -2140,7 +2185,7 @@ return (
 
         {/* ════ HISTORY MODAL ════ */}
         {showHistory && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 800, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
                 <div className="pos-modal-box">
 
                     {/* Header */}
@@ -2265,21 +2310,7 @@ return (
                                 {/* Bottom actions */}
                                 <div style={{ padding: '12px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 10, background: '#fff', flexShrink: 0 }}>
                                     <button
-                                        onClick={() => {
-                                            const win = window.open('', '_blank', 'width=302,height=600')
-                                            if (!win) return
-                                            const items = selectedHistoryOrder.items?.map((i: any) =>
-                                                `<tr><td>${i.product?.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${(i.quantity * i.unitPrice).toLocaleString()}</td></tr>`
-                                            ).join('') ?? ''
-                                            win.document.write(`<html><head><title>Receipt</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700&family=Noto+Sans+Thai:wght@400;700&display=swap" rel="stylesheet"><style>body{font-family:'Noto Sans Lao','Noto Sans Thai',sans-serif;padding:16px;font-size:13px}table{width:100%;border-collapse:collapse}td{padding:4px}hr{border:1px dashed #ccc}.total{font-weight:bold}</style></head><body>
-                                                <h3 style="text-align:center">ใบเสร็จ</h3>
-                                                <p>\u0e42\u0e15\u0e4a\u0e30: ${selectedHistoryOrder.table?.name ?? '—'} | #${selectedHistoryOrder.orderNumber}</p>
-                                                <p>${selectedHistoryOrder.closedAt ? new Date(selectedHistoryOrder.closedAt).toLocaleString('th-TH') : ''}</p>
-                                                <hr/><table><tr><th style="text-align:left">\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23</th><th>\u0e08\u0e33\u0e19\u0e27\u0e19</th><th>\u0e23\u0e32\u0e04\u0e32</th></tr>${items}</table>
-                                                <hr/><p class="total">\u0e23\u0e27\u0e21: ${(selectedHistoryOrder.totalAmount ?? 0).toLocaleString()}</p>
-                                                <script>window.print();window.onafterprint=()=>window.close()</script></body></html>`)
-                                            win.document.close()
-                                        }}
+                                        onClick={() => printReceipt(selectedHistoryOrder.id, false)}
                                         style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: '#374151', color: '#fff', fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
                                         🖨️ พิมพ์ใบเสร็จ
                                     </button>
@@ -2302,7 +2333,7 @@ return (
 
         {/* ════ KITCHEN POPUP MODAL ════ */}
         {showKitchenPopup && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 800, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
                 <div className="pos-kitchen-box">
 
                     {/* Header — orange/red gradient like KDS */}
@@ -2480,7 +2511,7 @@ return (
 
         {/* ═══ DELIVERY ORDER MODAL ═══════════════════════════════════ */}
         {showDeliveryModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
                 <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 460, padding: '1.5rem', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                         <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1A1D26' }}>🛵 สร้างออเดอร์ Delivery</div>
@@ -2649,6 +2680,7 @@ return (
                     .pos-modal-box, .pos-kitchen-box {
                         width: 100vw !important;
                         max-width: 100vw !important;
+                        height: 100vh !important;
                         height: 100dvh !important;
                         border-radius: 0 !important;
                     }

@@ -33,3 +33,8 @@ prisma/*.js
 
 # Uploaded product images (user-generated content)
 public/uploads/
+
+# Claude Code skill installs (local tool config, not app code)
+/.claude/skills/
+/.agents/
+/skills-lock.json

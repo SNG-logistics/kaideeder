@@ -3,6 +3,8 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useParams } from 'next/navigation'
 import { useCurrency, useTenant } from '@/context/TenantContext'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
+import { getPrinterSettings } from '@/lib/printerSettings'
+import { buildAndroidPOSReceiptPayload, isAndroidPOSApp, reprintAndroidPOSReceipt, type AndroidPOSResult } from '@/lib/android-pos'
 
 // ─── Types ───────────────────────────────────────────────────
 interface OrderItem {
@@ -39,9 +41,11 @@ function ReceiptContent({ orderId }: { orderId: string }) {
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [printed, setPrinted] = useState(false)
+    const [nativeResult, setNativeResult] = useState<AndroidPOSResult | null>(null)
+    const [inApp, setInApp] = useState(false)
     const searchParams = useSearchParams()
     const isPreview = searchParams.get('preview') === '1'
-    const { fmt } = useCurrency()
+    const { fmt, currency } = useCurrency()
     const { settings } = useTenant()
     const branding = useStoreBranding()
 
@@ -53,6 +57,8 @@ function ReceiptContent({ orderId }: { orderId: string }) {
     const logoUrl       = branding.logoUrl ?? null
     const qrBankingBase64 = (settings as any)?.qrBankingBase64 ?? null
 
+    useEffect(() => { setInApp(isAndroidPOSApp()) }, [])
+
     useEffect(() => {
         fetch(`/api/pos/orders/${orderId}`)
             .then(r => r.json())
@@ -61,15 +67,47 @@ function ReceiptContent({ orderId }: { orderId: string }) {
             .finally(() => setLoading(false))
     }, [orderId])
 
+    // ในแอป KAIDEEDER POS (SUNMI): ส่งผ่าน window.AndroidPOS.reprintReceipt (ออกเป็น "สำเนา" —
+    // ต้นฉบับพิมพ์ตอนชำระเงินแล้ว) · ในเบราว์เซอร์ปกติ: browser print
+    const doPrint = () => {
+        if (!order) return
+        if (isAndroidPOSApp()) {
+            let result: AndroidPOSResult
+            try {
+                result = reprintAndroidPOSReceipt(buildAndroidPOSReceiptPayload(order, {
+                    name: storeName,
+                    nameLao: storeNameLo || undefined,
+                    phone: storePhone || undefined,
+                    address: settings?.address || undefined,
+                    taxId: settings?.taxId || undefined,
+                    receiptHeader: receiptHeader || undefined,
+                    logoUrl: logoUrl || undefined,
+                }, currency, { cutPaper: getPrinterSettings().receiptPrinter.autoCut }))
+            } catch (e) {
+                result = { ok: false, code: 'BRIDGE_ERROR', message: e instanceof Error ? e.message : 'AndroidPOS bridge error' }
+            }
+            setNativeResult(result)
+            return
+        }
+        window.addEventListener('afterprint', () => window.close(), { once: true })
+        window.print()
+    }
+
+    // ในแอป window.close() ไม่ทำงาน (หน้านี้ถูกเปิดในหน้าต่างเดียวกัน) → ย้อนกลับหน้าขายแทน
+    const closeReceipt = () => {
+        if (isAndroidPOSApp()) window.history.back()
+        else window.close()
+    }
+
     useEffect(() => {
         if (order && !printed && !isPreview) {
             const t = setTimeout(() => {
-                window.addEventListener('afterprint', () => window.close(), { once: true })
-                window.print()
+                doPrint()
                 setPrinted(true)
             }, 500)
             return () => clearTimeout(t)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [order, printed, isPreview])
 
     if (loading) return (
@@ -84,7 +122,7 @@ function ReceiptContent({ orderId }: { orderId: string }) {
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', fontFamily:'sans-serif', gap:12 }}>
             <span style={{ fontSize:32 }}>❌</span>
             <p style={{ color:'#DC2626' }}>{error || 'ไม่พบออเดอร์'}</p>
-            <button onClick={() => window.close()} style={{ padding:'8px 20px', cursor:'pointer', borderRadius:8, border:'1px solid #ddd' }}>ປິດ</button>
+            <button onClick={closeReceipt} style={{ padding:'8px 20px', cursor:'pointer', borderRadius:8, border:'1px solid #ddd' }}>ປິດ</button>
         </div>
     )
 
@@ -127,13 +165,19 @@ function ReceiptContent({ orderId }: { orderId: string }) {
             )}
 
             <div className="no-print" style={{ display:'flex', gap:8, marginTop: isPreview ? 44 : 0, animation:'fadeIn 0.4s ease' }}>
-                <button onClick={() => { setPrinted(false); window.print() }} style={{ padding:'9px 20px', background:'#E8364E', color:'#fff', border:'none', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700, boxShadow:'0 4px 12px rgba(232,54,78,0.35)', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5 }}>
+                <button onClick={() => { setPrinted(false); doPrint() }} style={{ padding:'9px 20px', background:'#E8364E', color:'#fff', border:'none', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700, boxShadow:'0 4px 12px rgba(232,54,78,0.35)', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5 }}>
                     🖨️ ພິມ · พิมพ์
                 </button>
-                <button onClick={() => window.close()} style={{ padding:'9px 20px', background:'#fff', color:'#374151', border:'1.5px solid #E5E7EB', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit' }}>
-                    ✕ ປິດ
+                <button onClick={closeReceipt} style={{ padding:'9px 20px', background:'#fff', color:'#374151', border:'1.5px solid #E5E7EB', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit' }}>
+                    {inApp ? '← ກັບ · กลับ' : '✕ ປິດ'}
                 </button>
             </div>
+
+            {nativeResult && (
+                <div className="no-print" style={{ width:302, padding:'8px 12px', borderRadius:10, fontSize:12, fontWeight:700, textAlign:'center', background: nativeResult.ok ? '#ECFDF5' : '#FFFBEB', color: nativeResult.ok ? '#059669' : '#B45309', border:`1px solid ${nativeResult.ok ? '#A7F3D0' : '#FDE68A'}` }}>
+                    {nativeResult.ok ? '✅ ส่งใบเสร็จ (สำเนา) ไปยังเครื่องพิมพ์ SUNMI แล้ว' : `⚠️ พิมพ์ไม่สำเร็จ (${nativeResult.code})${nativeResult.message ? ` — ${nativeResult.message}` : ''}`}
+                </div>
+            )}
 
             <div className="receipt-card" style={{ width:302, background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 6px 32px rgba(0,0,0,0.13)', animation:'fadeIn 0.5s ease' }}>
                 <div style={{ height:4, background:'linear-gradient(90deg,#E8364E,#FF6B35,#F59E0B)' }} />

@@ -560,6 +560,9 @@ tbody tr:hover td {
 .pos-layout-root {
   display: flex;
   flex-direction: column;
+  /* 100vh first: old Android WebViews (Chromium < 108, e.g. GMS-less Sunmi POS) don't know dvh */
+  height: 100vh;
+  height: 100dvh;
 }
 
 .pos-layout-root>* {
@@ -570,6 +573,10 @@ tbody tr:hover td {
 /* === MODAL === */
 .modal-overlay {
   position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 800;

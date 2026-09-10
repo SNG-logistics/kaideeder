@@ -44,8 +44,8 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
     const total = order.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
             <div style={{
                 position: 'relative', background: '#071810',
                 border: '1.5px solid rgba(22,163,74,0.45)',
@@ -129,8 +129,8 @@ function BillRequestModal({ bill, onAck, onClose, onCancel, canCancel }: {
     const requestTime = timeMatch?.[1] || fmtTime(bill.openedAt)
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
             <div style={{
                 position: 'relative', background: '#140a0a',
                 border: '1px solid rgba(239,68,68,0.35)',

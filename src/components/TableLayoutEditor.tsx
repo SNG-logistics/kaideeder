@@ -102,7 +102,7 @@ export default function TableLayoutEditor({ zone, tables: initialTables, onSave,
 
     return (
         <div style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
+            position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000,
             background: '#0f1221', display: 'flex', flexDirection: 'column'
         }}>
             {/* Header */}
