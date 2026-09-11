@@ -18,14 +18,14 @@ async function fetchNotifs(tenantId: string): Promise<NotificationInfo[]> {
                 status: 'PENDING_CONFIRM',
                 OR: [
                     { note: null },
-                    { note: { not: { contains: 'เรียกเช็คบิล' } } },
+                    { note: { not: { contains: '🧾 เรียกเช็คบิล' } } },
                 ],
             },
             include: { table: true, items: { include: { product: true } } },
             orderBy: { openedAt: 'asc' },
         }),
         prisma.order.findMany({
-            where: { tenantId, status: { in: ['OPEN', 'PENDING_CONFIRM'] }, note: { contains: 'เรียกเช็คบิล' } },
+            where: { tenantId, status: { in: ['OPEN', 'PENDING_CONFIRM'] }, note: { contains: '🧾 เรียกเช็คบิล' } },
             include: { table: true, items: { include: { product: true } } },
             orderBy: { openedAt: 'asc' },
         }),

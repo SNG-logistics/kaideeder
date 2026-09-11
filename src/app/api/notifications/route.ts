@@ -28,7 +28,7 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
                 status: 'PENDING_CONFIRM',
                 OR: [
                     { note: null },
-                    { note: { not: { contains: 'เรียกเช็คบิล' } } },
+                    { note: { not: { contains: '🧾 เรียกเช็คบิล' } } },
                 ],
             },
             include: { table: true, items: { include: { product: true } } },
@@ -53,7 +53,7 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
             where: {
                 tenantId,
                 status: { in: ['OPEN', 'PENDING_CONFIRM'] },
-                note: { contains: 'เรียกเช็คบิล' }
+                note: { contains: '🧾 เรียกเช็คบิล' }
             },
             include: { table: true, items: { include: { product: true } } },
             orderBy: { openedAt: 'asc' },

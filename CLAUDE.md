@@ -142,6 +142,19 @@ first when working on any domain area, it's the map of the whole system:
   `EventEmitter` singleton (`src/lib/events.ts`, stored on `globalThis` to survive dev HMR) fed to
   clients via `src/app/api/events` (SSE) — this is single-process pub/sub, not a message broker,
   so it won't fan out across multiple server instances/PM2 workers.
+  **Any route that creates or changes orders/order items must `emit('ORDERS_UPDATED', tenantId)`.**
+  The KDS (`src/app/kitchen/page.tsx`) has no polling fallback — it refetches *only* on that event,
+  so a missing emit means the cook never sees the ticket until they manually reload. (Its 30s
+  interval just re-renders elapsed-time labels; it does not refetch.)
+- **QR self-ordering (customers ordering from their table)**: every table is always scannable —
+  staff do not "open" a table first. `POST /api/public/order` branches on the table's current
+  state: if an `OPEN` order already exists it appends the items straight into it (kitchen sees
+  them immediately), otherwise it creates the round as `PENDING_CONFIRM` for a cashier to confirm
+  via `POST /api/pos/orders/[id]/confirm` or decline via `.../reject`. So the confirm gate applies
+  to a table's *first* round only. The customer page (`src/app/m/[tenantCode]/[tableNum]`) polls
+  `GET /api/public/bill/...` every 30s for a `stage` derived from the least-advanced
+  `OrderItem.kitchenStatus`; that same response drives the "call for the bill" button, so don't
+  remove fields from it casually.
 - **Business day boundary**: stores can close after midnight; `src/lib/businessDate.ts`
   (`getBusinessDate`/`getBusinessDayRange`) buckets orders into the correct "business day" using
   each tenant's `closingHour` (fixed UTC+7 assumption — Asia/Vientiane), not calendar midnight.

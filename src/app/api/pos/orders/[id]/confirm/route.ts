@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
+import { getEventEmitter } from '@/lib/events'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -53,15 +54,20 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             where: { id: existingOpen.id },
             include: { table: true, items: { include: { product: true } } },
         })
+
+        // ปลุกจอครัว/บาร์ให้ดึงคิวใหม่ทันที (ไม่งั้นพ่อครัวต้องรีโหลดหน้าเอง)
+        getEventEmitter().emit('ORDERS_UPDATED', tenantId)
+
         return ok(merged)
     }
 
     // ── No existing OPEN order → just promote to OPEN (first-time QR) ──────
+    // หมายเหตุ: ไม่แตะ openedAt — ต้องคงเวลาที่ "ลูกค้าสั่ง" ไว้
+    // ถ้ารีเซ็ตตรงนี้ ตัวนับเวลารอในจอครัวจะเริ่มใหม่จากศูนย์ ทำให้ออเดอร์ที่รอนานดูเหมือนเพิ่งเข้า
     const updated = await prisma.order.update({
         where: { id: orderId },
         data: {
             status: 'OPEN',
-            openedAt: new Date(),
             createdById: user?.userId ?? null,
         },
         include: { table: true, items: { include: { product: true } } },
@@ -74,6 +80,9 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             data: { status: 'OCCUPIED' },
         })
     }
+
+    // ปลุกจอครัว/บาร์ให้ดึงคิวใหม่ทันที — ป้าย "รอยืนยัน" จะปลดล็อกเองโดยไม่ต้องรีโหลด
+    getEventEmitter().emit('ORDERS_UPDATED', tenantId)
 
     return ok(updated)
 }, ['OWNER', 'MANAGER', 'CASHIER'])

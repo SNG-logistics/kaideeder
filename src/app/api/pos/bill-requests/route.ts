@@ -11,7 +11,7 @@ export const GET = withAuth(async (_req: NextRequest, ctx: any) => {
             where: {
                 tenantId,
                 status: { in: ['OPEN', 'PENDING_CONFIRM'] },
-                note: { contains: 'เรียกเช็คบิล' },
+                note: { contains: '🧾 เรียกเช็คบิล' },
             },
             include: {
                 table: { select: { id: true, number: true, name: true, zone: true } },
@@ -38,14 +38,14 @@ export const DELETE = withAuth(async (req: NextRequest, ctx: any) => {
 
     try {
         const order = await prisma.order.findFirst({
-            where: { id: orderId, tenantId, note: { contains: 'เรียกเช็คบิล' } },
+            where: { id: orderId, tenantId, note: { contains: '🧾 เรียกเช็คบิล' } },
         })
         if (!order) return err('Bill request not found', 404)
 
         // Strip the bill-request marker — keep any other note text intact
         const cleanedNote = (order.note ?? '')
             .split('\n')
-            .filter(line => !line.includes('เรียกเช็คบิล'))
+            .filter(line => !line.includes('🧾 เรียกเช็คบิล'))
             .join('\n')
             .trim() || null
 

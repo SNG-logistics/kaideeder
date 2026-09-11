@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withAuth, ok, err } from '@/lib/api'
+import { getEventEmitter } from '@/lib/events'
 
 /**
  * POST /api/pos/orders/consolidate
@@ -54,6 +55,7 @@ export const POST = withAuth(async (req: NextRequest, context) => {
                     data: { status: 'OPEN' },
                     include: { items: { where: { isCancelled: false }, include: { product: true } } },
                 })
+                getEventEmitter().emit('ORDERS_UPDATED', tenantId)
                 return ok(promoted)
             }
             const single = await prisma.order.findUnique({
@@ -83,6 +85,12 @@ export const POST = withAuth(async (req: NextRequest, context) => {
                         unitPrice: item.unitPrice,
                         note: item.note,
                         kitchenStatus: item.kitchenStatus,
+                        // ต้องคัดลอกสามฟิลด์นี้มาด้วย ไม่งั้น:
+                        //   stationId หาย → เครื่องดื่มของบาร์ไหลไปเข้าคิวครัวแทน
+                        //   toppings หาย → ท็อปปิ้งไม่ขึ้นสลิปครัว และตัดสต็อกตอนปิดบิลไม่ครบ
+                        stationId: item.stationId,
+                        toppingsJson: item.toppingsJson,
+                        toppingsTotal: item.toppingsTotal,
                         isCancelled: false,
                     })),
                 })
@@ -118,6 +126,8 @@ export const POST = withAuth(async (req: NextRequest, context) => {
                 },
             },
         })
+
+        getEventEmitter().emit('ORDERS_UPDATED', tenantId)
 
         return ok(merged)
     } catch (e: any) {
