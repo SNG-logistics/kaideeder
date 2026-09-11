@@ -7,7 +7,8 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 // ── Types ──────────────────────────────────────────────────────────────────
 type OrderItem = { id: string; quantity: number; unitPrice: number; note: string | null; product: { name: string } }
 type PendingOrder = {
-    id: string; orderNumber: string; createdAt: string
+    // หมายเหตุ: โมเดล Order ไม่มีคอลัมน์ createdAt — เวลาที่ลูกค้าสั่งคือ openedAt
+    id: string; orderNumber: string; openedAt: string
     table: { number: number; name: string; zone: string } | null
     items: OrderItem[]
     totalAmount: number
@@ -23,22 +24,46 @@ function fmtTime(iso: string) {
 }
 
 // ── New Order Modal (Green theme) ──────────────────────────────────────────
-function PendingOrderModal({ order, onConfirm, onClose }: {
-    order: PendingOrder; onConfirm: () => void; onClose: () => void
+function PendingOrderModal({ order, onConfirm, onReject, onClose }: {
+    order: PendingOrder; onConfirm: () => void; onReject: () => void; onClose: () => void
 }) {
     const [loading, setLoading] = useState(false)
+    const [rejecting, setRejecting] = useState(false)
+    const [actionError, setActionError] = useState<string | null>(null)
+    // ปฏิเสธต้องกดสองจังหวะ กันกดพลาดบนจอสัมผัส
+    const [rejectMode, setRejectMode] = useState(false)
+    const [rejectReason, setRejectReason] = useState('')
 
     async function confirm() {
         setLoading(true)
+        setActionError(null)
         try {
             const res = await fetch(`/api/pos/orders/${order.id}/confirm`, { method: 'POST' })
             if (res.ok) onConfirm()
             else {
                 const j = await res.json().catch(() => ({}))
-                alert(j.error || 'เกิดข้อผิดพลาด')
+                setActionError(j.error || 'ยืนยันออเดอร์ไม่สำเร็จ')
             }
-        } catch { alert('Network error') }
+        } catch { setActionError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่') }
         setLoading(false)
+    }
+
+    async function reject() {
+        setRejecting(true)
+        setActionError(null)
+        try {
+            const res = await fetch(`/api/pos/orders/${order.id}/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: rejectReason }),
+            })
+            if (res.ok) onReject()
+            else {
+                const j = await res.json().catch(() => ({}))
+                setActionError(j.error || 'ปฏิเสธออเดอร์ไม่สำเร็จ')
+            }
+        } catch { setActionError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่') }
+        setRejecting(false)
     }
 
     const total = order.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
@@ -65,7 +90,7 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
                         <div style={{ color: '#86efac', fontSize: '0.78rem', marginTop: 3, fontWeight: 600 }}>
                             {order.table ? `โต๊ะ ${order.table.name}` : 'ไม่ระบุโต๊ะ'}
                             {order.table?.zone && ` — ${order.table.zone}`}
-                            &nbsp;•&nbsp; {fmtTime(order.createdAt)}
+                            &nbsp;•&nbsp; {fmtTime(order.openedAt)}
                         </div>
                     </div>
                     <div style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: '#4ade80', background: 'rgba(22,163,74,0.12)', padding: '3px 8px', borderRadius: 6 }}>
@@ -95,21 +120,76 @@ function PendingOrderModal({ order, onConfirm, onClose }: {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.09)', background: 'transparent', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        รอก่อน
-                    </button>
-                    <button onClick={confirm} disabled={loading} style={{
-                        flex: 2, padding: '12px', borderRadius: 10, border: 'none',
-                        background: loading ? '#374151' : 'linear-gradient(135deg,#16a34a,#15803d)',
-                        color: '#fff', fontWeight: 800, fontSize: '0.9rem',
-                        cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                        boxShadow: loading ? 'none' : '0 4px 16px rgba(22,163,74,0.5)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    }}>
-                        {loading ? '⏳ กำลังยืนยัน…' : '✅ ยืนยัน → ส่งครัว'}
-                    </button>
-                </div>
+                {actionError && (
+                    <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, padding: '9px 12px', marginBottom: 12, color: '#fca5a5', fontSize: '0.8rem', fontWeight: 600 }}>
+                        ❌ {actionError}
+                    </div>
+                )}
+
+                {rejectMode ? (
+                    /* ── ขั้นยืนยันการปฏิเสธ — เหตุผลใส่หรือไม่ใส่ก็ได้ ── */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ color: '#fca5a5', fontSize: '0.82rem', fontWeight: 700 }}>
+                            ปฏิเสธออเดอร์นี้? รายการจะถูกยกเลิกและไม่ถูกส่งเข้าครัว
+                        </div>
+                        <input
+                            value={rejectReason}
+                            onChange={e => setRejectReason(e.target.value)}
+                            placeholder="เหตุผล เช่น ของหมด / สั่งผิดโต๊ะ (ไม่บังคับ)"
+                            maxLength={200}
+                            autoFocus
+                            style={{
+                                width: '100%', padding: '11px 13px', borderRadius: 10,
+                                border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)',
+                                color: '#e2e8f0', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none',
+                                boxSizing: 'border-box',
+                            }}
+                        />
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button onClick={() => { setRejectMode(false); setRejectReason('') }} disabled={rejecting} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.09)', background: 'transparent', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: rejecting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                                ← ย้อนกลับ
+                            </button>
+                            <button onClick={reject} disabled={rejecting} style={{
+                                flex: 2, padding: '12px', borderRadius: 10, border: 'none',
+                                background: rejecting ? '#374151' : 'linear-gradient(135deg,#dc2626,#ef4444)',
+                                color: '#fff', fontWeight: 800, fontSize: '0.88rem',
+                                cursor: rejecting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                                boxShadow: rejecting ? 'none' : '0 4px 16px rgba(220,38,38,0.45)',
+                            }}>
+                                {rejecting ? '⏳ กำลังปฏิเสธ…' : '❌ ยืนยันปฏิเสธ'}
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button onClick={onClose} disabled={loading} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.09)', background: 'transparent', color: '#64748b', fontWeight: 600, fontSize: '0.82rem', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                                รอก่อน
+                            </button>
+                            <button onClick={confirm} disabled={loading} style={{
+                                flex: 2, padding: '12px', borderRadius: 10, border: 'none',
+                                background: loading ? '#374151' : 'linear-gradient(135deg,#16a34a,#15803d)',
+                                color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+                                cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                                boxShadow: loading ? 'none' : '0 4px 16px rgba(22,163,74,0.5)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            }}>
+                                {loading ? '⏳ กำลังยืนยัน…' : '✅ ยืนยัน → ส่งครัว'}
+                            </button>
+                        </div>
+                        {/* ปฏิเสธออเดอร์ป่วน / สั่งผิดโต๊ะ / ของหมด — ก่อนหน้านี้ไม่มีทางทำได้เลย */}
+                        <button onClick={() => { setActionError(null); setRejectMode(true) }} disabled={loading} style={{
+                            width: '100%', padding: '10px', borderRadius: 10,
+                            border: '1.5px solid rgba(239,68,68,0.4)',
+                            background: 'rgba(239,68,68,0.08)',
+                            color: '#f87171', fontWeight: 700, fontSize: '0.82rem',
+                            cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}>
+                            ❌ ปฏิเสธออเดอร์นี้
+                        </button>
+                    </div>
+                )}
             </div>
             <style>{`
                 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -231,7 +311,9 @@ export default function NewOrderAlert() {
     const currentOrderNode = viewingId ? orderNotifs.find(n => n.id === viewingId) : null
     const currentBillNode  = viewingId ? billNotifs.find(n => n.id === viewingId)  : null
 
-    const handleConfirmOrder = useCallback(() => {
+    // ใช้ร่วมกันทั้งตอนยืนยันและตอนปฏิเสธ — ทั้งสองทางออเดอร์ถูกจัดการแล้ว
+    // ต้องเอาออกจากรายการแจ้งเตือนเพื่อให้เสียงเตือนที่ร้องซ้ำทุก 8 วินาทีหยุด
+    const handleOrderHandled = useCallback(() => {
         if (currentOrderNode) {
             markAsSeen(currentOrderNode.id)
             removeNotification(currentOrderNode.id)
@@ -343,7 +425,8 @@ export default function NewOrderAlert() {
             {currentOrderNode && (
                 <PendingOrderModal
                     order={currentOrderNode.metadata}
-                    onConfirm={handleConfirmOrder}
+                    onConfirm={handleOrderHandled}
+                    onReject={handleOrderHandled}
                     onClose={() => setViewingId(null)}
                 />
             )}

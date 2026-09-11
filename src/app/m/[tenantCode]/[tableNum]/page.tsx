@@ -10,10 +10,12 @@ type Tenant = { name: string; displayName: string | null; storeNameLao?: string 
 type Topping = { id: string; name: string; price: number; isActive?: boolean }
 type CartItem = Product & { cartId: string; quantity: number; note: string; toppingsJson?: string; toppingsTotal?: number }
 
+type KitchenStatus = 'PENDING' | 'ACCEPTED' | 'COOKING' | 'READY' | 'SERVED' | 'CANCELLED'
+type DineStage = 'AWAITING_CONFIRM' | 'PENDING' | 'ACCEPTED' | 'COOKING' | 'READY' | 'SERVED'
 type BillRound = {
     round: number; orderId: string; orderNumber: string
     status: 'OPEN' | 'PENDING_CONFIRM'; openedAt: string
-    items: { name: string; quantity: number; unitPrice: number; note: string | null }[]
+    items: { name: string; quantity: number; unitPrice: number; note: string | null; kitchenStatus?: KitchenStatus }[]
     subtotal: number
 }
 type BillData = {
@@ -21,6 +23,7 @@ type BillData = {
     tableName?: string; tableZone?: string
     totalRounds?: number; hasOpenRound?: boolean; hasPending?: boolean
     billRequested?: boolean; rounds?: BillRound[]; grandTotal?: number
+    stage?: DineStage; allServed?: boolean
 }
 
 // ── Color System ───────────────────────────────────────────────────────────
@@ -62,7 +65,64 @@ const GLOBAL_CSS = `
   @keyframes bounce  { 0%,100%{transform:scale(1)} 45%{transform:scale(1.22)} 70%{transform:scale(0.94)} }
   @keyframes slideUp { from { transform:translateY(100%) } to { transform:translateY(0) } }
   @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.5} }
+  @keyframes ripple  { 0%{transform:scale(1);opacity:.5} 100%{transform:scale(1.5);opacity:0} }
 `
+
+// ── แถบสถานะอาหาร ─────────────────────────────────────────────────
+// ใช้ภาษาภาพชุดเดียวกับหน้าติดตาม delivery (src/app/d/[tenantCode]/track/[orderId])
+// เพื่อให้ลูกค้าที่เคยสั่ง delivery คุ้นมืออยู่แล้ว
+const DINE_STEPS: { key: DineStage; labelKey: string; subKey: string; icon: string; color: string }[] = [
+    { key: 'AWAITING_CONFIRM', labelKey: 'dine_await_confirm', subKey: 'dine_await_confirm_sub', icon: '📋', color: '#f59e0b' },
+    { key: 'PENDING',          labelKey: 'dine_sent',          subKey: 'dine_sent_sub',          icon: '📨', color: '#3b82f6' },
+    { key: 'ACCEPTED',         labelKey: 'dine_accepted',      subKey: 'dine_accepted_sub',      icon: '👨‍🍳', color: '#3b82f6' },
+    { key: 'COOKING',          labelKey: 'dine_cooking',       subKey: 'dine_cooking_sub',       icon: '🔥', color: '#f97316' },
+    { key: 'READY',            labelKey: 'dine_ready',         subKey: 'dine_ready_sub',         icon: '🍽️', color: C.accent },
+    { key: 'SERVED',           labelKey: 'dine_served',        subKey: 'dine_served_sub',        icon: '🎉', color: C.accent },
+]
+
+function OrderStatusTrack({ stage, t }: { stage: DineStage; t: (k: string) => string }) {
+    const idx = Math.max(0, DINE_STEPS.findIndex(x => x.key === stage))
+    const cur = DINE_STEPS[idx] ?? DINE_STEPS[0]
+    const isDone = cur.key === 'SERVED'
+
+    return (
+        <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '18px 16px', boxShadow: C.shadow, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: C.muted, letterSpacing: '0.06em' }}>{t('dine_status_title')}</div>
+
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {!isDone && (
+                    <>
+                        <div style={{ position: 'absolute', top: -8, right: -8, bottom: -8, left: -8, borderRadius: '50%', border: `2px solid ${cur.color}`, animation: 'ripple 1.6s ease-out infinite', opacity: 0.45 }} />
+                        <div style={{ position: 'absolute', top: -4, right: -4, bottom: -4, left: -4, borderRadius: '50%', border: `2px solid ${cur.color}`, animation: 'ripple 1.6s ease-out 0.5s infinite', opacity: 0.28 }} />
+                    </>
+                )}
+                <div style={{ width: 76, height: 76, borderRadius: '50%', background: `${cur.color}1f`, border: `3px solid ${cur.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.2rem', animation: isDone ? 'bounce 0.6s ease' : 'none' }}>
+                    {cur.icon}
+                </div>
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+                <div style={{ color: C.text, fontWeight: 800, fontSize: '1.02rem' }}>{t(cur.labelKey)}</div>
+                <div style={{ color: C.muted, fontSize: '0.8rem', marginTop: 2 }}>{t(cur.subKey)}</div>
+            </div>
+
+            {/* จุดบอกความคืบหน้า */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                {DINE_STEPS.map((st, i) => (
+                    <div key={st.key} style={{
+                        width: i === idx ? 22 : 7, height: 7, borderRadius: 99,
+                        background: i <= idx ? cur.color : '#e2e6e5',
+                        transition: 'all 0.35s ease',
+                    }} />
+                ))}
+            </div>
+
+            {!isDone && (
+                <div style={{ color: C.muted, fontSize: '0.68rem', marginTop: 2 }}>🔄 {t('dine_live_hint')}</div>
+            )}
+        </div>
+    )
+}
 
 // ── Session Expired / Table Closed Screen ──────────────────────────
 function SessionExpiredScreen({ tableNum }: { tableNum: number }) {
@@ -138,6 +198,8 @@ export default function MenuPage() {
     const [billLoading, setBillLoading] = useState(false)
     const [billRequesting, setBillRequesting] = useState(false)
     const [billDone, setBillDone] = useState(false)
+    // ข้อความเตือนในตะกร้า — ใช้แทนหน้า error เต็มจอ ที่ทำให้ลูกค้าคิดว่าระบบพัง
+    const [cartNotice, setCartNotice] = useState('')
 
     useEffect(() => {
         const tc = params.tenantCode
@@ -165,18 +227,30 @@ export default function MenuPage() {
         else if (tenant.language === 'lo') setLang('lo')
     }, [tenant, setLang])
 
-    const loadBill = useCallback(async () => {
-        setBillLoading(true)
+    // silent = ดึงเบื้องหลัง ไม่ต้องโชว์สถานะกำลังโหลด (ใช้ตอน poll ทุก 30 วิ
+    // ไม่งั้นหน้าบิลจะกะพริบเป็น "กำลังโหลด" ทุกครั้งที่อัปเดต)
+    const loadBill = useCallback(async (silent = false) => {
+        if (!silent) setBillLoading(true)
         try {
             const r = await fetch(`/api/public/bill/${params.tenantCode}/${params.tableNum}`)
             const d = await r.json()
             setBill(d)
             if (d.billRequested) setBillDone(true)
         } catch { }
-        finally { setBillLoading(false) }
+        finally { if (!silent) setBillLoading(false) }
     }, [params.tenantCode, params.tableNum])
 
     useEffect(() => { loadBill() }, [loadBill])
+
+    // ── อัปเดตสถานะเองทุก 30 วินาที ────────────────────────────────────────
+    // ก่อนหน้านี้หน้านี้ดึงข้อมูลครั้งเดียวตอนเปิดแล้วไม่อัปเดตอีกเลย ลูกค้าจึงไม่มีทาง
+    // รู้ว่าออเดอร์ถูกยืนยันหรือยัง และปุ่มเรียกเก็บเงินก็ไม่มีวันโผล่
+    // หยุดดึงเมื่อเสิร์ฟครบแล้วหรือยังไม่มีออเดอร์ เพื่อไม่กินแบตและไม่ยิง DB ทิ้ง
+    useEffect(() => {
+        if (!bill?.hasOrder || bill?.allServed) return
+        const timer = setInterval(() => loadBill(true), 30_000)
+        return () => clearInterval(timer)
+    }, [loadBill, bill?.hasOrder, bill?.allServed])
 
     const hasAnyOrder = bill?.hasOrder ?? false
     const totalRounds = bill?.totalRounds ?? 0
@@ -253,19 +327,27 @@ export default function MenuPage() {
             })
             const json = await res.json()
             if (!res.ok) {
+                // ออเดอร์แรกของโต๊ะยังรอพนักงานยืนยัน — เตือนในตะกร้า เก็บของในตะกร้าไว้
+                // ไม่ปิดหน้าเมนูทิ้งเป็นหน้า error เต็มจอเหมือนเดิม
+                if (res.status === 409 && json.code === 'PENDING_CONFIRM_EXISTS') {
+                    setCartNotice(t('qr_pending_wait'))
+                    await loadBill(true)
+                    return
+                }
                 // Session expired = table not open / customer already left
                 if (res.status === 403 && json.error === 'SESSION_EXPIRED') {
                     setCartOpen(false)
                     setSessionExpired(true)
                     return
                 }
-                setError(json.error || 'เกิดข้อผิดพลาด')
+                setError(json.error || t('error_occurred'))
                 setCartOpen(false)
                 return
             }
             setOrderNumber(json.orderNumber)
             setIsAddon(json.isAddon ?? false)
             setCart([])
+            setCartNotice('')
             setCartOpen(false)
             await loadBill()
             setSubmittedRound((bill?.totalRounds ?? 0) + 1)
@@ -334,7 +416,7 @@ export default function MenuPage() {
                     {billLoading ? (
                         <div style={{ textAlign: 'center', padding: 60 }}>
                             <div style={{ width: 36, height: 36, border: `3px solid ${C.accentLight}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-                            <p style={{ color: C.muted, margin: 0, fontSize: '0.85rem' }}>กำลังโหลด…</p>
+                            <p style={{ color: C.muted, margin: 0, fontSize: '0.85rem' }}>{t('loading')}</p>
                         </div>
                     ) : !bill?.hasOrder ? (
                         <div style={{ textAlign: 'center', padding: 60, color: C.muted }}>
@@ -343,6 +425,9 @@ export default function MenuPage() {
                         </div>
                     ) : (
                         <>
+                            <div style={{ marginBottom: 14 }}>
+                                <OrderStatusTrack stage={bill.stage ?? 'AWAITING_CONFIRM'} t={t} />
+                            </div>
                             {bill.rounds?.map(round => (
                                 <div key={round.orderId} style={{ background: C.card, border: `1px solid ${round.status === 'PENDING_CONFIRM' ? 'rgba(245,158,11,0.3)' : 'rgba(42,157,80,0.2)'}`, borderRadius: 16, overflow: 'hidden', marginBottom: 12, boxShadow: C.shadow }}>
                                     <div style={{ padding: '10px 16px', background: round.status === 'PENDING_CONFIRM' ? 'rgba(245,158,11,0.06)' : 'rgba(42,157,80,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}` }}>
@@ -443,19 +528,19 @@ export default function MenuPage() {
                 {isAddon ? t('qr_order_addon') : t('qr_order_success')}
             </h1>
             <p style={{ color: C.muted, margin: 0, fontSize: '0.9rem', lineHeight: 1.7 }}>
-                {t('qr_order_kitchen')}
+                {/* รอบแรกของโต๊ะยังต้องให้พนักงานยืนยันก่อน ห้ามบอกว่าครัวรับแล้ว */}
+                {bill?.stage === 'AWAITING_CONFIRM' ? t('qr_order_await_staff') : t('qr_order_kitchen')}
             </p>
             <div style={{ background: C.card, border: `1.5px solid ${C.accentLight}`, borderRadius: 16, padding: '14px 32px', boxShadow: C.shadow }}>
                 <div style={{ color: C.muted, fontSize: '0.7rem', marginBottom: 4, fontWeight: 600, letterSpacing: '0.06em' }}>{t('qr_order_number')}</div>
                 <div style={{ color: C.accent, fontWeight: 900, fontSize: '1.3rem', fontFamily: 'monospace' }}>{orderNumber}</div>
             </div>
-            {/* ผู้ใช้ส่งออเดอร์เสร็จ——แสดงแค่ pending badge ไม่เห็น "รอบ" */}
-            <div style={{ background: C.card, border: `1px solid rgba(245,158,11,0.35)`, borderRadius: 14, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: C.shadow, width: '100%', maxWidth: 320 }}>
-                <span style={{ fontSize: '1.3rem' }}>⏳</span>
-                <div style={{ textAlign: 'left' }}>
-                    <div style={{ color: '#D97706', fontWeight: 700, fontSize: '0.88rem' }}>{t('bill_pending_confirm')}</div>
-                    <div style={{ color: C.muted, fontSize: '0.75rem' }}>{t('total')} {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}</div>
-                </div>
+            {/* สถานะจริงของอาหาร — อัปเดตเองทุก 30 วินาที */}
+            <div style={{ width: '100%', maxWidth: 320 }}>
+                <OrderStatusTrack stage={bill?.stage ?? 'AWAITING_CONFIRM'} t={t} />
+            </div>
+            <div style={{ color: C.muted, fontSize: '0.8rem' }}>
+                {t('total')} {Math.round(bill?.grandTotal ?? 0).toLocaleString()} {currency}
             </div>
             <p style={{ color: C.muted, fontSize: '0.75rem', margin: 0 }}>{t('qr_table')} {tableLabel}{zoneLabel ? ` · ${zoneLabel}` : ''}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
@@ -758,9 +843,11 @@ export default function MenuPage() {
                                             </button>
                                         ) : (
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.accentLight, borderRadius: 12, padding: '3px', minHeight: 36 }}>
-                                                <button onClick={() => { if(p.toppingsJson){alert('กรุณาจัดการจากในตะกร้า'); return} removeFromCart(p.id) }} style={stepBtn}>−</button>
+                                                <button onClick={() => { if(p.toppingsJson){ setCartNotice(t('manage_from_cart')); setCartOpen(true); return } removeFromCart(p.id) }} style={stepBtn}>−</button>
                                                 <span style={{ color: C.accent, fontWeight: 900, fontSize: '1rem', minWidth: 22, textAlign: 'center' }}>{qty}</span>
-                                                <button onClick={() => internalAddToCart(p, p.toppingsJson ? JSON.parse(p.toppingsJson) : [], 0)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
+                                                {/* ต้องเรียก addToCart เพื่อเปิดหน้าเลือกท็อปปิ้งใหม่
+                                                    ของเดิมยัดท็อปปิ้งทุกตัว (รวมตัวที่ปิดอยู่) ให้ฟรีในราคา 0 */}
+                                                <button onClick={() => addToCart(p)} style={{ ...stepBtn, background: C.accent, color: '#fff', border: 'none' }}>+</button>
                                             </div>
                                         )}
                                     </div>
@@ -827,6 +914,11 @@ export default function MenuPage() {
                                     </div>
                                 </div>
                             ))}
+                            {cartNotice && (
+                                <div style={{ background: C.goldLight, border: '1px solid rgba(245,158,11,0.4)', borderRadius: 12, padding: '11px 14px', margin: '12px 0 0', color: '#B45309', fontSize: '0.82rem', fontWeight: 600, lineHeight: 1.6 }}>
+                                    ⏳ {cartNotice}
+                                </div>
+                            )}
                             {cart.length === 0 && <p style={{ color: C.muted, textAlign: 'center', padding: 32, margin: 0 }}>{t('qr_cart_empty')}</p>}
                             {cart.length > 0 && (
                                 <>
@@ -835,9 +927,9 @@ export default function MenuPage() {
                                         <span style={{ color: C.accent, fontWeight: 900, fontSize: '1.1rem' }}>{Math.round(totalPrice).toLocaleString()} {currency}</span>
                                     </div>
                                     <button onClick={submitOrder} disabled={submitting} style={{ width: '100%', background: submitting ? '#d1d5db' : `linear-gradient(135deg,${C.accent},${C.accentDark})`, color: '#fff', border: 'none', borderRadius: 18, padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: submitting ? 'not-allowed' : 'pointer', marginTop: 10, fontFamily: FONT, boxShadow: submitting ? 'none' : C.shadowGreen }}>
-                                        {submitting ? t('qr_submitting') : hasAnyOrder ? `➕ ${t('qr_add_more_items')}` : t('qr_confirm_order')}
+                                        {submitting ? t('qr_submitting') : t('qr_confirm_order')}
                                     </button>
-                                    <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '12px', fontWeight: 500, fontSize: '0.88rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>← {t('qr_add_more')}</button>
+                                    <button onClick={() => setCartOpen(false)} style={{ width: '100%', background: 'transparent', color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '12px', fontWeight: 500, fontSize: '0.88rem', cursor: 'pointer', marginTop: 8, fontFamily: FONT }}>{t('qr_add_more')}</button>
                                 </>
                             )}
                         </div>

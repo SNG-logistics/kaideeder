@@ -53,6 +53,8 @@ export async function GET(
                 quantity: i.quantity,
                 unitPrice: i.unitPrice,
                 note: i.note,
+                // สถานะครัวรายจาน — ลูกค้าใช้ดูว่าอาหารของตัวเองถึงไหนแล้ว
+                kitchenStatus: i.kitchenStatus,
             }))
             const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
             return {
@@ -71,6 +73,25 @@ export async function GET(
         const hasOpenRound = orders.some(o => o.status === 'OPEN')
         const hasPending = orders.some(o => o.status === 'PENDING_CONFIRM')
 
+        // ── สถานะรวมของโต๊ะ — ใช้จานที่ "ช้าที่สุด" เป็นตัวแทน ────────────────
+        // ตอบคำถามของลูกค้าว่า "ออเดอร์ของฉันเสร็จหรือยัง" ไม่ใช่ "มีจานไหนเสร็จบ้าง"
+        const STAGE_ORDER = ['PENDING', 'ACCEPTED', 'COOKING', 'READY', 'SERVED'] as const
+        type Stage = (typeof STAGE_ORDER)[number]
+
+        const liveStatuses = rounds
+            .flatMap(r => r.items.map(i => i.kitchenStatus))
+            .filter((s): s is Stage => STAGE_ORDER.includes(s as Stage))
+
+        const kitchenStage: Stage = liveStatuses.length === 0
+            ? 'PENDING'
+            : liveStatuses.reduce((slowest, s) =>
+                STAGE_ORDER.indexOf(s) < STAGE_ORDER.indexOf(slowest) ? s : slowest, 'SERVED' as Stage)
+
+        // รอแคชเชียร์ยืนยันอยู่ = ยังไม่ถึงมือครัว ให้แสดงเป็นขั้นแรกเสมอ
+        const stage: 'AWAITING_CONFIRM' | Stage = (hasPending && !hasOpenRound)
+            ? 'AWAITING_CONFIRM'
+            : kitchenStage
+
         return NextResponse.json({
             hasOrder: true,
             tableNumber,
@@ -82,6 +103,8 @@ export async function GET(
             hasOpenRound,
             hasPending,
             billRequested,
+            stage,
+            allServed: liveStatuses.length > 0 && liveStatuses.every(s => s === 'SERVED'),
             rounds,
             grandTotal,
         })
@@ -123,13 +146,17 @@ export async function POST(
         const already = openOrders.every(o => o.note?.includes('🧾 เรียกเช็คบิล'))
 
         if (!already) {
-            // Mark ALL open orders, not just one
-            await prisma.order.updateMany({
-                where: {
-                    id: { in: openOrders.map(o => o.id) },
-                },
-                data: { note: `🧾 เรียกเช็คบิล ${time}` },
-            })
+            // ต่อท้ายโน้ตเดิม ห้ามเขียนทับ — โน้ตสั่งอาหารของลูกค้า (เช่น "ไม่ใส่ผักชี")
+            // ต้องอยู่ครบ ใช้รูปแบบทีละบรรทัดให้ตรงกับฝั่งยกเลิกคำขอใน pos/bill-requests
+            const marker = `🧾 เรียกเช็คบิล ${time}`
+            await prisma.$transaction(
+                openOrders
+                    .filter(o => !o.note?.includes('🧾 เรียกเช็คบิล'))
+                    .map(o => prisma.order.update({
+                        where: { id: o.id },
+                        data: { note: o.note?.trim() ? `${o.note.trim()}\n${marker}` : marker },
+                    }))
+            )
         }
 
         return NextResponse.json({ ok: true, already, count: openOrders.length })

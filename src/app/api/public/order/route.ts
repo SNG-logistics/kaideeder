@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { getEventEmitter } from '@/lib/events'
 
 const schema = z.object({
     tenantCode: z.string().min(1),
@@ -45,30 +46,16 @@ export async function POST(req: Request) {
         })
         if (!table) return NextResponse.json({ error: 'Table not found' }, { status: 404 })
 
-        // ── SESSION GUARD ──────────────────────────────────────────────────────
-        const activeOrder = await prisma.order.findFirst({
-            where: { tenantId: tenant.id, tableId: table.id, status: { in: ['OPEN', 'PENDING_CONFIRM'] } },
+        // ── Table session ─────────────────────────────────────────────────────
+        // ทุกโต๊ะเปิดให้สแกนสั่งได้ตลอดเวลา ไม่ต้องรอพนักงานมาเปิดโต๊ะก่อน
+        //   • รอบแรกของโต๊ะ           → PENDING_CONFIRM ให้แคชเชียร์กรองหนึ่งชั้น
+        //   • รอบถัดไป (มีออเดอร์ OPEN) → ต่อเข้าออเดอร์เดิมเลย ครัว/บาร์เห็นทันที
+        const openOrder = await prisma.order.findFirst({
+            where: { tenantId: tenant.id, tableId: table.id, status: 'OPEN' },
+            orderBy: { openedAt: 'asc' },
         })
-        if (!activeOrder && table.status !== 'OCCUPIED') {
-            return NextResponse.json({
-                error: 'SESSION_EXPIRED',
-                message: 'โต๊ะนี้ยังไม่ได้เปิดบริการ\nกรุณาแจ้งพนักงานเพื่อเปิดโต๊ะก่อนสั่งอาหาร',
-            }, { status: 403 })
-        }
 
-        // Block if PENDING_CONFIRM already exists (anti-spam)
-        const existingPending = await prisma.order.findFirst({
-            where: { tenantId: tenant.id, tableId: table.id, status: 'PENDING_CONFIRM' },
-        })
-        if (existingPending) {
-            return NextResponse.json({
-                error: 'ออเดอร์ก่อนหน้ายังรอการยืนยันอยู่ กรุณารอสักครู่…',
-                orderId: existingPending.id,
-            }, { status: 409 })
-        }
-
-        // ── Always create PENDING_CONFIRM → cashier must confirm every QR order ──
-        // Confirm endpoint handles: if OPEN order exists → merge; else → promote to OPEN.
+        // ── รายการอาหาร (ใช้ร่วมกันทั้งสองเส้นทาง) ────────────────────────────
         const productIds = data.items.map(i => i.productId)
         const products = await prisma.product.findMany({
             where: { id: { in: productIds }, tenantId: tenant.id },
@@ -76,14 +63,78 @@ export async function POST(req: Request) {
         })
         const productMap = Object.fromEntries(products.map(p => [p.id, p]))
 
+        const buildItem = (item: (typeof data.items)[number]) => {
+            const prod = productMap[item.productId]
+            const catCode = (prod?.category?.code || '').toUpperCase()
+            const catName = (prod?.category?.name || '').toLowerCase()
+            const isBar = BAR_CATS.some(c => catCode.includes(c)) ||
+                BAR_KEYWORDS.some(k => catName.includes(k))
+            return {
+                tenantId: tenant.id,
+                productId: item.productId,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                note: item.note || data.customerNote || null,
+                stationId: isBar ? 'BAR' : 'KITCHEN',
+                kitchenStatus: 'PENDING' as const,
+            }
+        }
+
+        const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+        const emitter = getEventEmitter()
+
+        // ── รอบถัดไป: ต่อเข้าออเดอร์ที่เปิดอยู่ ส่งเข้าครัวทันที ─────────────────
+        if (openOrder) {
+            await prisma.$transaction(async (tx) => {
+                await tx.orderItem.createMany({
+                    data: data.items.map(item => ({ ...buildItem(item), orderId: openOrder.id })),
+                })
+                const liveItems = await tx.orderItem.findMany({
+                    where: { orderId: openOrder.id, isCancelled: false },
+                })
+                const newSubtotal = liveItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+                const discountAmt = openOrder.discountType === 'PERCENT'
+                    ? newSubtotal * openOrder.discount / 100
+                    : openOrder.discount
+                await tx.order.update({
+                    where: { id: openOrder.id },
+                    data: {
+                        subtotal: newSubtotal,
+                        totalAmount: newSubtotal - discountAmt + openOrder.serviceCharge + openOrder.vat,
+                    },
+                })
+            })
+
+            emitter.emit('ORDERS_UPDATED', tenant.id)
+
+            return NextResponse.json({
+                ok: true,
+                orderNumber: openOrder.orderNumber,
+                orderId: openOrder.id,
+                isAddon: true,
+                needsConfirm: false,
+                tableNumber: table.number,
+            })
+        }
+
+        // ── รอบแรกของโต๊ะ: กันยิงซ้ำระหว่างที่ยังรอแคชเชียร์ยืนยัน ───────────────
+        const existingPending = await prisma.order.findFirst({
+            where: { tenantId: tenant.id, tableId: table.id, status: 'PENDING_CONFIRM' },
+        })
+        if (existingPending) {
+            return NextResponse.json({
+                code: 'PENDING_CONFIRM_EXISTS',
+                error: 'ออเดอร์แรกของโต๊ะยังรอพนักงานยืนยันอยู่ กรุณารอสักครู่แล้วลองใหม่',
+                orderId: existingPending.id,
+            }, { status: 409 })
+        }
+
         let orderNumber = generateOrderNumber()
         for (let i = 0; i < 10; i++) {
             const exists = await prisma.order.findFirst({ where: { tenantId: tenant.id, orderNumber } })
             if (!exists) break
             orderNumber = generateOrderNumber()
         }
-
-        const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
 
         const order = await prisma.order.create({
             data: {
@@ -94,33 +145,19 @@ export async function POST(req: Request) {
                 subtotal,
                 totalAmount: subtotal,
                 note: data.customerNote || null,
-                items: {
-                    create: data.items.map(item => {
-                        const prod = productMap[item.productId]
-                        const catCode = (prod?.category?.code || '').toUpperCase()
-                        const catName = (prod?.category?.name || '').toLowerCase()
-                        const isBar = BAR_CATS.some(c => catCode.includes(c)) ||
-                            BAR_KEYWORDS.some(k => catName.includes(k))
-                        return {
-                            tenantId: tenant.id,
-                            productId: item.productId,
-                            quantity: item.quantity,
-                            unitPrice: item.unitPrice,
-                            note: item.note || data.customerNote || null,
-                            stationId: isBar ? 'BAR' : 'KITCHEN',
-                            kitchenStatus: 'PENDING',
-                        }
-                    }),
-                },
+                items: { create: data.items.map(buildItem) },
             },
             include: { table: true, items: true },
         })
+
+        emitter.emit('ORDERS_UPDATED', tenant.id)
 
         return NextResponse.json({
             ok: true,
             orderNumber: order.orderNumber,
             orderId: order.id,
-            isAddon: !!activeOrder,   // true if table already had an order
+            isAddon: false,
+            needsConfirm: true,
             tableNumber: table.number,
         })
     } catch (e: any) {
