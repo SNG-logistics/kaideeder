@@ -2052,6 +2052,25 @@ const ANDROID_POS_APK = {
 }
 const ANDROID_POS_APK_FILENAME = ANDROID_POS_APK.href.split('/').pop() || 'kaideeder-pos.apk'
 
+// เวอร์ชันแรกที่แก้อาการเครื่องพิมพ์ในตัวขึ้น DISCONNECTED บน Android 11
+// (ประกาศ <queries> ใน AndroidManifest ให้ผูกกับบริการเครื่องพิมพ์ของ SUNMI ได้)
+// ถ้าไฟล์ที่วางไว้ใน public/downloads ยังเก่ากว่านี้ การ์ดจะเตือนเอง
+// และคำเตือนจะหายไปเองเมื่ออัปเดต ANDROID_POS_APK ด้านบนเป็นไฟล์ใหม่
+const ANDROID_POS_PRINTER_FIX_VERSION = '1.1.1'
+
+/** เทียบเฉพาะเลขเวอร์ชัน x.y.z ตัด suffix อย่าง -debug ทิ้ง */
+function isApkOlderThan(current: string, target: string): boolean {
+    const parse = (v: string) => v.split('-')[0].split('.').map(n => parseInt(n, 10) || 0)
+    const a = parse(current)
+    const b = parse(target)
+    for (let i = 0; i < 3; i++) {
+        const x = a[i] ?? 0
+        const y = b[i] ?? 0
+        if (x !== y) return x < y
+    }
+    return false
+}
+
 function AndroidPosDownloadCard() {
     return (
         <div className="card" style={{ borderColor: 'rgba(22,163,74,0.3)', background: 'rgba(22,163,74,0.03)' }}>
@@ -2087,6 +2106,14 @@ function AndroidPosDownloadCard() {
                     ⬇️ ดาวน์โหลด APK
                 </a>
             </div>
+
+            {isApkOlderThan(ANDROID_POS_APK.version, ANDROID_POS_PRINTER_FIX_VERSION) && (
+                <p style={{ color: '#B91C1C', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 9, padding: '0.65rem 0.8rem', fontSize: '0.72rem', lineHeight: 1.55, margin: '12px 0 0', fontWeight: 600 }}>
+                    🛑 ไฟล์ที่แจกอยู่นี้ ({ANDROID_POS_APK.version}) <strong>ยังพิมพ์ผ่านเครื่องพิมพ์ในตัวไม่ได้บน Android 11</strong> —
+                    จะขึ้นสถานะ DISCONNECTED เสมอ แก้แล้วในซอร์สโค้ดตั้งแต่เวอร์ชัน {ANDROID_POS_PRINTER_FIX_VERSION}
+                    แต่ต้อง build APK ใหม่แล้ววางทับไฟล์ใน <code>public/downloads/</code> ก่อน คำเตือนนี้จะหายเอง
+                </p>
+            )}
 
             <p style={{ color: '#B45309', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 9, padding: '0.65rem 0.8rem', fontSize: '0.72rem', lineHeight: 1.55, margin: '12px 0 0' }}>
                 ⚠️ รุ่นนี้เป็น Debug APK สำหรับทดสอบหน้างาน อาจต้องอนุญาต “ติดตั้งแอปที่ไม่รู้จัก” บนเครื่องก่อนติดตั้ง
