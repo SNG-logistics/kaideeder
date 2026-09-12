@@ -60,7 +60,9 @@
 | `READY` | พร้อมพิมพ์ | — |
 | `BRIDGE_UNAVAILABLE` | ไม่มี `window.AndroidPOS` | ไม่ได้เปิดจากแอป หรือ APK เวอร์ชันเก่ากว่า 1.1.0 |
 | `UNTRUSTED_PAGE` | หน้าไม่ได้โหลดจาก host ที่อนุญาต | URL ต้องเป็น `https://kaideeder.com/...` (ดู `ALLOWED_HOSTS` ใน `gradle.properties`) หรือหน้ายังโหลดไม่เสร็จ — รอแล้วลองใหม่ |
-| `DISCONNECTED` | service ของ SUNMI ยังไม่ bind | ปิดแอปแล้วเปิดใหม่ / รีสตาร์ทเครื่อง |
+| `DISCONNECTED` | ยังผูกกับบริการเครื่องพิมพ์ไม่สำเร็จ | รอสักครู่แล้วกดตรวจสอบสถานะอีกครั้ง (แอปจะผูกใหม่ให้เอง) ถ้ายังไม่หาย ปิดแล้วเปิดแอปใหม่ |
+| `SERVICE_NOT_FOUND` | มองไม่เห็นแอปบริการเครื่องพิมพ์ของ SUNMI | ถ้าเป็น APK เก่ากว่า 1.1.1 ให้อัปเดตก่อน (ดูหมายเหตุใต้ตาราง) ถ้าเป็น 1.1.1 ขึ้นไปแปลว่าเครื่องนี้ไม่มีบริการนั้นจริง ๆ ให้ใช้เครื่องพิมพ์ LAN แทน |
+| `BIND_REFUSED` | ระบบปฏิเสธการเชื่อมต่อบริการ | รีสตาร์ทเครื่อง ถ้ายังไม่หายให้เช็คว่าแอปบริการเครื่องพิมพ์ถูกปิดใช้งานอยู่หรือไม่ |
 | `UNSUPPORTED` (505) | เครื่องรุ่นนี้ไม่มี inner printer | ใช้เครื่องพิมพ์ LAN แทน |
 | `OUT_OF_PAPER` | กระดาษหมด | ใส่กระดาษ 80mm (D2s Plus) |
 | `COVER_OPEN` | ฝาเปิด | ปิดฝาให้สนิท |
@@ -69,6 +71,14 @@
 | `DUPLICATE_BLOCKED` | ต้นฉบับของออเดอร์นี้พิมพ์ไปแล้ว (หรือกดซ้ำเร็วเกิน 3 วิ) | ใช้ปุ่ม "พิมพ์ใบเสร็จซ้ำ" |
 | `INVALID_REQUEST` | payload ไม่ผ่าน validation (ไม่มีรายการ, จำนวน ≤ 0, > 200 รายการ) | เช็คออเดอร์ — ทุกรายการที่ไม่ถูกยกเลิกต้องมี quantity > 0 |
 | `PRINT_ERROR` / `NATIVE_ERROR` | SDK ของ SUNMI โยน error | ดู logcat (`adb logcat \| grep -E 'Sunmi\|kaideeder'`) |
+
+> **สำคัญ — APK ก่อนเวอร์ชัน 1.1.1 ขึ้น `DISCONNECTED` เสมอบน Android 11 ขึ้นไป**
+> ตั้งแต่ Android 11 ระบบซ่อนแอปอื่นจากกันเอง (package visibility) แอปที่ไม่ประกาศ
+> `<queries>` ใน `AndroidManifest.xml` จะผูกกับบริการเครื่องพิมพ์ในตัวไม่ติด **โดยไม่มี error ใด ๆ**
+> D2s Plus เป็น Android 11 จึงเจออาการนี้เต็ม ๆ กดทดสอบพิมพ์แล้วขึ้น `DISCONNECTED` ทั้งที่
+> เครื่องพิมพ์ปกติดีทุกอย่าง แก้แล้วใน 1.1.1 โดยประกาศแพ็กเกจ `woyou.aidlservice.jiuiv5`
+> ต้อง **build APK ใหม่แล้วติดตั้งทับ** ถึงจะได้ผล อัปเดตเว็บอย่างเดียวไม่พอ
+> ตรวจว่าติดตั้งเวอร์ชันใหม่แล้วหรือยังด้วย `AndroidPOS.getAppVersion()` ต้องได้ 1.1.1 ขึ้นไป
 
 เพิ่มเติม:
 
@@ -96,6 +106,9 @@ CSS ใหม่ ๆ ใน inline style ของ React จึงไม่ถ�
   - `ReceiptFormatter.kt` — วาดใบเสร็จเป็น bitmap 576px
   - `ReceiptModels.kt` — schema v1 ของ payload (validate ขนาด ≤ 256KB, 1–200 รายการ)
   - `PosWebViewManager.kt` — WebView + host allow-list + inject bridge ชื่อ `AndroidPOS`
+- **`AndroidManifest.xml` ต้องมี `<queries>` ประกาศแพ็กเกจ `woyou.aidlservice.jiuiv5` เสมอ**
+  ถ้าลบออกหรือเปลี่ยนชื่อแพ็กเกจ การผูกบริการเครื่องพิมพ์จะพังเงียบ ๆ บน Android 11 ขึ้นไป
+  ค่านี้ต้องตรงกับ `SunmiPrinterManager.PRINTER_SERVICE_PACKAGE`
 - ค่าตั้ง: `kaideeder-pos-android/gradle.properties` (`POS_BASE_URL`, `ALLOWED_HOSTS`,
   `CASH_DRAWER_ENABLED`, ...)
 - build: JDK 17 + Android SDK 34 → `./gradlew testDebugUnitTest assembleDebug` (ดู `README_ANDROID_POS.md`)

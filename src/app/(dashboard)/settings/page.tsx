@@ -2043,11 +2043,14 @@ function ImportProductsModal({ onClose }: { onClose: () => void }) {
     )
 }
 
+// อัปเดตที่เดียวตรงนี้เมื่อ build APK ใหม่ แล้ววางไฟล์ไว้ใน public/downloads/
+// ชื่อไฟล์ตอนดาวน์โหลดถอดมาจาก href เอง จะได้ไม่ลืมแก้สองที่
 const ANDROID_POS_APK = {
     href: '/downloads/kaideeder-pos-sunmi-v1.1.0-debug.apk',
     version: '1.1.0-debug',
     size: '3.12 MB',
 }
+const ANDROID_POS_APK_FILENAME = ANDROID_POS_APK.href.split('/').pop() || 'kaideeder-pos.apk'
 
 function AndroidPosDownloadCard() {
     return (
@@ -2077,7 +2080,7 @@ function AndroidPosDownloadCard() {
                 </div>
                 <a
                     href={ANDROID_POS_APK.href}
-                    download="kaideeder-pos-sunmi-v1.1.0-debug.apk"
+                    download={ANDROID_POS_APK_FILENAME}
                     aria-label="ดาวน์โหลด KAIDEEDER POS APK สำหรับ SUNMI"
                     style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 42, padding: '0.6rem 1.2rem', borderRadius: 10, background: '#16A34A', color: '#fff', fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(22,163,74,0.25)' }}
                 >
