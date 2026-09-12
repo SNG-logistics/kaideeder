@@ -17,6 +17,10 @@ class SunmiPrinterManager(
     @Volatile
     private var service: SunmiPrinterService? = null
 
+    /** ผลของ bindService ครั้งล่าสุด — null คือยังไม่เคยเรียก */
+    @Volatile
+    private var lastBindAccepted: Boolean? = null
+
     private val callback = object : InnerPrinterCallback() {
         override fun onConnected(printerService: SunmiPrinterService) {
             service = printerService
@@ -27,15 +31,59 @@ class SunmiPrinterManager(
         }
     }
 
-    fun bind(): Boolean = InnerPrinterManager.getInstance().bindService(applicationContext, callback)
+    fun bind(): Boolean {
+        val accepted = runCatching {
+            InnerPrinterManager.getInstance().bindService(applicationContext, callback)
+        }.getOrDefault(false)
+        lastBindAccepted = accepted
+        return accepted
+    }
+
+    /**
+     * ผูกบริการใหม่ถ้าหลุดไป เรียกซ้ำได้ปลอดภัย
+     * เดิม onDisconnected() ล้าง service ทิ้งแล้วไม่มีใครผูกกลับเลย ต้องปิดแล้วเปิดแอปใหม่
+     * เท่านั้นถึงจะพิมพ์ได้อีก
+     */
+    fun ensureBound() {
+        if (service == null) bind()
+    }
 
     fun unbind() {
         service = null
-        InnerPrinterManager.getInstance().unBindService(applicationContext, callback)
+        lastBindAccepted = null
+        runCatching { InnerPrinterManager.getInstance().unBindService(applicationContext, callback) }
     }
 
+    /**
+     * แอปบริการเครื่องพิมพ์ของ SUNMI ติดตั้งอยู่และมองเห็นได้หรือไม่
+     * ตั้งแต่ Android 11 ถ้าไม่ประกาศ <queries> ใน AndroidManifest จะมองไม่เห็น
+     * แม้แอปนั้นจะติดตั้งอยู่จริง
+     */
+    private fun isPrinterServiceVisible(): Boolean = runCatching {
+        applicationContext.packageManager.getPackageInfo(PRINTER_SERVICE_PACKAGE, 0)
+        true
+    }.getOrDefault(false)
+
     fun status(): PrinterStatus {
-        val printer = service ?: return PrinterStatus.error("DISCONNECTED", "SUNMI printer service is disconnected")
+        val printer = service
+        if (printer == null) {
+            // บริการอาจหลุดชั่วคราวตอนแอปอยู่เบื้องหลัง ลองผูกกลับทันทีก่อนตอบ
+            ensureBound()
+            return when {
+                !isPrinterServiceVisible() -> PrinterStatus.error(
+                    "SERVICE_NOT_FOUND",
+                    "ไม่พบบริการเครื่องพิมพ์ในตัวของ SUNMI บนเครื่องนี้"
+                )
+                lastBindAccepted == false -> PrinterStatus.error(
+                    "BIND_REFUSED",
+                    "ระบบปฏิเสธการเชื่อมต่อบริการเครื่องพิมพ์"
+                )
+                else -> PrinterStatus.error(
+                    "DISCONNECTED",
+                    "กำลังเชื่อมต่อบริการเครื่องพิมพ์ กรุณารอสักครู่แล้วลองใหม่"
+                )
+            }
+        }
         return runCatching { PrinterStatus.fromSunmiState(printer.updatePrinterState()) }
             .getOrElse { error ->
                 PrinterStatus.error("STATUS_ERROR", error.message ?: "Cannot read printer status")
@@ -115,7 +163,13 @@ class SunmiPrinterManager(
     }
 
     private fun readyPrinter(): SunmiPrinterService? {
+        ensureBound()
         val printer = service ?: return null
         return if (status().ok) printer else null
+    }
+
+    companion object {
+        /** แอปบริการเครื่องพิมพ์ในตัวของ SUNMI — ต้องตรงกับ <queries> ใน AndroidManifest.xml */
+        const val PRINTER_SERVICE_PACKAGE = "woyou.aidlservice.jiuiv5"
     }
 }

@@ -27,8 +27,8 @@ android {
         applicationId = "com.kaideeder.pos"
         minSdk = 23
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         buildConfigField("String", "POS_BASE_URL", "\"$posBaseUrl\"")
         buildConfigField("String", "ALLOWED_HOSTS", "\"$allowedHosts\"")
         buildConfigField("String", "ALLOWED_ASSET_HOSTS", "\"$allowedAssetHosts\"")

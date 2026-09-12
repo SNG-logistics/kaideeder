@@ -3,6 +3,20 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!--
+      จำเป็นตั้งแต่ Android 11 (API 30) ขึ้นไป
+      ระบบซ่อนแอปอื่นจากกันเอง (package visibility) ถ้าไม่ประกาศตรงนี้
+      InnerPrinterManager.bindService() จะผูกกับบริการเครื่องพิมพ์ในตัวไม่ติด
+      โดยไม่มี error ใด ๆ ผลคือสถานะขึ้น DISCONNECTED ตลอด ทั้งที่เครื่องพิมพ์ปกติดี
+      แพ็กเกจนี้ต้องตรงกับ SunmiPrinterManager.PRINTER_SERVICE_PACKAGE
+    -->
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+        <intent>
+            <action android:name="woyou.aidlservice.jiuiv5.IWoyouService" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:hardwareAccelerated="true"

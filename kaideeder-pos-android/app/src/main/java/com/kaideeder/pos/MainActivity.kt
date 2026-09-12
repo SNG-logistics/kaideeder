@@ -1,6 +1,7 @@
 package com.kaideeder.pos
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
@@ -32,7 +33,10 @@ class MainActivity : AppCompatActivity() {
         webViewManager.installBridge(bridge)
         setContentView(webViewManager.view())
 
-        printer.bind()
+        if (!printer.bind()) {
+            // ไม่ throw — ให้แอปเปิดใช้งานต่อได้ แล้วค่อยผูกใหม่ตอน onResume / ตอนเช็คสถานะ
+            Log.w(TAG, "SUNMI printer bindService was refused at startup")
+        }
         webViewManager.load()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -45,12 +49,18 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         enableImmersiveMode()
+        // ระบบอาจตัดการเชื่อมต่อบริการเครื่องพิมพ์ตอนแอปอยู่เบื้องหลัง — ผูกกลับทุกครั้งที่กลับมา
+        if (::printer.isInitialized) printer.ensureBound()
     }
 
     override fun onDestroy() {
         if (::webViewManager.isInitialized) webViewManager.destroy()
         if (::printer.isInitialized) printer.unbind()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val TAG = "KaideederPOS"
     }
 
     private fun enableImmersiveMode() {
