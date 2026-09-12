@@ -34,7 +34,25 @@ Release builds remain HTTPS-only even if `ALLOW_CLEARTEXT=true`. Enable the cash
 drawer only after verifying the attached drawer and SUNMI configuration. Reprints
 never open the drawer.
 
-## Build and test
+## Build with GitHub Actions (no local toolchain needed)
+
+The quickest way to get an installable APK is to let GitHub build it — its runners
+already ship the Android SDK.
+
+1. Actions tab → **Build SUNMI POS APK** → **Run workflow**.
+   It also runs automatically whenever anything under `kaideeder-pos-android/` changes.
+2. Open the finished run and download the APK from its **Artifacts** section
+   (a `.zip` containing `app-debug.apk`).
+3. Install it over the existing app on the device.
+
+Workflow: `.github/workflows/build-android-apk.yml`. It runs the unit tests before
+assembling, so a red run means the build is genuinely broken, not just unlucky.
+
+To hand the APK to stores through the in-app download card, drop the file into
+`public/downloads/` and update the `ANDROID_POS_APK` constant in
+`src/app/(dashboard)/settings/page.tsx`.
+
+## Build and test locally
 
 From the Android project directory:
 

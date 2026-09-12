@@ -1,0 +1,82 @@
+name: Build SUNMI POS APK
+
+# บิลด์แอป Android (kaideeder-pos-android) ให้อัตโนมัติบนเครื่องของ GitHub
+# ซึ่งมี Android SDK ติดตั้งมาให้แล้ว จึงไม่ต้องลง JDK/SDK บนเครื่องตัวเอง
+#
+# วิธีใช้
+#   1. ไปแท็บ Actions ของ repo → เลือก workflow นี้ → กด "Run workflow"
+#      (หรือปล่อยให้รันเองเมื่อโค้ดใน kaideeder-pos-android/ เปลี่ยน)
+#   2. รอจนขึ้นเครื่องหมายถูก แล้วเปิดหน้าการรันนั้น
+#   3. ดาวน์โหลดไฟล์จากส่วน Artifacts ด้านล่าง จะได้ .zip ที่มี app-debug.apk อยู่ข้างใน
+#   4. แตกไฟล์แล้วเอา APK ไปติดตั้งทับบนแท็บเล็ต SUNMI
+#
+# ถ้าจะแจกให้ร้านโหลดผ่านหน้าตั้งค่าด้วย ให้เอา APK ไปวางใน public/downloads/
+# แล้วอัปเดตค่าคงที่ ANDROID_POS_APK ใน src/app/(dashboard)/settings/page.tsx
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'kaideeder-pos-android/**'
+      - '.github/workflows/build-android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kaideeder-pos-android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # AGP 8.2.1 ต้องการ JDK 17 — runner มาพร้อมหลายเวอร์ชัน จึงระบุให้ชัด
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # เผื่อ image ของ runner ยังไม่มี platform/build-tools ที่โปรเจกต์ต้องใช้
+      - name: Ensure Android SDK packages
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
+          else
+            echo "sdkmanager not found — using the SDK preinstalled on the runner"
+          fi
+
+      - name: Read app version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
+          if [ -z "$VERSION" ]; then VERSION="unknown"; fi
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building KAIDEEDER POS $VERSION"
+
+      - name: Unit tests
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      # path ต้องนับจาก root ของ repo — ไม่ใช่ working-directory ด้านบน
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaideeder-pos-sunmi-v${{ steps.version.outputs.name }}-debug
+          path: kaideeder-pos-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
