@@ -1,9 +1,9 @@
 {
-  "version": "1.1.0-debug",
-  "file": "kaideeder-pos-sunmi-v1.1.0-debug.apk",
-  "sizeBytes": 3273782,
-  "sha256": "9af0812713975b0aeff200b113de4b72c26f147b588ecda335feab44947d1298",
-  "builtAt": "2026-09-01T04:54:20Z",
-  "commit": "8704144a4e4f098139bff2d635786bf82c4fffd8",
+  "version": "1.2.0-debug",
+  "file": "kaideeder-pos-sunmi-v1.2.0-debug.apk",
+  "sizeBytes": 3289013,
+  "sha256": "bfa23a5ee07e608a7f35bab96b77ad0af0dfbe9a0714c53226fcc2c1e2b00316",
+  "builtAt": "2026-09-13T18:03:41Z",
+  "commit": "5d650cd3d94d272a3e9c2d55f41ae7be929c6eb7",
   "minAndroid": "6.0"
 }
