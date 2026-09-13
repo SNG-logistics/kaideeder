@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNotification } from './NotificationContext'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { notifyOrdersChanged } from '@/hooks/useStationAutoPrint'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type OrderItem = { id: string; quantity: number; unitPrice: number; note: string | null; product: { name: string } }
@@ -39,8 +40,11 @@ function PendingOrderModal({ order, onConfirm, onReject, onClose }: {
         setActionError(null)
         try {
             const res = await fetch(`/api/pos/orders/${order.id}/confirm`, { method: 'POST' })
-            if (res.ok) onConfirm()
-            else {
+            if (res.ok) {
+                // รายการเพิ่งเข้าครัว — ให้แท็บเล็ตส่งสลิปครัวทันที (StationAutoPrint)
+                notifyOrdersChanged()
+                onConfirm()
+            } else {
                 const j = await res.json().catch(() => ({}))
                 setActionError(j.error || 'ยืนยันออเดอร์ไม่สำเร็จ')
             }

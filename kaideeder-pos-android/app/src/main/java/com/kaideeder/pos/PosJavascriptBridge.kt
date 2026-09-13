@@ -6,6 +6,7 @@ import org.json.JSONObject
 
 class PosJavascriptBridge(
     private val printer: SunmiPrinterManager,
+    private val networkPrinter: NetworkPrinter,
     private val registry: ReceiptPrintRegistry,
     private val isTrustedPageLoaded: () -> Boolean,
     private val reloadPage: () -> Unit
@@ -31,6 +32,17 @@ class PosJavascriptBridge(
         printer.printReceipt(
             receipt.copy(options = receipt.options.copy(openCashDrawer = false))
         )
+    }
+
+    /**
+     * สลิปครัว/บาร์ → เครื่องพิมพ์ในวงแลน (ไม่ใช่เครื่องพิมพ์ในตัว)
+     * ตอบ PRINT_QUEUED ทันที ผลจริง (PRINT_ACCEPTED / PRINTER_UNREACHABLE / ...) จะถูกส่งเข้าหน้าเว็บ
+     * เป็น CustomEvent ชื่อ [PosWebViewManager.PRINT_RESULT_EVENT] พร้อม requestId เดิม
+     * ไม่บล็อกเพราะการเชื่อมต่อที่ล้มเหลวใช้เวลาถึง 5 วินาที หน้าขายจะค้างถ้ารอตรงนี้
+     */
+    @JavascriptInterface
+    fun printStationTicket(payloadJson: String): String = execute {
+        networkPrinter.enqueue(StationTicketPayload.fromJson(payloadJson))
     }
 
     @JavascriptInterface

@@ -18,6 +18,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.json.JSONObject
 
 class PosWebViewManager(
     private val activity: Activity,
@@ -57,6 +58,19 @@ class PosWebViewManager(
     }
 
     fun isTrustedPageLoaded(): Boolean = trustedPageLoaded
+
+    /**
+     * ยิง CustomEvent เข้าหน้าเว็บ (window.dispatchEvent) ใช้ส่งผลงานพิมพ์ที่ทำแบบไม่บล็อกกลับไป
+     * ส่งเฉพาะตอนหน้าที่เชื่อถือได้โหลดเสร็จแล้ว — ถ้าหน้าถูกรีโหลดไปก่อน ผลก็แค่หายไป ไม่พัง
+     * [detail] มาจากโค้ดของเราเอง (PrinterStatus) จึงฝังเป็น object literal ได้ตรง ๆ
+     */
+    fun dispatchPageEvent(name: String, detail: JSONObject) {
+        webView.post {
+            if (!trustedPageLoaded) return@post
+            val script = "window.dispatchEvent(new CustomEvent(${JSONObject.quote(name)}, { detail: $detail }));"
+            runCatching { webView.evaluateJavascript(script, null) }
+        }
+    }
 
     fun canGoBack(): Boolean = webView.canGoBack()
 
@@ -158,5 +172,8 @@ class PosWebViewManager(
 
     companion object {
         const val BRIDGE_NAME = "AndroidPOS"
+
+        /** ชื่อ event ที่หน้าเว็บฟัง (src/lib/android-pos.ts) — เปลี่ยนต้องเปลี่ยนทั้งสองฝั่ง */
+        const val PRINT_RESULT_EVENT = "androidpos:print-result"
     }
 }

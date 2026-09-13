@@ -885,6 +885,7 @@ model OrderItem {
   stationId         String?
   statusChangedAt   DateTime?
   statusChangedById String?
+  createdAt         DateTime      @default(now()) // เวลาที่รายการนี้ถูกเพิ่ม (รอบสั่งเพิ่มต่างจาก order.openedAt) — ใช้จำกัดสลิปครัวที่แท็บเล็ตพิมพ์ย้อนหลัง
 
   tenant          Tenant  @relation(fields: [tenantId], references: [id])
   order           Order   @relation(fields: [orderId], references: [id])

@@ -8,12 +8,13 @@ data class PrinterStatus(
     val message: String,
     val state: Int? = null
 ) {
-    fun toJson(): String = JSONObject()
+    fun toJsonObject(): JSONObject = JSONObject()
         .put("ok", ok)
         .put("code", code)
         .put("message", message)
         .apply { state?.let { put("state", it) } }
-        .toString()
+
+    fun toJson(): String = toJsonObject().toString()
 
     companion object {
         fun fromSunmiState(state: Int): PrinterStatus = when (state) {

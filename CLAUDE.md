@@ -208,14 +208,22 @@ first when working on any domain area, it's the map of the whole system:
   JS bridge, wrapped exclusively by `src/lib/android-pos.ts` (`isAndroidPOSApp`,
   `printAndroidPOSReceipt` for the dedup-guarded original at payment time,
   `reprintAndroidPOSReceipt`/`buildAndroidPOSReceiptPayload` for history, `/receipt` and pre-bill
-  reprints — the APK renders the receipt bitmap itself, see `ReceiptFormatter.kt`); the bridge
-  only knows receipts, so kitchen/bar slips in the APK need path 2. (2) Server-side TCP ESC/POS to
-  a LAN thermal printer (`/api/print/raw`). (3) Browser `window.print()` via the
-  `/receipt/[orderId]` page or a popup. Printer settings are per-device in localStorage
-  (`src/lib/printerSettings.ts`), not per-tenant. The APK's WebView has multiple windows disabled,
-  so `window.open` navigates the POS page away and `window.print` is a no-op — always branch on
-  `isAndroidPOSApp()` before using either in POS-facing code. Operator guide (Thai) and status
-  codes: `docs/SUNMI_PRINTER.md`; Android build/ADB: `README_ANDROID_POS.md`.
+  reprints — the APK renders the receipt bitmap itself, see `ReceiptFormatter.kt`).
+  (2) Kitchen/bar slips: the **tablet** (not the server — production runs in a datacenter that
+  cannot reach the store's 192.168.x.x LAN) sends ESC/POS raster bitmaps over TCP :9100 via
+  `AndroidPOS.printStationTicket` (APK ≥ 1.2.0, `NetworkPrinter.kt`; async, result comes back as
+  the `androidpos:print-result` CustomEvent, wrapped by `printAndroidPOSStationTicket`). It is
+  driven by `src/hooks/useStationAutoPrint.ts` (mounted as `<StationAutoPrint />` in `/pos` and
+  the dashboard layout): on `ORDERS_UPDATED`/`kaideeder:orders-changed`/a 20s poll it reads
+  `/api/kitchen/queue?status=PENDING` and prints every item of an OPEN order it has not printed
+  yet (per-device registry in localStorage), so QR self-orders print too. Printer IPs are
+  per-tenant (`Tenant.kitchenPrinterIp`/`barPrinterIp`/`autoPrintEnabled` via
+  `/api/settings/store`); **no bar IP ⇒ bar items print on the kitchen slip under a drinks
+  section**. Do not reintroduce server-side TCP printing. (3) Browser `window.print()` via the
+  `/receipt/[orderId]` page or a popup (non-APK only). The APK's WebView has multiple windows
+  disabled, so `window.open` navigates the POS page away and `window.print` is a no-op — always
+  branch on `isAndroidPOSApp()` before using either in POS-facing code. Operator guide (Thai)
+  and status codes: `docs/SUNMI_PRINTER.md`; Android build/ADB: `README_ANDROID_POS.md`.
 
 ## Deployment
 

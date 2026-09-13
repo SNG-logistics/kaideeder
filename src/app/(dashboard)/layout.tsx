@@ -3,6 +3,7 @@ import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import { SidebarProvider, useSidebar } from '@/components/SidebarContext'
 import { NotificationProvider } from '@/components/NotificationContext'
+import StationAutoPrint from '@/components/StationAutoPrint'
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
     const { collapsed, isMobile } = useSidebar()
@@ -28,6 +29,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                     {children}
                 </main>
                 {/* NewOrderAlert is mounted only in pos/page.tsx — not here */}
+                {/* สลิปครัวจากแท็บเล็ตต้องออกต่อเนื่องแม้แคชเชียร์เปิดหน้าหลังร้านอยู่ (ทำงานเฉพาะในแอป) */}
+                <StationAutoPrint />
             </div>
         </div>
     )

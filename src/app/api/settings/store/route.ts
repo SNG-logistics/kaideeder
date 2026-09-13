@@ -43,12 +43,23 @@ export const GET = withAuth(async (_req: NextRequest, ctx) => {
     return ok(tenant)
 })
 
+// IP หรือชื่อโฮสต์ของเครื่องพิมพ์ในวงแลนของร้าน ใส่ :พอร์ต ต่อท้ายได้ (ค่าเริ่มต้น 9100)
+// ว่าง → null (ไม่มีเครื่องพิมพ์) — กติกาเดียวกับ parseAndroidPOSPrinterAddress ฝั่งเว็บและ StationTicketModels.kt ในแอป
+const printerAddress = z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? null : typeof value === 'string' ? value.trim() : value),
+    z.string()
+        .max(260)
+        .regex(/^[A-Za-z0-9][A-Za-z0-9.-]{0,252}(?::\d{1,5})?$/, 'รูปแบบ IP เครื่องพิมพ์ไม่ถูกต้อง เช่น 192.168.1.51')
+        .refine(v => !v.includes('..'), 'รูปแบบ IP เครื่องพิมพ์ไม่ถูกต้อง')
+        .nullable(),
+)
+
 const patchSchema = z.object({
     displayName: z.string().min(1).max(100).optional(),
     logoUrl: z.string().url().or(z.string().startsWith('/')).nullable().optional(),
     closingHour: z.number().int().min(0).max(12).optional(), // 0=midnight, 1-12 = business boundary hour
-    kitchenPrinterIp: z.string().nullable().optional(),
-    barPrinterIp: z.string().nullable().optional(),
+    kitchenPrinterIp: printerAddress.optional(),
+    barPrinterIp: printerAddress.optional(),
     autoPrintEnabled: z.boolean().optional(),
 })
 

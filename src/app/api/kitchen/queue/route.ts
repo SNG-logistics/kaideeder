@@ -27,7 +27,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
             product: { select: { id: true, sku: true, name: true, category: true, imageUrl: true, imageBase64: true } },
             order: {
                 select: {
-                    id: true, orderNumber: true, openedAt: true, note: true, status: true,
+                    id: true, orderNumber: true, openedAt: true, note: true, status: true, orderType: true,
                     table: { select: { id: true, name: true, zone: true } },
                 },
             },
@@ -55,6 +55,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
     const grouped: Record<string, {
         orderId: string; orderNumber: string; tableName: string; zone: string;
         openedAt: Date; orderNote: string | null; isPendingConfirm: boolean;
+        orderType: string;
         items: typeof itemsWithImages;
     }> = {}
 
@@ -69,6 +70,7 @@ export const GET = withAuth(async (req: NextRequest, context) => {
                 openedAt: item.order.openedAt,
                 orderNote: item.order.note,
                 isPendingConfirm: item.order.status === 'PENDING_CONFIRM',
+                orderType: item.order.orderType,
                 items: [],
             }
         }
