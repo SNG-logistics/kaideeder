@@ -1881,20 +1881,46 @@ function ImportProductsModal({ onClose }: { onClose: () => void }) {
     )
 }
 
-// อัปเดตที่เดียวตรงนี้เมื่อ build APK ใหม่ แล้ววางไฟล์ไว้ใน public/downloads/
-// ชื่อไฟล์ตอนดาวน์โหลดถอดมาจาก href เอง จะได้ไม่ลืมแก้สองที่
-const ANDROID_POS_APK = {
-    href: '/downloads/kaideeder-pos-sunmi-v1.1.0-debug.apk',
-    version: '1.1.0-debug',
-    size: '3.12 MB',
+// ไฟล์ APK ที่แจกให้ร้านโหลดอยู่ใน public/downloads/ — workflow "Build SUNMI POS APK" เป็นคนวางไฟล์
+// พร้อมเขียน manifest นี้ให้ทุกครั้งที่บัมป์ versionName จึงไม่ต้องแก้โค้ดเว็บเมื่อออกเวอร์ชันใหม่
+const ANDROID_POS_APK_MANIFEST_URL = '/downloads/kaideeder-pos-sunmi.json'
+
+interface AndroidPosApkManifest {
+    version: string
+    file: string
+    sizeBytes?: number
+    sha256?: string
+    builtAt?: string
+    commit?: string
+    minAndroid?: string
 }
-const ANDROID_POS_APK_FILENAME = ANDROID_POS_APK.href.split('/').pop() || 'kaideeder-pos.apk'
+
+function parseApkManifest(raw: unknown): AndroidPosApkManifest | null {
+    if (!raw || typeof raw !== 'object') return null
+    const value = raw as Record<string, unknown>
+    if (typeof value.version !== 'string' || typeof value.file !== 'string') return null
+    // ชื่อไฟล์ต้องเป็นชื่อไฟล์เฉย ๆ ไม่ใช่ path — กัน manifest พาไปโหลดที่อื่น
+    if (!/^[A-Za-z0-9._-]+\.apk$/.test(value.file)) return null
+    return {
+        version: value.version,
+        file: value.file,
+        sizeBytes: typeof value.sizeBytes === 'number' ? value.sizeBytes : undefined,
+        sha256: typeof value.sha256 === 'string' ? value.sha256 : undefined,
+        builtAt: typeof value.builtAt === 'string' ? value.builtAt : undefined,
+        commit: typeof value.commit === 'string' ? value.commit : undefined,
+        minAndroid: typeof value.minAndroid === 'string' ? value.minAndroid : undefined,
+    }
+}
+
+function formatMegabytes(bytes?: number): string {
+    if (!bytes || bytes <= 0) return '-'
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
 
 // เวอร์ชันต่ำสุดที่ใช้งานได้จริงบนแท็บเล็ต:
 //   1.1.1 แก้เครื่องพิมพ์ในตัวขึ้น DISCONNECTED บน Android 11 (<queries> ใน AndroidManifest)
 //   1.2.0 ส่งสลิปครัว/บาร์ไปเครื่องพิมพ์แลนจากแท็บเล็ต (printStationTicket)
-// ถ้าไฟล์ที่วางไว้ใน public/downloads ยังเก่ากว่านี้ การ์ดจะเตือนเอง
-// และคำเตือนจะหายไปเองเมื่ออัปเดต ANDROID_POS_APK ด้านบนเป็นไฟล์ใหม่
+// ถ้าไฟล์ใน public/downloads (ตาม manifest) ยังเก่ากว่านี้ การ์ดจะเตือนเอง
 const ANDROID_POS_PRINTER_FIX_VERSION = '1.2.0'
 
 /** เทียบเฉพาะเลขเวอร์ชัน x.y.z ตัด suffix อย่าง -debug ทิ้ง */
@@ -1911,6 +1937,27 @@ function isApkOlderThan(current: string, target: string): boolean {
 }
 
 function AndroidPosDownloadCard() {
+    const [apk, setApk] = useState<AndroidPosApkManifest | null>(null)
+    const [manifestState, setManifestState] = useState<'loading' | 'ready' | 'missing'>('loading')
+
+    useEffect(() => {
+        // กัน cache — ไฟล์นี้เปลี่ยนทุกครั้งที่ออก APK ใหม่ แต่ URL เดิม
+        fetch(`${ANDROID_POS_APK_MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store' })
+            .then(r => (r.ok ? r.json() : null))
+            .then(json => {
+                const parsed = parseApkManifest(json)
+                setApk(parsed)
+                setManifestState(parsed ? 'ready' : 'missing')
+            })
+            .catch(() => setManifestState('missing'))
+    }, [])
+
+    const href = apk ? `/downloads/${apk.file}` : undefined
+    const builtAt = apk?.builtAt ? new Date(apk.builtAt) : null
+    const builtAtText = builtAt && !Number.isNaN(builtAt.getTime())
+        ? builtAt.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
+        : null
+
     return (
         <div className="card" style={{ borderColor: 'rgba(22,163,74,0.3)', background: 'rgba(22,163,74,0.03)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -1930,28 +1977,38 @@ function AndroidPosDownloadCard() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', padding: '1rem', borderRadius: 12, border: '1px solid rgba(22,163,74,0.2)', background: 'var(--white)' }}>
                 <div>
                     <div style={{ fontWeight: 700, fontSize: '0.87rem', color: 'var(--text)', marginBottom: 4 }}>
-                        KAIDEEDER POS v{ANDROID_POS_APK.version}
+                        {manifestState === 'loading' ? 'กำลังตรวจสอบเวอร์ชันล่าสุด…' : apk ? `KAIDEEDER POS v${apk.version}` : 'ยังไม่มีไฟล์ APK ให้ดาวน์โหลด'}
                     </div>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.73rem' }}>
-                        Android 6.0 ขึ้นไป · ขนาด {ANDROID_POS_APK.size} · รองรับภาษาไทย/ลาว/อังกฤษ
+                        {apk
+                            ? `Android ${apk.minAndroid || '6.0'} ขึ้นไป · ขนาด ${formatMegabytes(apk.sizeBytes)}${builtAtText ? ` · บิลด์เมื่อ ${builtAtText}` : ''} · รองรับภาษาไทย/ลาว/อังกฤษ`
+                            : manifestState === 'missing'
+                                ? 'สั่งบิลด์จาก GitHub Actions (Build SUNMI POS APK) แล้ว workflow จะวางไฟล์ให้เองใน public/downloads/'
+                                : ' '}
                     </div>
                 </div>
-                <a
-                    href={ANDROID_POS_APK.href}
-                    download={ANDROID_POS_APK_FILENAME}
-                    aria-label="ดาวน์โหลด KAIDEEDER POS APK สำหรับ SUNMI"
-                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 42, padding: '0.6rem 1.2rem', borderRadius: 10, background: '#16A34A', color: '#fff', fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(22,163,74,0.25)' }}
-                >
-                    ⬇️ ดาวน์โหลด APK
-                </a>
+                {apk && href ? (
+                    <a
+                        href={href}
+                        download={apk.file}
+                        aria-label="ดาวน์โหลด KAIDEEDER POS APK สำหรับ SUNMI"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 42, padding: '0.6rem 1.2rem', borderRadius: 10, background: '#16A34A', color: '#fff', fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(22,163,74,0.25)' }}
+                    >
+                        ⬇️ ดาวน์โหลด APK v{apk.version.split('-')[0]}
+                    </a>
+                ) : (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 42, padding: '0.6rem 1.2rem', borderRadius: 10, background: 'var(--border)', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                        ⬇️ ดาวน์โหลด APK
+                    </span>
+                )}
             </div>
 
-            {isApkOlderThan(ANDROID_POS_APK.version, ANDROID_POS_PRINTER_FIX_VERSION) && (
+            {apk && isApkOlderThan(apk.version, ANDROID_POS_PRINTER_FIX_VERSION) && (
                 <p style={{ color: '#B91C1C', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 9, padding: '0.65rem 0.8rem', fontSize: '0.72rem', lineHeight: 1.55, margin: '12px 0 0', fontWeight: 600 }}>
-                    🛑 ไฟล์ที่แจกอยู่นี้ ({ANDROID_POS_APK.version}) เก่ากว่าที่ต้องใช้ ({ANDROID_POS_PRINTER_FIX_VERSION}) —
+                    🛑 ไฟล์ที่แจกอยู่นี้ ({apk.version}) เก่ากว่าที่ต้องใช้ ({ANDROID_POS_PRINTER_FIX_VERSION}) —
                     <strong>พิมพ์ผ่านเครื่องพิมพ์ในตัวไม่ได้บน Android 11</strong> (ขึ้น DISCONNECTED, แก้ใน 1.1.1)
                     และ <strong>ส่งสลิปครัวไปเครื่องพิมพ์แลนไม่ได้</strong> (เพิ่มใน 1.2.0)
-                    ให้บิลด์จาก GitHub Actions (Build SUNMI POS APK) แล้วติดตั้งทับบนแท็บเล็ต และวางไฟล์ใน <code>public/downloads/</code> คำเตือนนี้จะหายเอง
+                    บัมป์ versionName แล้วสั่งบิลด์จาก GitHub Actions (Build SUNMI POS APK) — workflow จะวางไฟล์ใหม่ให้เองและคำเตือนนี้จะหายไป
                 </p>
             )}
 
