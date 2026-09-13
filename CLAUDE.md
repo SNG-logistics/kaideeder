@@ -204,7 +204,9 @@ first when working on any domain area, it's the map of the whole system:
   `dvh`. Runtime APIs newer than ES2019 (`replaceAll`, `Array.at`, `structuredClone`) are not
   polyfilled either.
 - **Printing**: three paths — (1) inside the KAIDEEDER POS APK (`kaideeder-pos-android/`,
-  shipped at `public/downloads/`), the SUNMI in-device printer through the `window.AndroidPOS`
+  shipped at `public/downloads/` — the `Build SUNMI POS APK` workflow commits the APK and
+  `kaideeder-pos-sunmi.json` there whenever `versionName` changes; the Settings download card
+  reads that manifest, so bump `versionName` to ship), the SUNMI in-device printer through the `window.AndroidPOS`
   JS bridge, wrapped exclusively by `src/lib/android-pos.ts` (`isAndroidPOSApp`,
   `printAndroidPOSReceipt` for the dedup-guarded original at payment time,
   `reprintAndroidPOSReceipt`/`buildAndroidPOSReceiptPayload` for history, `/receipt` and pre-bill
