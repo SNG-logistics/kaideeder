@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
     private lateinit var printer: SunmiPrinterManager
+    private lateinit var networkPrinter: NetworkPrinter
     private lateinit var webViewManager: PosWebViewManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -16,16 +17,25 @@ class MainActivity : AppCompatActivity() {
 
         val settings = PosSettings()
         val drawerManager = CashDrawerManager(settings)
+        val formatter = ReceiptFormatter()
         printer = SunmiPrinterManager(
             context = applicationContext,
-            formatter = ReceiptFormatter(),
+            formatter = formatter,
             logoLoader = ReceiptLogoLoader(settings),
             cashDrawerManager = drawerManager
         )
         webViewManager = PosWebViewManager(this, settings)
+        // สลิปครัว/บาร์ผ่านแลน — ผลลัพธ์ส่งกลับเข้าหน้าเว็บเป็น event เพราะทำงานแบบไม่บล็อก
+        networkPrinter = NetworkPrinter(formatter) { requestId, status ->
+            webViewManager.dispatchPageEvent(
+                PosWebViewManager.PRINT_RESULT_EVENT,
+                status.toJsonObject().put("requestId", requestId)
+            )
+        }
 
         val bridge = PosJavascriptBridge(
             printer = printer,
+            networkPrinter = networkPrinter,
             registry = ReceiptPrintRegistry(applicationContext),
             isTrustedPageLoaded = webViewManager::isTrustedPageLoaded,
             reloadPage = webViewManager::reload
@@ -54,6 +64,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // หยุดคิวพิมพ์ก่อนทำลาย WebView — ผลงานพิมพ์ที่มาช้าจะได้ไม่ยิงใส่ WebView ที่ตายแล้ว
+        if (::networkPrinter.isInitialized) networkPrinter.shutdown()
         if (::webViewManager.isInitialized) webViewManager.destroy()
         if (::printer.isInitialized) printer.unbind()
         super.onDestroy()

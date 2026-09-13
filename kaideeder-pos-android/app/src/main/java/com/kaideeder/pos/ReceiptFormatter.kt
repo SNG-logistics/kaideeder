@@ -31,10 +31,22 @@ class ReceiptFormatter {
         minimumFractionDigits = 0
     }
 
-    fun render(receipt: ReceiptPayload): Bitmap {
-        val blocks = buildBlocks(receipt)
+    // ─── สลิปครัว/บาร์ — ตัวหนังสือใหญ่กว่าใบเสร็จมาก เพราะอ่านจากระยะไกลในครัวที่วุ่นวาย ──
+    private val ticketTitle = TextPaint(bold).apply { textSize = 32f }
+    private val tableHuge = TextPaint(bold).apply { textSize = 72f }
+    private val itemQuantity = TextPaint(bold).apply { textSize = 44f }
+    private val itemName = TextPaint(bold).apply { textSize = 34f }
+    private val itemNote = TextPaint(bold).apply { textSize = 28f }
+    private val sectionHeader = TextPaint(bold).apply { textSize = 30f }
+
+    fun render(receipt: ReceiptPayload): Bitmap = renderBlocks(buildBlocks(receipt))
+
+    /** วาดสลิปครัว/บาร์ กว้าง 576px เท่าใบเสร็จ เพราะกระดาษ 80 มม. เหมือนกัน */
+    fun renderStationTicket(ticket: StationTicketPayload): Bitmap = renderBlocks(buildStationBlocks(ticket))
+
+    private fun renderBlocks(blocks: List<Block>): Bitmap {
         val contentHeight = blocks.sumOf { it.height } + PADDING * 2
-        require(contentHeight <= MAX_BITMAP_HEIGHT) { "Receipt is too long to render safely" }
+        require(contentHeight <= MAX_BITMAP_HEIGHT) { "Print job is too long to render safely" }
 
         val bitmap = Bitmap.createBitmap(PRINTER_WIDTH_PX, max(contentHeight, 1), Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -85,6 +97,58 @@ class ReceiptFormatter {
         add(textBlock("KAIDEEDER POS", small, Layout.Alignment.ALIGN_CENTER, 16))
     }
 
+    private fun buildStationBlocks(ticket: StationTicketPayload): List<Block> = buildList {
+        add(textBlock(ticket.title, ticketTitle, Layout.Alignment.ALIGN_CENTER, 2))
+        // เลขโต๊ะต้องใหญ่ที่สุดในหน้า — คนครัวมองปราดเดียวต้องรู้ว่าของโต๊ะไหน
+        add(textBlock(ticket.tableName, tableHuge, Layout.Alignment.ALIGN_CENTER, 4))
+        add(textBlock("#${ticket.orderNumber}   ${ticket.issuedAt}", regular, Layout.Alignment.ALIGN_CENTER, 8))
+        add(separator(thick = true))
+
+        var currentSection: String? = null
+        ticket.items.forEach { item ->
+            // หัวข้อกลุ่ม (เช่น เครื่องดื่มที่มาออกที่ครัวเพราะยังไม่มีเครื่องพิมพ์บาร์) แสดงครั้งเดียวตอนเปลี่ยนกลุ่ม
+            if (item.section != null && item.section != currentSection) {
+                currentSection = item.section
+                add(separator())
+                add(textBlock("— ${item.section} —", sectionHeader, Layout.Alignment.ALIGN_CENTER, 6))
+            }
+            add(itemRow(formatQuantity(item.quantity), item.name))
+            // หมายเหตุเยื้องเข้าและตัวหนา ไม่ให้จมไปกับชื่อเมนู
+            item.note?.let { add(indentedBlock(it, itemNote, 10)) }
+        }
+
+        add(separator(thick = true))
+        ticket.orderNote?.let { add(textBlock(it, itemNote, Layout.Alignment.ALIGN_NORMAL, 8)) }
+        ticket.footer?.let { add(textBlock(it, small, Layout.Alignment.ALIGN_CENTER, 6)) }
+    }
+
+    /** จำนวนตัวใหญ่ในคอลัมน์ซ้าย ชื่อเมนูตัดบรรทัดในคอลัมน์ขวา ไม่ล้นกัน */
+    private fun itemRow(quantity: String, name: String): Block {
+        val quantityLayout = layout(quantity, itemQuantity, QUANTITY_COLUMN_WIDTH - 8, Layout.Alignment.ALIGN_NORMAL)
+        val nameLayout = layout(name, itemName, CONTENT_WIDTH - QUANTITY_COLUMN_WIDTH, Layout.Alignment.ALIGN_NORMAL)
+        return Block(max(quantityLayout.height, nameLayout.height) + 10) { canvas, y ->
+            canvas.save()
+            canvas.translate(PADDING.toFloat(), y.toFloat())
+            quantityLayout.draw(canvas)
+            canvas.restore()
+
+            canvas.save()
+            canvas.translate((PADDING + QUANTITY_COLUMN_WIDTH).toFloat(), y.toFloat())
+            nameLayout.draw(canvas)
+            canvas.restore()
+        }
+    }
+
+    private fun indentedBlock(text: String, paint: TextPaint, bottomPadding: Int): Block {
+        val textLayout = layout(text, paint, CONTENT_WIDTH - QUANTITY_COLUMN_WIDTH, Layout.Alignment.ALIGN_NORMAL)
+        return Block(textLayout.height + bottomPadding) { canvas, y ->
+            canvas.save()
+            canvas.translate((PADDING + QUANTITY_COLUMN_WIDTH).toFloat(), y.toFloat())
+            textLayout.draw(canvas)
+            canvas.restore()
+        }
+    }
+
     private fun textBlock(
         text: String,
         paint: TextPaint,
@@ -111,12 +175,13 @@ class ReceiptFormatter {
         }
     }
 
-    private fun separator(): Block = Block(17) { canvas, y ->
+    private fun separator(thick: Boolean = false): Block = Block(if (thick) 21 else 17) { canvas, y ->
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
-            strokeWidth = 1.5f
+            strokeWidth = if (thick) 4f else 1.5f
         }
-        canvas.drawLine(PADDING.toFloat(), (y + 7).toFloat(), (PRINTER_WIDTH_PX - PADDING).toFloat(), (y + 7).toFloat(), paint)
+        val lineY = (y + if (thick) 9 else 7).toFloat()
+        canvas.drawLine(PADDING.toFloat(), lineY, (PRINTER_WIDTH_PX - PADDING).toFloat(), lineY, paint)
     }
 
     private fun layout(text: String, paint: TextPaint, width: Int, alignment: Layout.Alignment): StaticLayout =
@@ -139,6 +204,8 @@ class ReceiptFormatter {
         const val PRINTER_WIDTH_PX = 576
         private const val PADDING = 24
         private const val CONTENT_WIDTH = PRINTER_WIDTH_PX - PADDING * 2
+        /** คอลัมน์จำนวนในสลิปครัว — กว้างพอสำหรับ "12" หรือ "1.5" ที่ 44px */
+        private const val QUANTITY_COLUMN_WIDTH = 84
         private const val MAX_BITMAP_HEIGHT = 20_000
     }
 }

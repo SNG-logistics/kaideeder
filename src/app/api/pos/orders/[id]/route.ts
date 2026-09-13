@@ -152,65 +152,7 @@ export const PUT = withAuth(async (req: NextRequest, ctx) => {
             emitter.emit('DELIVERY_UPDATED', tenantId)
         }
 
-        // --- Auto-Print Logic for NEW items ---
-        if (data.items && data.items.length > 0 && !data.skipKitchen) {
-            prisma.tenant.findUnique({
-                where: { id: tenantId },
-                select: { autoPrintEnabled: true, kitchenPrinterIp: true, barPrinterIp: true }
-            }).then(tenant => {
-                if (!tenant?.autoPrintEnabled) return
-                
-                // Group newly added items
-                const newItemsWithProducts = data.items!.map(item => {
-                    const prod = updated.items.find(ui => ui.productId === item.productId && ui.quantity === item.quantity && ui.stationId !== 'SKIP')
-                    return {
-                        name: prod?.product?.name || 'Unknown',
-                        quantity: item.quantity,
-                        note: item.note,
-                        stationId: prod?.stationId
-                    }
-                })
-
-                const kitchenItems = newItemsWithProducts.filter(i => i.stationId === 'KITCHEN')
-                const barItems = newItemsWithProducts.filter(i => i.stationId === 'BAR')
-
-                const printUrl = new URL('/api/print/raw', req.url).toString()
-                
-                if (kitchenItems.length > 0 && tenant.kitchenPrinterIp) {
-                    fetch(printUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            ip: tenant.kitchenPrinterIp,
-                            port: 9100,
-                            station: 'KITCHEN',
-                            tableName: updated.table?.name || 'Takeaway',
-                            orderNumber: updated.orderNumber,
-                            items: kitchenItems,
-                            autoCut: true,
-                            copies: 1
-                        })
-                    }).catch(err => console.error('[AutoPrint Kitchen Error]', err))
-                }
-
-                if (barItems.length > 0 && tenant.barPrinterIp) {
-                    fetch(printUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            ip: tenant.barPrinterIp,
-                            port: 9100,
-                            station: 'BAR',
-                            tableName: updated.table?.name || 'Takeaway',
-                            orderNumber: updated.orderNumber,
-                            items: barItems,
-                            autoCut: true,
-                            copies: 1
-                        })
-                    }).catch(err => console.error('[AutoPrint Bar Error]', err))
-                }
-            }).catch(err => console.error('[AutoPrint Tenant Fetch Error]', err))
-        }
+        // สลิปครัว/บาร์ของรายการที่เพิ่มใหม่: แท็บเล็ตพิมพ์เองจากคิวครัวหลังได้รับ ORDERS_UPDATED (useStationAutoPrint)
 
         return ok(updated)
     } catch (error) {

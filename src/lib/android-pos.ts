@@ -52,6 +52,43 @@ export interface AndroidPOSResult {
     message: string
 }
 
+// ─── Kitchen / bar tickets → LAN printer, sent by the tablet itself (APK 1.2.0+) ──────────
+// เซิร์ฟเวอร์อยู่ที่ดาต้าเซ็นเตอร์ ยิง TCP ไปหา 192.168.x.x ของร้านไม่ถึง — แท็บเล็ตต้องเป็นคนส่งเอง
+
+export type AndroidPOSStation = 'KITCHEN' | 'BAR'
+
+export interface AndroidPOSPrinterAddress {
+    host: string
+    port: number
+}
+
+export interface AndroidPOSStationTicketItem {
+    name: string
+    quantity: number
+    /** ขึ้นบรรทัดใหม่ได้ — ฝั่งเว็บใส่เครื่องหมายนำหน้ามาเอง ("+ ท็อปปิ้ง", "» หมายเหตุ") */
+    note?: string
+    /** หัวข้อกลุ่ม พิมพ์ครั้งเดียวตอนกลุ่มเปลี่ยน (ใช้ตอนรวมเครื่องดื่มเข้าสลิปครัว) */
+    section?: string
+}
+
+export interface AndroidPOSStationTicketPayload {
+    schemaVersion: 1
+    requestId: string
+    station: AndroidPOSStation
+    printer: AndroidPOSPrinterAddress
+    title: string
+    tableName: string
+    orderNumber: string
+    issuedAt: string
+    orderNote?: string
+    footer?: string
+    items: AndroidPOSStationTicketItem[]
+    options: {
+        cutPaper: boolean
+        copies: number
+    }
+}
+
 interface AndroidPOSBridge {
     printReceipt(payloadJson: string): string
     reprintReceipt(payloadJson: string): string
@@ -61,6 +98,8 @@ interface AndroidPOSBridge {
     getDeviceInfo(): string
     getAppVersion(): string
     reload(): string
+    /** APK 1.2.0 ขึ้นไป — ไม่มีในรุ่นเก่า ต้องเช็คก่อนเรียก */
+    printStationTicket?(payloadJson: string): string
 }
 
 declare global {
@@ -85,7 +124,10 @@ function parseBridgeResult(raw: string): AndroidPOSResult {
     } catch {
         throw new Error('AndroidPOS returned malformed JSON')
     }
+    return normalizeBridgeResult(parsed)
+}
 
+function normalizeBridgeResult(parsed: unknown): AndroidPOSResult {
     if (!parsed || typeof parsed !== 'object') {
         throw new Error('AndroidPOS returned an invalid response')
     }
@@ -285,4 +327,128 @@ export function testAndroidPOSPrint(): AndroidPOSResult {
         return { ok: false, code: 'BRIDGE_UNAVAILABLE', message: 'AndroidPOS bridge is unavailable' }
     }
     return parseBridgeResult(bridge.testPrint())
+}
+
+// ─── Station (kitchen / bar) tickets over the LAN ─────────────────────────────────────────
+
+/** ชื่อ CustomEvent ที่แอปยิงกลับมาเมื่อพิมพ์เสร็จ/ล้มเหลว — ต้องตรงกับ PosWebViewManager.PRINT_RESULT_EVENT */
+export const ANDROID_POS_PRINT_RESULT_EVENT = 'androidpos:print-result'
+
+/** แอปมี 5 วิ ต่อการเชื่อมต่อ + เวลาส่งข้อมูล + คิวงานก่อนหน้า — รอได้นานกว่านั้นเผื่อสลิปหลายใบต่อกัน */
+const STATION_PRINT_RESULT_TIMEOUT_MS = 45_000
+
+const PRINTED_STATION_ITEMS_KEY = 'kaideeder.android-pos.printed-station-items.v1'
+const MAX_STATION_ITEM_RECORDS = 2000
+
+/** แอปรุ่นนี้พิมพ์สลิปครัว/บาร์ผ่านแลนได้หรือไม่ (ต้อง 1.2.0 ขึ้นไป) */
+export function supportsAndroidPOSStationPrint(): boolean {
+    const bridge = getBridge()
+    return Boolean(bridge && typeof bridge.printStationTicket === 'function')
+}
+
+export function createStationTicketRequestId(orderId: string, station: AndroidPOSStation): string {
+    const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    return `${orderId}:${station}:${random}`
+}
+
+/**
+ * แปลงค่าที่ผู้ใช้กรอกในหน้าตั้งค่า ("192.168.1.51" หรือ "192.168.1.51:9100") เป็น host/port
+ * คืน null ถ้าว่างหรือรูปแบบไม่ถูก — กติกาเดียวกับที่แอปตรวจ (StationTicketModels.kt)
+ */
+export function parseAndroidPOSPrinterAddress(raw: string | null | undefined): AndroidPOSPrinterAddress | null {
+    const value = (raw ?? '').trim()
+    if (!value) return null
+    const match = value.match(/^([A-Za-z0-9][A-Za-z0-9.-]{0,252})(?::(\d{1,5}))?$/)
+    if (!match || match[1].includes('..') || match[1].endsWith('.') || match[1].endsWith('-')) return null
+    const port = match[2] ? parseInt(match[2], 10) : 9100
+    if (port < 1 || port > 65535) return null
+    return { host: match[1], port }
+}
+
+/**
+ * สั่งพิมพ์สลิปครัว/บาร์ผ่านแอป — แอปตอบ PRINT_QUEUED ทันทีแล้วส่งผลจริงกลับมาเป็น event
+ * (ไม่บล็อกหน้าขายระหว่างรอเครื่องพิมพ์ที่อาจปิดอยู่) Promise นี้จบเมื่อได้ผลจริง หรือหมดเวลารอ
+ */
+export function printAndroidPOSStationTicket(payload: AndroidPOSStationTicketPayload): Promise<AndroidPOSResult> {
+    const bridge = getBridge()
+    if (!bridge) {
+        return Promise.resolve({ ok: false, code: 'BRIDGE_UNAVAILABLE', message: 'AndroidPOS bridge is unavailable' })
+    }
+    if (typeof bridge.printStationTicket !== 'function') {
+        return Promise.resolve({
+            ok: false,
+            code: 'APP_UPDATE_REQUIRED',
+            message: 'KAIDEEDER POS app 1.2.0 or newer is required for LAN ticket printing',
+        })
+    }
+    const printStationTicket = bridge.printStationTicket.bind(bridge)
+
+    return new Promise(resolve => {
+        let settled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+
+        const finish = (result: AndroidPOSResult) => {
+            if (settled) return
+            settled = true
+            window.removeEventListener(ANDROID_POS_PRINT_RESULT_EVENT, onResult)
+            if (timer) clearTimeout(timer)
+            resolve(result)
+        }
+
+        const onResult = (event: Event) => {
+            const detail = (event as CustomEvent<unknown>).detail
+            if (!detail || typeof detail !== 'object') return
+            if ((detail as { requestId?: unknown }).requestId !== payload.requestId) return
+            try {
+                finish(normalizeBridgeResult(detail))
+            } catch (error) {
+                finish({ ok: false, code: 'BRIDGE_ERROR', message: error instanceof Error ? error.message : 'Bad print result' })
+            }
+        }
+
+        window.addEventListener(ANDROID_POS_PRINT_RESULT_EVENT, onResult)
+        timer = setTimeout(() => finish({
+            ok: false,
+            code: 'RESULT_TIMEOUT',
+            message: 'The app did not report a print result in time',
+        }), STATION_PRINT_RESULT_TIMEOUT_MS)
+
+        let queued: AndroidPOSResult
+        try {
+            queued = parseBridgeResult(printStationTicket(JSON.stringify(payload)))
+        } catch (error) {
+            finish({ ok: false, code: 'BRIDGE_ERROR', message: error instanceof Error ? error.message : 'AndroidPOS bridge error' })
+            return
+        }
+        // ปฏิเสธตั้งแต่ตรวจ payload (INVALID_REQUEST, UNTRUSTED_PAGE, ...) — ไม่มี event ตามมา
+        if (!queued.ok || queued.code !== 'PRINT_QUEUED') finish(queued)
+    })
+}
+
+// ─── Which order items already came out on a kitchen/bar slip (per device) ────────────────
+// ครัวไม่มีจอ — กระดาษคือความจริงเพียงอย่างเดียว จึงต้องจำว่ารายการไหนพิมพ์แล้ว
+// จะได้ไม่พิมพ์ซ้ำทุกครั้งที่มีสัญญาณออเดอร์อัปเดต และไม่ตกหล่นเมื่อรอบสั่งเพิ่มจาก QR ไหลเข้ามาเอง
+
+export function readPrintedStationItems(): Set<string> {
+    if (typeof window === 'undefined') return new Set()
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(PRINTED_STATION_ITEMS_KEY) ?? '[]')
+        return new Set(Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [])
+    } catch {
+        return new Set()
+    }
+}
+
+export function rememberPrintedStationItems(itemIds: string[]): void {
+    if (typeof window === 'undefined' || itemIds.length === 0) return
+    try {
+        const fresh = new Set(itemIds)
+        const entries = [...readPrintedStationItems()].filter(entry => !fresh.has(entry))
+        entries.push(...fresh)
+        window.localStorage.setItem(PRINTED_STATION_ITEMS_KEY, JSON.stringify(entries.slice(-MAX_STATION_ITEM_RECORDS)))
+    } catch {
+        // Printing must not fail because browser storage is unavailable.
+    }
 }

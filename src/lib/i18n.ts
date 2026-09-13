@@ -148,6 +148,19 @@ const th: Dict = {
     success: 'สำเร็จ',
     error: 'เกิดข้อผิดพลาด',
     confirmDelete: 'ยืนยันการลบ?',
+
+    // ── สลิปครัว/บาร์ ที่แท็บเล็ตส่งไปเครื่องพิมพ์แลน (useStationAutoPrint) ──
+    ticket_kitchen_title: 'ครัว / KITCHEN',
+    ticket_bar_title: 'บาร์ / BAR',
+    ticket_test_title: 'ทดสอบ / TEST',
+    ticket_table: 'โต๊ะ',
+    ticket_no_table: 'ไม่ระบุโต๊ะ',
+    ticket_delivery: 'เดลิเวอรี่ / DELIVERY',
+    ticket_pickup: 'รับเอง / PICKUP',
+    ticket_drinks_section: 'เครื่องดื่ม / DRINKS',
+    ticket_items_unit: 'รายการ',
+    ticket_print_failed: 'พิมพ์สลิปครัวไม่สำเร็จ — เช็คเครื่องพิมพ์และสายแลน',
+    ticket_bar_print_failed: 'พิมพ์สลิปบาร์ไม่สำเร็จ — เช็คเครื่องพิมพ์และสายแลน',
 }
 
 const lo: Dict = {
@@ -290,6 +303,19 @@ const lo: Dict = {
     success: 'ສຳເລັດ',
     error: 'ເກີດຂໍ້ຜິດພາດ',
     confirmDelete: 'ຢືນຢັນການລຶບ?',
+
+    // ── ສະລິບຄົວ/ບາ ──
+    ticket_kitchen_title: 'ຄົວ / KITCHEN',
+    ticket_bar_title: 'ບາ / BAR',
+    ticket_test_title: 'ທົດສອບ / TEST',
+    ticket_table: 'ໂຕະ',
+    ticket_no_table: 'ບໍ່ລະບຸໂຕະ',
+    ticket_delivery: 'ສົ່ງເຖິງບ້ານ / DELIVERY',
+    ticket_pickup: 'ມາຮັບເອງ / PICKUP',
+    ticket_drinks_section: 'ເຄື່ອງດື່ມ / DRINKS',
+    ticket_items_unit: 'ລາຍການ',
+    ticket_print_failed: 'ພິມສະລິບຄົວບໍ່ສຳເລັດ — ກວດເຄື່ອງພິມ ແລະ ສາຍແລນ',
+    ticket_bar_print_failed: 'ພິມສະລິບບາບໍ່ສຳເລັດ — ກວດເຄື່ອງພິມ ແລະ ສາຍແລນ',
 }
 
 /** คืน translation function สำหรับภาษาที่ระบุ */

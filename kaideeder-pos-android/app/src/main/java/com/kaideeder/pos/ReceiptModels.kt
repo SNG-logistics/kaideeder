@@ -129,33 +129,5 @@ data class ReceiptPayload(
                 qrText = json.optionalText("qrText", 1500)
             )
         }
-
-        private fun JSONObject.requiredText(key: String, maxLength: Int): String {
-            val value = cleanText(getString(key), maxLength)
-            require(value.isNotBlank()) { "$key is required" }
-            return value
-        }
-
-        private fun JSONObject.optionalText(key: String, maxLength: Int): String? {
-            if (!has(key) || isNull(key)) return null
-            return cleanText(optString(key), maxLength).ifBlank { null }
-        }
-
-        private fun JSONObject.requiredMoney(key: String): Double {
-            val value = getDouble(key)
-            require(value.isFinite() && value >= 0.0) { "$key must be a non-negative number" }
-            return value
-        }
-
-        private fun JSONObject.requiredPositiveNumber(key: String): Double {
-            val value = getDouble(key)
-            require(value.isFinite() && value > 0.0) { "$key must be a positive number" }
-            return value
-        }
-
-        private fun cleanText(value: String, maxLength: Int): String = value
-            .replace(Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]"), "")
-            .trim()
-            .take(maxLength)
     }
 }

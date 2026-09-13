@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef, type CSSProperties } from 're
 import { useStoreBranding } from '@/hooks/useStoreBranding'
 import { useCurrency, useTenant } from '@/context/TenantContext'
 import NewOrderAlert from '@/components/NewOrderAlert'
+import StationAutoPrint from '@/components/StationAutoPrint'
+import { notifyOrdersChanged } from '@/hooks/useStationAutoPrint'
 import { useNotification } from '@/components/NotificationContext'
 import { getPrinterSettings } from '@/lib/printerSettings'
 import {
@@ -41,9 +43,11 @@ function formatLAK(n: number): string {
 // ─── Raw category codes to exclude ──────────────────────────
 const RAW_CATEGORY_CODES = ['RAW_MEAT', 'RAW_PORK', 'RAW_SEA', 'RAW_VEG', 'DRY_GOODS', 'PACKAGING', 'OTHER', 'EGG', 'DAIRY', 'CHEESE', 'FLOUR_DOUGH']
 
-// ─── Print Kitchen / Bar Ticket ──────────────────────────────
-// ระบบรองรับหลาย printer: ครัว / บาร์ / ใบเสร็จ แต่ละตัวมี IP เองใน Settings
-// Flow: ลอง TCP direct → ถ้าล้มเหลว → fallback browser print dialog
+// ─── Print Kitchen / Bar Ticket (browser only) ───────────────
+// ในเบราว์เซอร์ปกติ: เปิด popup แล้วสั่ง window.print()
+// ในแอป KAIDEEDER POS บนแท็บเล็ต: ไม่ทำอะไรตรงนี้ — StationAutoPrint (useStationAutoPrint) เป็นคนส่งสลิป
+// ไปเครื่องพิมพ์แลนโดยตรงจากแท็บเล็ต โดยดูจากคิวครัวจริง จึงครอบคลุมออเดอร์ QR ที่ไม่ผ่านปุ่มนี้ด้วย
+// (เดิมเคยให้เซิร์ฟเวอร์ยิง TCP ไปเครื่องพิมพ์ ซึ่งไปไม่ถึงวงแลนของร้านและทำภาษาไทย/ลาวเพี้ยน — ถอดออกแล้ว)
 function printKitchenTicket(opts: {
     station: 'KITCHEN' | 'BAR'
     items: OrderItemData[]
@@ -53,58 +57,18 @@ function printKitchenTicket(opts: {
 }) {
     if (opts.items.length === 0) return
     const { station, items, tableName, orderNumber } = opts
+    // ในแอป window.open จะ navigate หน้าขายทิ้งและ window.print เป็น no-op — ห้ามแตะ
+    if (isAndroidPOSApp()) return
 
-    // ── ดึง config ของ station ที่ถูกต้อง ────────────────────
-    const allSettings = getPrinterSettings()
-    const printer = station === 'KITCHEN'
-        ? allSettings.kitchenPrinter
-        : allSettings.barPrinter
+    const { paperWidth } = getPrinterSettings().kitchenPrinter
 
-    const { ip, port, paperWidth, autoCut, copies, enabled } = printer
+    const isBar = station === 'BAR'
+    const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+    const bodyWidth = paperWidth === '58mm' ? '54mm' : '76mm'
 
-    // ── 1. TCP/ESC/POS direct (ถ้า enabled และมี IP) ─────────
-    const printItems = items.map(i => ({
-        name: i.product?.name || '',
-        quantity: i.quantity,
-        note: i.note || undefined,
-    }))
-
-    if (enabled && ip) {
-        fetch('/api/print/raw', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ip, port, station, tableName, orderNumber,
-                items: printItems, autoCut, copies,
-            }),
-        }).then(r => r.json()).then(d => {
-            if (d.ok) return   // ✅ TCP สำเร็จ — จบ
-            console.warn(`[print] TCP ${station} failed (${ip}:${port}):`, d.error)
-            doBrowserPrint()   // fallback
-        }).catch(e => {
-            console.warn(`[print] TCP ${station} error:`, e.message)
-            doBrowserPrint()   // fallback
-        })
-    } else {
-        // TCP ปิดอยู่ → ใช้ browser print ทันที
-        doBrowserPrint()
-    }
-
-    // ── 2. Browser fallback ───────────────────────────────────
-    function doBrowserPrint() {
-        // ในแอป KAIDEEDER POS (Android WebView) window.open จะ navigate หน้า POS ทิ้งแทนการเปิด popup
-        // และ window.print ไม่ทำงาน — slip ครัว/บาร์ ในแอปต้องพิมพ์ผ่านเครื่องพิมพ์ LAN (TCP) เท่านั้น
-        if (isAndroidPOSApp()) {
-            console.warn(`[print] ${station}: browser print is unavailable inside the Android POS app — set up a LAN printer in Settings`)
-            return
-        }
-        const isBar = station === 'BAR'
-        const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        const bodyWidth = paperWidth === '58mm' ? '54mm' : '76mm'
-
-        const w = window.open('', '_blank', 'width=302,height=400,toolbar=0,menubar=0,scrollbars=0')
-        if (!w) return
-        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    const w = window.open('', '_blank', 'width=302,height=400,toolbar=0,menubar=0,scrollbars=0')
+    if (!w) return
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
@@ -132,18 +96,17 @@ ${items.map(i => `<div class="row">
   function doClose(){ try{ window.close(); }catch(e){} }
   window.addEventListener('afterprint', doClose);
   try {
-    var mq = window.matchMedia('print');
-    var handler = function(e){ if(!e.matches) doClose(); };
-    if(mq.addEventListener){ mq.addEventListener('change', handler); }
-    else if(mq.addListener){ mq.addListener(handler); }
+var mq = window.matchMedia('print');
+var handler = function(e){ if(!e.matches) doClose(); };
+if(mq.addEventListener){ mq.addEventListener('change', handler); }
+else if(mq.addListener){ mq.addListener(handler); }
   } catch(e){}
   window.onload = function(){ window.focus(); window.print(); };
   if(document.readyState === 'complete'){ window.focus(); window.print(); }
 })();
 <\/script>
 </body></html>`)
-        w.document.close()
-    }
+    w.document.close()
 }
 
 
@@ -640,7 +603,10 @@ const confirmAndSaveOrder = async () => {
             }
         });
 
-        // Auto print — delay bar slightly so popup blocker doesn't kill second window
+        // ในแอปบนแท็บเล็ต: ปลุก StationAutoPrint ให้ส่งสลิปไปเครื่องพิมพ์แลนทันที (ไม่ต้องรอ SSE)
+        notifyOrdersChanged()
+
+        // ในเบราว์เซอร์: popup print — delay bar slightly so popup blocker doesn't kill second window
         const orderNumber = currentOrder?.orderNumber || orderId.slice(-8)
         const tableName = selectedTable.name
         const sn = branding.displayName || 'ร้านอาหาร'
@@ -1089,6 +1055,7 @@ return (
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         {/* ── New order alert — POS page only ── */}
         <NewOrderAlert />
+        <StationAutoPrint />
 
 
         {/* ════ TOPPING MODAL (Dynamic — catalog-driven) ════ */}

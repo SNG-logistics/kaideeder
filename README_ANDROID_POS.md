@@ -137,6 +137,7 @@ The trusted page receives these synchronous methods:
 ```text
 window.AndroidPOS.printReceipt(payloadJson)
 window.AndroidPOS.reprintReceipt(payloadJson)
+window.AndroidPOS.printStationTicket(payloadJson)   // 1.2.0+
 window.AndroidPOS.testPrint()
 window.AndroidPOS.getPrinterStatus()
 window.AndroidPOS.openCashDrawer()
@@ -150,6 +151,24 @@ also contain `data`. `PRINT_ACCEPTED` means the SUNMI service accepted the comma
 does not claim that paper physically printed. Status codes include `READY`,
 `DISCONNECTED`, `OUT_OF_PAPER`, `OVERHEATED`, `COVER_OPEN`, and `CUTTER_ERROR`.
 
+### Kitchen / bar tickets over the LAN (`printStationTicket`, 1.2.0+)
+
+Kitchen and bar slips do not go to the built-in printer. The tablet opens a TCP socket to
+the store's kitchen printer (`printer.host:port`, ESC/POS raster image on port 9100) and
+sends the slip rendered as a 576 px bitmap (`ReceiptFormatter.renderStationTicket`), so Thai
+and Lao come out regardless of the printer's firmware fonts. `NetworkPrinter.kt` queues jobs
+on one background thread with a 5 s connect timeout and a 20 s watchdog per job.
+
+The call is asynchronous: it returns `PRINT_QUEUED` immediately and the real result
+(`PRINT_ACCEPTED`, `PRINTER_UNREACHABLE`, `PRINTER_TIMEOUT`, `NETWORK_PRINT_ERROR`,
+`INVALID_REQUEST`) is dispatched into the page as a `CustomEvent` named
+`androidpos:print-result` whose `detail` is the usual `{ ok, code, message }` plus the
+`requestId` from the payload. `src/lib/android-pos.ts` (`printAndroidPOSStationTicket`)
+wraps this into a Promise. Payload schema version 1: `station` (`KITCHEN`/`BAR`),
+`printer { host, port }`, `title`, `tableName`, `orderNumber`, `issuedAt`, optional
+`orderNote`/`footer`, 1–200 `items { name, quantity, note?, section? }`, and
+`options { cutPaper, copies ≤ 3 }`. Validation lives in `StationTicketModels.kt`.
+
 Receipt schema version 1 includes a request ID, `orderId`, receipt type, confirmed
 order items/totals/payment, store data, options, and optional QR text. Native validation
 limits the payload to 256 KB and 200 items. Original prints are persistently deduplicated
@@ -161,6 +180,8 @@ by `orderId:ORIGINAL`; reprints are explicit, labelled, and drawer-disabled.
 2. Install the debug APK and sign in to the production/staging POS.
 3. Call `AndroidPOS.getPrinterStatus()` and require `READY`.
 4. Call `AndroidPOS.testPrint()` and physically confirm Thai, Lao, and English glyphs.
+   Then, in Settings → “เครื่องพิมพ์ครัว / บาร์”, enter the kitchen printer IP and press
+   its test button: a test slip must come out of the LAN printer with readable Thai/Lao.
 5. Complete one cash payment and verify one backend payment, one stock deduction, one
    original receipt, cutter behavior, and the configured drawer behavior.
 6. Confirm double-click/reload does not print another original.

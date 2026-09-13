@@ -6,8 +6,19 @@ import { usePermission } from '@/hooks/usePermission'
 import { useStoreBranding, clearStoreBrandingCache } from '@/hooks/useStoreBranding'
 import QRCode from 'qrcode'
 import { useTenant } from '@/context/TenantContext'
-import { getPrinterSettings, setPrinterSettings, setStationPrinter, type PrinterSettings, type StationPrinterConfig } from '@/lib/printerSettings'
-import { getAndroidPOSPrinterStatus, isAndroidPOSApp, testAndroidPOSPrint, type AndroidPOSResult } from '@/lib/android-pos'
+import { getPrinterSettings, setPrinterSettings, type PrinterSettings } from '@/lib/printerSettings'
+import { notifyOrdersChanged } from '@/hooks/useStationAutoPrint'
+import {
+    createStationTicketRequestId,
+    getAndroidPOSPrinterStatus,
+    isAndroidPOSApp,
+    parseAndroidPOSPrinterAddress,
+    printAndroidPOSStationTicket,
+    supportsAndroidPOSStationPrint,
+    testAndroidPOSPrint,
+    type AndroidPOSResult,
+    type AndroidPOSStation,
+} from '@/lib/android-pos'
 
 const LOCATION_TYPE_LABELS: Record<string, string> = {
     MAIN_WAREHOUSE: '🏪 คลังหลัก',
@@ -1371,7 +1382,7 @@ function AndroidPosPrinterCard() {
 
             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
                 <div>• ใบเสร็จลูกค้า → เครื่องพิมพ์ในตัว SUNMI (อัตโนมัติ)</div>
-                <div>• slip ครัว / บาร์ → ต้องตั้งค่าเครื่องพิมพ์ LAN ของครัว/บาร์ด้านล่าง (แอปไม่มี browser print)</div>
+                <div>• สลิปครัว / บาร์ → เครื่องพิมพ์แลน ตั้ง IP ในการ์ด “เครื่องพิมพ์ครัว / บาร์” ด้านล่าง แท็บเล็ตเป็นคนส่งเอง</div>
                 <div>• ถ้าสถานะไม่ใช่ READY: เช็คกระดาษ ปิดฝาเครื่องพิมพ์ แล้วกด “ตรวจสอบสถานะ” อีกครั้ง — รายละเอียดใน <code>docs/SUNMI_PRINTER.md</code></div>
             </div>
         </div>
@@ -1402,28 +1413,15 @@ function AutoPrintCard() {
                 <span>🖨️</span> ตั้งค่าระบบพิมพ์
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 14 }}>
-                บันทึกในเครื่องนี้เท่านั้น (localStorage) — แต่ละเครื่องตั้งค่าได้อิสระ
+                ใช้กับเบราว์เซอร์ปกติ บันทึกในเครื่องนี้เท่านั้น (localStorage) — ในแอปบนแท็บเล็ต SUNMI ใบเสร็จพิมพ์อัตโนมัติผ่านเครื่องพิมพ์ในตัวอยู่แล้ว
+                และสลิปครัว/บาร์ตั้งค่าที่การ์ด “เครื่องพิมพ์ครัว / บาร์” ด้านล่าง
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={rowStyle}>
                     <div>
-                        <div style={labelStyle}>🍳 Auto-Print slip ครัว</div>
-                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งครัว&quot;</div>
-                    </div>
-                    <Toggle val={s.autoKitchen} onChange={v => update({ autoKitchen: v })} />
-                </div>
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>🍹 Auto-Print slip บาร์</div>
-                        <div style={subStyle}>พิมพ์อัตโนมัติเมื่อกด &quot;ส่งบาร์&quot;</div>
-                    </div>
-                    <Toggle val={s.autoBar} onChange={v => update({ autoBar: v })} />
-                </div>
-                <div style={rowStyle}>
-                    <div>
-                        <div style={labelStyle}>🧾 Auto-Print ใบเสร็จ</div>
-                        <div style={subStyle}>พิมพ์ใบเสร็จอัตโนมัติหลังชำระเงิน</div>
+                        <div style={labelStyle}>🧾 Auto-Print ใบเสร็จ (เบราว์เซอร์)</div>
+                        <div style={subStyle}>เปิดหน้าใบเสร็จให้พิมพ์อัตโนมัติหลังชำระเงิน</div>
                     </div>
                     <Toggle val={s.autoReceipt} onChange={v => update({ autoReceipt: v })} />
                 </div>
@@ -1432,341 +1430,181 @@ function AutoPrintCard() {
     )
 }
 
-// ─── Station Printer Card (Kitchen / Bar / Receipt) ──────────────────────
-type StationKey = 'kitchenPrinter' | 'barPrinter' | 'receiptPrinter'
+// ─── Kitchen / bar LAN printers — the SUNMI tablet sends the slips itself ───────────────
+// เซิร์ฟเวอร์อยู่ที่ดาต้าเซ็นเตอร์ ยิง TCP ไป 192.168.x.x ของร้านไม่ถึง จึงให้แอปบนแท็บเล็ตเป็นคนส่ง
+// (window.AndroidPOS.printStationTicket, APK 1.2.0+) ค่า IP เก็บในตาราง Tenant ใช้ร่วมกันทั้งร้าน
+const ANDROID_POS_STATION_PRINT_VERSION = '1.2.0'
 
-function StationPrinterCard({ stationKey, label, icon, accentColor, stationType }: {
-    stationKey: StationKey
-    label: string
-    icon: string
-    accentColor: string
-    stationType: 'KITCHEN' | 'BAR' | 'RECEIPT'
-}) {
-    const [cfg, setCfg] = useState<StationPrinterConfig | null>(null)
-    const [testing, setTesting] = useState(false)
-
-    useEffect(() => {
-        const s = getPrinterSettings()
-        setCfg(s[stationKey])
-    }, [stationKey])
-
-    // อัปเดต config ของ station นี้
-    function update(patch: Partial<StationPrinterConfig>) {
-        const next = { ...cfg!, ...patch }
-        setStationPrinter(stationType, next)
-        setCfg(next)
-    }
-
-    // ทดสอบพิมพ์ TCP ตรง
-    async function testTCP() {
-        if (!cfg) return
-        setTesting(true)
-        try {
-            const res = await fetch('/api/print/raw', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ip: cfg.ip,
-                    port: cfg.port,
-                    station: stationType === 'RECEIPT' ? 'KITCHEN' : stationType,
-                    tableName: 'ทดสอบ',
-                    orderNumber: 'TEST',
-                    items: [
-                        { name: `${icon} ${label} — ทดสอบการพิมพ์`, quantity: 1 },
-                        { name: `ไอพี: ${cfg.ip}:${cfg.port}`, quantity: 1 },
-                        { name: `กระดาษ: ${cfg.paperWidth}  ตัด: ${cfg.autoCut ? 'เปิด' : 'ปิด'}`, quantity: 1 },
-                        { name: 'KAIDEEDER POS', quantity: 1 },
-                    ],
-                    autoCut: cfg.autoCut,
-                    copies: cfg.copies,
-                }),
-            })
-            const d = await res.json()
-            if (d.ok) toast.success(`✅ ${label}: พิมพ์สำเร็จ (${d.bytes} bytes)`)
-            else toast.error(`❌ ${label}: ${d.error}`)
-        } catch (e: any) {
-            toast.error(`TCP failed: ${e.message}`)
-        } finally {
-            setTesting(false)
-        }
-    }
-
-    // ทดสอบ browser print
-    function testBrowser() {
-        if (!cfg) return
-        const mm = cfg.paperWidth
-        const w = window.open('', '_blank', 'width=302,height=300,toolbar=0,menubar=0')
-        if (!w) return
-        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap" rel="stylesheet">
-<style>*{margin:0;padding:0;box-sizing:border-box}@page{size:${mm} auto;margin:3mm 2mm}body{font-family:'Noto Sans Lao','Noto Sans Thai','Courier New',monospace;font-size:14px;width:${mm === '58mm' ? '54mm' : '76mm'}}.t{font-weight:900;font-size:16px;text-align:center;margin-bottom:6px}.d{font-size:11px;text-align:center;color:#444}.line{border-top:1px dashed #000;margin:6px 0}</style></head><body>
-<div class="t">${icon} ${label}</div>
-<div class="d">ทดสอบพิมพ์ — Browser</div>
-<div class="line"></div>
-<div class="d">กระดาษ: ${mm} | สำเนา: ${cfg.copies}</div>
-<div class="d">ตัดอัตโนมัติ: ${cfg.autoCut ? 'เปิด' : 'ปิด'}</div>
-<div class="line"></div>
-<div class="d">KAIDEEDER POS</div>
-<script>(function(){window.addEventListener('afterprint',function(){window.close()});window.onload=function(){window.focus();window.print()};})()</scr` + `ipt></body></html>`)
-        w.document.close()
-    }
-
-    if (!cfg) return null
-
-    const statusBg = cfg.enabled ? `rgba(${accentColor},0.06)` : 'var(--bg)'
-    const statusBorder = cfg.enabled ? `rgba(${accentColor},0.3)` : 'var(--border)'
-
-    return (
-        <div style={{
-            border: `1.5px solid ${statusBorder}`,
-            borderRadius: 14, padding: '14px 16px',
-            background: statusBg,
-            transition: 'all 0.2s',
-        }}>
-            {/* Header row */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: '1.4rem' }}>{icon}</span>
-                    <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>{label}</div>
-                        <div style={{ fontSize: '0.7rem', color: cfg.enabled ? `rgb(${accentColor})` : 'var(--text-muted)', fontWeight: 600 }}>
-                            {cfg.enabled ? `✅ TCP เปิด · ${cfg.ip}:${cfg.port}` : '⚪ ปิด TCP — ใช้ Browser print'}
-                        </div>
-                    </div>
-                </div>
-                <Toggle val={cfg.enabled} onChange={v => update({ enabled: v })} />
-            </div>
-
-            {/* IP + Port */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8, marginBottom: 10 }}>
-                <div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>🌐 IP Address (WiFi / LAN)</div>
-                    <input
-                        value={cfg.ip}
-                        onChange={e => update({ ip: e.target.value })}
-                        placeholder="192.168.18.xxx"
-                        className="input"
-                        style={{ fontSize: '0.88rem', fontFamily: 'monospace' }}
-                    />
-                </div>
-                <div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>Port</div>
-                    <input
-                        value={cfg.port}
-                        onChange={e => update({ port: Number(e.target.value) || 9100 })}
-                        type="number"
-                        className="input"
-                        style={{ fontSize: '0.88rem', fontFamily: 'monospace' }}
-                    />
-                </div>
-            </div>
-
-            {/* Paper + Copies + AutoCut */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-                {/* Paper width */}
-                <div style={{ display: 'flex', gap: 4 }}>
-                    {(['80mm', '58mm'] as const).map(w => (
-                        <button key={w} onClick={() => update({ paperWidth: w })} style={{
-                            padding: '4px 10px', borderRadius: 7, border: '1.5px solid',
-                            borderColor: cfg.paperWidth === w ? `rgb(${accentColor})` : 'var(--border)',
-                            background: cfg.paperWidth === w ? `rgba(${accentColor},0.12)` : 'transparent',
-                            color: cfg.paperWidth === w ? `rgb(${accentColor})` : 'var(--text)',
-                            fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
-                        }}>{w}</button>
-                    ))}
-                </div>
-                {/* Copies */}
-                <div style={{ display: 'flex', gap: 4 }}>
-                    {([1, 2] as const).map(n => (
-                        <button key={n} onClick={() => update({ copies: n })} style={{
-                            width: 30, height: 30, borderRadius: 7, border: '1.5px solid',
-                            borderColor: cfg.copies === n ? `rgb(${accentColor})` : 'var(--border)',
-                            background: cfg.copies === n ? `rgba(${accentColor},0.12)` : 'transparent',
-                            color: cfg.copies === n ? `rgb(${accentColor})` : 'var(--text)',
-                            fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit',
-                        }}>{n}</button>
-                    ))}
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', alignSelf: 'center' }}>สำเนา</span>
-                </div>
-                {/* Auto-cut */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>✂️ ตัดกระดาษ</span>
-                    <Toggle val={cfg.autoCut} onChange={v => update({ autoCut: v })} />
-                </div>
-            </div>
-
-            {/* Test buttons */}
-            <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                    onClick={testTCP}
-                    disabled={testing || !cfg.enabled}
-                    style={{
-                        flex: 1, minHeight: 36, borderRadius: 9, border: 'none',
-                        background: !cfg.enabled ? '#E5E7EB' : `rgba(${accentColor},0.9)`,
-                        color: !cfg.enabled ? '#9CA3AF' : '#fff',
-                        fontWeight: 700, fontSize: '0.78rem', cursor: !cfg.enabled ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                    }}
-                >
-                    {testing ? '⏳ กำลังส่ง...' : '🖨️ ทดสอบ TCP'}
-                </button>
-                <button
-                    onClick={testBrowser}
-                    style={{
-                        minHeight: 36, borderRadius: 9, border: '1.5px solid var(--border)',
-                        background: 'var(--bg)', color: 'var(--text)',
-                        fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer',
-                        fontFamily: 'inherit', padding: '0 12px',
-                    }}
-                >
-                    🌐 Browser
-                </button>
-            </div>
-        </div>
-    )
-}
-
-// ─── Printer Settings Card (wrapper รวม 3 stations) ──────────────────────
-function PrinterSettingsCard() {
-    return (
-        <div className="card" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.01)' }}>
-            <h2 style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>🖨️</span> ตั้งค่าเครื่องพิมพ์ (Multi-Printer)
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
-                แต่ละ station ตั้ง IP แยกกัน — รองรับ WiFi &amp; LAN ในเครื่องเดียวกัน · บันทึก per-device (localStorage)
-            </p>
-
-            {/* 3 station cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <StationPrinterCard
-                    stationKey="kitchenPrinter"
-                    stationType="KITCHEN"
-                    label="เครื่องปริ้นครัว"
-                    icon="🍳"
-                    accentColor="234,88,12"
-                />
-                <StationPrinterCard
-                    stationKey="barPrinter"
-                    stationType="BAR"
-                    label="เครื่องปริ้นบาร์"
-                    icon="🍹"
-                    accentColor="37,99,235"
-                />
-                <StationPrinterCard
-                    stationKey="receiptPrinter"
-                    stationType="RECEIPT"
-                    label="เครื่องปริ้นใบเสร็จ"
-                    icon="🧾"
-                    accentColor="5,150,105"
-                />
-            </div>
-
-            <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(245,158,11,0.06)', borderRadius: 8, fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                ⚠️ <strong>ต้องอยู่ network เดียวกัน</strong> — เซิร์ฟเวอร์ส่ง TCP ไปที่ IP:Port โดยตรง<br />
-                💡 ถ้า TCP ล้มเหลว ระบบจะ fallback เป็น Browser print อัตโนมัติ
-            </div>
-        </div>
-    )
-}
-
-// ─── Server-Side Auto-Printer Settings (Global) ───────────────────────────
-function ServerPrinterSettingsCard() {
+function LanPrinterSettingsCard() {
     const [cfg, setCfg] = useState({ kitchenPrinterIp: '', barPrinterIp: '', autoPrintEnabled: false })
     const [saving, setSaving] = useState(false)
-    const [testing, setTesting] = useState(false)
+    const [testing, setTesting] = useState<AndroidPOSStation | null>(null)
+    const [inApp, setInApp] = useState(false)
+    const [appSupports, setAppSupports] = useState(false)
 
     useEffect(() => {
+        setInApp(isAndroidPOSApp())
+        setAppSupports(supportsAndroidPOSStationPrint())
         fetch('/api/settings/store').then(r => r.json()).then(d => {
             if (d.success) setCfg({
                 kitchenPrinterIp: d.data.kitchenPrinterIp || '',
                 barPrinterIp: d.data.barPrinterIp || '',
-                autoPrintEnabled: d.data.autoPrintEnabled || false,
+                autoPrintEnabled: Boolean(d.data.autoPrintEnabled),
             })
-        })
+        }).catch(() => { /* การ์ดยังใช้ได้ด้วยค่าว่าง */ })
     }, [])
 
-    async function save() {
-        setSaving(true)
-        const r = await fetch('/api/settings/store', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cfg),
-        }).then(r => r.json())
-        setSaving(false)
-        if (r.success) toast.success('✅ บันทึกตั้งค่า Auto-Print แล้ว')
-        else toast.error(r.error || 'บันทึกไม่สำเร็จ')
-    }
+    const kitchenAddress = parseAndroidPOSPrinterAddress(cfg.kitchenPrinterIp)
+    const barAddress = parseAndroidPOSPrinterAddress(cfg.barPrinterIp)
+    const kitchenInvalid = cfg.kitchenPrinterIp.trim() !== '' && !kitchenAddress
+    const barInvalid = cfg.barPrinterIp.trim() !== '' && !barAddress
 
-    async function testPrint(station: 'KITCHEN' | 'BAR', ip: string) {
-        if (!ip) return toast.error('กรุณาระบุ IP ก่อน')
-        setTesting(true)
+    async function save() {
+        if (kitchenInvalid || barInvalid) {
+            toast.error('รูปแบบ IP ไม่ถูกต้อง — ใช้แบบ 192.168.1.51 (หรือ 192.168.1.51:9100)')
+            return
+        }
+        if (cfg.autoPrintEnabled && !kitchenAddress) {
+            toast.error('เปิดพิมพ์อัตโนมัติต้องใส่ IP เครื่องพิมพ์ครัวก่อน')
+            return
+        }
+        setSaving(true)
         try {
-            const res = await fetch('/api/print/raw', {
-                method: 'POST',
+            const r = await fetch('/api/settings/store', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ip,
-                    port: 9100,
-                    station,
-                    tableName: 'ทดสอบ',
-                    orderNumber: 'TEST',
-                    items: [{ name: `ทดสอบพิมพ์ (${station === 'KITCHEN' ? 'ครัว' : 'บาร์'})`, quantity: 1 }],
-                    autoCut: true,
-                    copies: 1,
+                    kitchenPrinterIp: cfg.kitchenPrinterIp.trim() || null,
+                    barPrinterIp: cfg.barPrinterIp.trim() || null,
+                    autoPrintEnabled: cfg.autoPrintEnabled,
                 }),
-            })
-            const d = await res.json()
-            if (d.ok) toast.success(`✅ พิมพ์สำเร็จ (${d.bytes} bytes)`)
-            else toast.error(`❌ ${d.error}`)
-        } catch (e: any) { toast.error(`Error: ${e.message}`) }
-        finally { setTesting(false) }
+            }).then(r => r.json())
+            if (r.success) {
+                toast.success('✅ บันทึกเครื่องพิมพ์แล้ว')
+                notifyOrdersChanged()   // ให้ตัวพิมพ์บนแท็บเล็ตโหลดค่าใหม่ทันที ไม่ต้องรอรอบ poll
+            } else toast.error(r.error || 'บันทึกไม่สำเร็จ')
+        } catch {
+            toast.error('บันทึกไม่สำเร็จ')
+        } finally {
+            setSaving(false)
+        }
     }
 
-    const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 9, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }
+    async function testPrint(station: AndroidPOSStation) {
+        const address = station === 'KITCHEN' ? kitchenAddress : barAddress
+        if (!address) {
+            toast.error('กรุณาใส่ IP ให้ถูกต้องก่อน เช่น 192.168.1.51')
+            return
+        }
+        if (!inApp) {
+            toast.error('ทดสอบได้เฉพาะในแอป KAIDEEDER POS บนแท็บเล็ต SUNMI — แท็บเล็ตเป็นคนส่งงานพิมพ์ ไม่ใช่เซิร์ฟเวอร์', { duration: 6000 })
+            return
+        }
+        if (!appSupports) {
+            toast.error(`แอปบนแท็บเล็ตต้องเป็นเวอร์ชัน ${ANDROID_POS_STATION_PRINT_VERSION} ขึ้นไป — ติดตั้ง APK ใหม่ก่อน`, { duration: 6000 })
+            return
+        }
+        setTesting(station)
+        try {
+            const result = await printAndroidPOSStationTicket({
+                schemaVersion: 1,
+                requestId: createStationTicketRequestId('test', station),
+                station,
+                printer: address,
+                title: station === 'BAR' ? 'ทดสอบบาร์ / BAR TEST' : 'ทดสอบครัว / KITCHEN TEST',
+                tableName: 'โต๊ะ 99',
+                orderNumber: 'TEST',
+                issuedAt: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+                footer: 'KAIDEEDER POS',
+                items: [
+                    { name: 'ทดสอบพิมพ์ ไทย / ທົດສອບ ລາວ / English', quantity: 2, note: '+ ไข่ดาว\n» ไม่เผ็ด' },
+                    { name: 'Beerlao', quantity: 1, section: 'เครื่องดื่ม / DRINKS' },
+                ],
+                options: { cutPaper: true, copies: 1 },
+            })
+            if (result.ok) toast.success(`✅ ส่งหน้าทดสอบไปที่ ${address.host} แล้ว — ดูว่ากระดาษออกและอ่านไทย/ลาวได้`, { duration: 6000 })
+            else toast.error(`❌ พิมพ์ไม่สำเร็จ (${result.code}) ${result.message}`, { duration: 8000 })
+        } catch {
+            toast.error('เรียก bridge ของแอปไม่สำเร็จ — ลองปิดแล้วเปิดแอปใหม่')
+        } finally {
+            setTesting(null)
+        }
+    }
+
+    const inp = (invalid: boolean): React.CSSProperties => ({
+        width: '100%', padding: '8px 12px', borderRadius: 9,
+        border: `1.5px solid ${invalid ? '#DC2626' : 'var(--border)'}`,
+        background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none',
+    })
+    const testBtn: React.CSSProperties = { padding: '0 12px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', whiteSpace: 'nowrap' }
+
+    const statusLine = !inApp
+        ? { color: 'var(--text-muted)', text: 'ℹ️ หน้านี้เปิดจากเบราว์เซอร์ — ตั้งค่าและบันทึกได้ แต่ปุ่มทดสอบต้องกดจากแอปบนแท็บเล็ต' }
+        : !appSupports
+            ? { color: '#B91C1C', text: `🛑 แอปบนแท็บเล็ตเวอร์ชันเก่า — ต้องติดตั้ง APK ${ANDROID_POS_STATION_PRINT_VERSION} ขึ้นไปถึงจะส่งสลิปครัวได้` }
+            : { color: '#059669', text: '✅ แอปรุ่นนี้ส่งสลิปครัว/บาร์ผ่านแลนได้ — กดทดสอบเพื่อยืนยันว่าถึงเครื่องพิมพ์' }
 
     return (
         <div className="card" style={{ borderColor: 'rgba(234,88,12,0.2)', background: 'rgba(234,88,12,0.02)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <h2 style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span>🖨️</span> ระบบ Auto-Print กลาง (เซิร์ฟเวอร์)
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 10, flexWrap: 'wrap' }}>
+                <h2 style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                    <span>🍳</span> เครื่องพิมพ์ครัว / บาร์ (สลิปออเดอร์)
                 </h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: cfg.autoPrintEnabled ? '#059669' : 'var(--text-muted)' }}>
-                        {cfg.autoPrintEnabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}
+                        {cfg.autoPrintEnabled ? 'พิมพ์อัตโนมัติ: เปิด' : 'พิมพ์อัตโนมัติ: ปิด'}
                     </span>
                     <Toggle val={cfg.autoPrintEnabled} onChange={v => setCfg(p => ({ ...p, autoPrintEnabled: v }))} />
                 </div>
             </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>ตั้งค่า IP เครื่องปริ้นความร้อนเพื่อให้ออเดอร์วิ่งเข้าครัว/บาร์อัตโนมัติเมื่อกดสั่งอาหาร (อิงตามเซิร์ฟเวอร์หลัก)</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: 8 }}>
+                แท็บเล็ต SUNMI ส่งสลิปไปเครื่องพิมพ์ในวงแลนของร้านโดยตรง — ทุกออเดอร์ที่เข้าครัว ทั้งจากหน้าขายและ QR ลูกค้าสั่งเอง
+                (รอบแรกหลังแคชเชียร์ยืนยัน รอบสั่งเพิ่มออกเองทันที)
+            </p>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: statusLine.color, marginBottom: 14 }}>{statusLine.text}</div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 12 }}>
                 <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>🍳 IP เครื่องปริ้นครัว</label>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>🍳 IP เครื่องพิมพ์ครัว (จำเป็น)</label>
                     <div style={{ display: 'flex', gap: 8 }}>
-                        <input style={inp} placeholder="192.168.1.xxx" value={cfg.kitchenPrinterIp} onChange={e => setCfg(p => ({ ...p, kitchenPrinterIp: e.target.value }))} />
-                        <button onClick={() => testPrint('KITCHEN', cfg.kitchenPrinterIp)} disabled={testing} style={{ padding: '0 12px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontSize: '0.8rem' }}>ทดสอบ</button>
+                        <input style={inp(kitchenInvalid)} placeholder="192.168.1.51" inputMode="decimal" value={cfg.kitchenPrinterIp} onChange={e => setCfg(p => ({ ...p, kitchenPrinterIp: e.target.value }))} />
+                        <button onClick={() => testPrint('KITCHEN')} disabled={testing !== null} style={testBtn}>
+                            {testing === 'KITCHEN' ? '⏳' : '🖨️ ทดสอบ'}
+                        </button>
                     </div>
                 </div>
                 <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>🍹 IP เครื่องปริ้นบาร์</label>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text)', marginBottom: 5, display: 'block' }}>🍹 IP เครื่องพิมพ์บาร์ (เว้นว่างถ้ายังไม่มี)</label>
                     <div style={{ display: 'flex', gap: 8 }}>
-                        <input style={inp} placeholder="192.168.1.yyy" value={cfg.barPrinterIp} onChange={e => setCfg(p => ({ ...p, barPrinterIp: e.target.value }))} />
-                        <button onClick={() => testPrint('BAR', cfg.barPrinterIp)} disabled={testing} style={{ padding: '0 12px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--white)', cursor: 'pointer', fontSize: '0.8rem' }}>ทดสอบ</button>
+                        <input style={inp(barInvalid)} placeholder="ยังไม่มี — เครื่องดื่มออกที่ครัว" inputMode="decimal" value={cfg.barPrinterIp} onChange={e => setCfg(p => ({ ...p, barPrinterIp: e.target.value }))} />
+                        <button onClick={() => testPrint('BAR')} disabled={testing !== null} style={testBtn}>
+                            {testing === 'BAR' ? '⏳' : '🖨️ ทดสอบ'}
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            {(kitchenInvalid || barInvalid) && (
+                <div style={{ color: '#DC2626', fontSize: '0.75rem', fontWeight: 600, marginBottom: 10 }}>
+                    รูปแบบ IP ไม่ถูกต้อง — ใช้แบบ 192.168.1.51 (ถ้าเครื่องพิมพ์ใช้พอร์ตอื่น ใส่ 192.168.1.51:9100)
+                </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                 <button onClick={save} disabled={saving} className="btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}>
-                    {saving ? '⏳...' : '💾 บันทึก IP เครื่องปริ้น'}
+                    {saving ? '⏳...' : '💾 บันทึกเครื่องพิมพ์'}
                 </button>
+            </div>
+
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.7, background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+                <div>• แท็บเล็ตกับเครื่องพิมพ์ต้อง <strong>อยู่วงเดียวกัน</strong> — เสียบสายเข้าเราเตอร์ตัวเดียวกัน (หรือเกาะไวไฟของร้าน) และตั้ง IP เครื่องพิมพ์ให้คงที่จากหน้าเว็บของเครื่องพิมพ์</div>
+                <div>• ยังไม่มีเครื่องพิมพ์บาร์ → เว้นช่องบาร์ว่างไว้ เครื่องดื่มจะพิมพ์รวมในสลิปครัวใต้หัวข้อ “เครื่องดื่ม” วันหน้ามีเครื่องบาร์ค่อยใส่ IP ระบบแยกสลิปให้เอง</div>
+                <div>• แอปบนแท็บเล็ตต้อง <strong>เปิดค้างไว้</strong> ตลอดเวลาทำการ (หน้าขายหรือหน้าหลังร้านก็ได้) เพราะแท็บเล็ตเป็นคนส่งงานพิมพ์ — ปิดแอปแล้วสลิปจะไม่ออก แต่จะออกตามมาเมื่อเปิดแอปใหม่</div>
+                <div>• เครื่องพิมพ์ครัว SUNMI NT311: กดปุ่มจับคู่สองครั้งติดกันเพื่อพิมพ์รายงานเครือข่ายพร้อม IP — ขั้นตอนเต็มใน <code>docs/SUNMI_PRINTER.md</code></div>
             </div>
         </div>
     )
 }
-
-
 
 // ─── Module-level constants ───────────────────────────────────────────────
 const sysInfo = [
@@ -2052,11 +1890,12 @@ const ANDROID_POS_APK = {
 }
 const ANDROID_POS_APK_FILENAME = ANDROID_POS_APK.href.split('/').pop() || 'kaideeder-pos.apk'
 
-// เวอร์ชันแรกที่แก้อาการเครื่องพิมพ์ในตัวขึ้น DISCONNECTED บน Android 11
-// (ประกาศ <queries> ใน AndroidManifest ให้ผูกกับบริการเครื่องพิมพ์ของ SUNMI ได้)
+// เวอร์ชันต่ำสุดที่ใช้งานได้จริงบนแท็บเล็ต:
+//   1.1.1 แก้เครื่องพิมพ์ในตัวขึ้น DISCONNECTED บน Android 11 (<queries> ใน AndroidManifest)
+//   1.2.0 ส่งสลิปครัว/บาร์ไปเครื่องพิมพ์แลนจากแท็บเล็ต (printStationTicket)
 // ถ้าไฟล์ที่วางไว้ใน public/downloads ยังเก่ากว่านี้ การ์ดจะเตือนเอง
 // และคำเตือนจะหายไปเองเมื่ออัปเดต ANDROID_POS_APK ด้านบนเป็นไฟล์ใหม่
-const ANDROID_POS_PRINTER_FIX_VERSION = '1.1.1'
+const ANDROID_POS_PRINTER_FIX_VERSION = '1.2.0'
 
 /** เทียบเฉพาะเลขเวอร์ชัน x.y.z ตัด suffix อย่าง -debug ทิ้ง */
 function isApkOlderThan(current: string, target: string): boolean {
@@ -2109,9 +1948,10 @@ function AndroidPosDownloadCard() {
 
             {isApkOlderThan(ANDROID_POS_APK.version, ANDROID_POS_PRINTER_FIX_VERSION) && (
                 <p style={{ color: '#B91C1C', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 9, padding: '0.65rem 0.8rem', fontSize: '0.72rem', lineHeight: 1.55, margin: '12px 0 0', fontWeight: 600 }}>
-                    🛑 ไฟล์ที่แจกอยู่นี้ ({ANDROID_POS_APK.version}) <strong>ยังพิมพ์ผ่านเครื่องพิมพ์ในตัวไม่ได้บน Android 11</strong> —
-                    จะขึ้นสถานะ DISCONNECTED เสมอ แก้แล้วในซอร์สโค้ดตั้งแต่เวอร์ชัน {ANDROID_POS_PRINTER_FIX_VERSION}
-                    แต่ต้อง build APK ใหม่แล้ววางทับไฟล์ใน <code>public/downloads/</code> ก่อน คำเตือนนี้จะหายเอง
+                    🛑 ไฟล์ที่แจกอยู่นี้ ({ANDROID_POS_APK.version}) เก่ากว่าที่ต้องใช้ ({ANDROID_POS_PRINTER_FIX_VERSION}) —
+                    <strong>พิมพ์ผ่านเครื่องพิมพ์ในตัวไม่ได้บน Android 11</strong> (ขึ้น DISCONNECTED, แก้ใน 1.1.1)
+                    และ <strong>ส่งสลิปครัวไปเครื่องพิมพ์แลนไม่ได้</strong> (เพิ่มใน 1.2.0)
+                    ให้บิลด์จาก GitHub Actions (Build SUNMI POS APK) แล้วติดตั้งทับบนแท็บเล็ต และวางไฟล์ใน <code>public/downloads/</code> คำเตือนนี้จะหายเอง
                 </p>
             )}
 
@@ -2332,11 +2172,8 @@ export default function SettingsPage() {
                 {/* ── Auto-print toggles (kitchen / bar / receipt) ── */}
                 <AutoPrintCard />
 
-                {/* ── Server Auto Print ── */}
-                <ServerPrinterSettingsCard />
-
-                {/* ── Local Printer Settings (Legacy) ── */}
-                <PrinterSettingsCard />
+                {/* ── Kitchen / bar LAN printers (sent by the tablet) ── */}
+                <LanPrinterSettingsCard />
 
 
                 {/* ── Danger Zone ── */}
