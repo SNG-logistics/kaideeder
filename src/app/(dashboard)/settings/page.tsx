@@ -1645,6 +1645,7 @@ const defaultConfig: PosConfig = {
 function ResetTestModal({ onClose }: { onClose: () => void }) {
     const [step, setStep] = useState<'confirm' | 'running' | 'done'>('confirm')
     const [result, setResult] = useState<Record<string, number> | null>(null)
+    const [snapshot, setSnapshot] = useState<{ file: string; restoreCommand: string } | null>(null)
     const [typed, setTyped] = useState('')
     const CONFIRM_WORD = 'RESET'
 
@@ -1653,7 +1654,7 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
         try {
             const res = await fetch('/api/system/reset-test', { method: 'POST' })
             const json = await res.json()
-            if (json.success) { setResult(json.data); setStep('done') }
+            if (json.success) { setResult(json.data); setSnapshot(json.snapshot ?? null); setStep('done') }
             else { toast.error(json.error || 'รีเซ็ตไม่สำเร็จ'); setStep('confirm') }
         } catch { toast.error('เกิดข้อผิดพลาด'); setStep('confirm') }
     }
@@ -1718,6 +1719,10 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
                             </div>
                         </div>
 
+                        <div style={{ background: '#FFFBEB', borderRadius: 10, padding: '8px 14px', marginBottom: 14, border: '1px solid #FDE68A', fontSize: '0.72rem', color: '#92400E', lineHeight: 1.6 }}>
+                            💾 ก่อนลบ ระบบจะสำรองข้อมูลทั้งหมดไว้ที่ <code>backups/reset-test/</code> บนเซิร์ฟเวอร์ — ถ้ากดผิดกู้คืนได้ (ดู <code>docs/RESTORE_AFTER_RESET.md</code>)
+                        </div>
+
                         <div style={{ marginBottom: 14 }}>
                             <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: 6 }}>
                                 พิมพ์ <code style={{ background: '#F3F4F6', padding: '2px 6px', borderRadius: 4, color: '#DC2626', fontWeight: 700 }}>{CONFIRM_WORD}</code> เพื่อยืนยัน
@@ -1762,6 +1767,14 @@ function ResetTestModal({ onClose }: { onClose: () => void }) {
                             {willClear.filter(w => (result[w.key] ?? 0) === 0).length > 0 && (
                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 12, textAlign: 'center' }}>
                                     {willClear.filter(w => (result[w.key] ?? 0) === 0).map(w => w.label).join(', ')} — ไม่มีข้อมูลที่ต้องลบ
+                                </div>
+                            )}
+                            {snapshot && (
+                                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: '0.72rem', color: '#92400E', lineHeight: 1.6 }}>
+                                    <div style={{ fontWeight: 700, marginBottom: 4 }}>💾 สำรองข้อมูลก่อนลบไว้แล้ว — ถ้ากดผิดกู้คืนได้</div>
+                                    <div>ไฟล์: <code style={{ wordBreak: 'break-all' }}>{snapshot.file}</code></div>
+                                    <div style={{ marginTop: 4 }}>รันบนเซิร์ฟเวอร์ในโฟลเดอร์แอป:</div>
+                                    <code style={{ display: 'block', background: '#FEF3C7', padding: '4px 8px', borderRadius: 6, marginTop: 2, wordBreak: 'break-all', userSelect: 'all' }}>{snapshot.restoreCommand}</code>
                                 </div>
                             )}
                             <button onClick={onClose} style={{ width: '100%', minHeight: 44, borderRadius: 12, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>

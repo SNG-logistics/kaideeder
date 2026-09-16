@@ -1,124 +1,160 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { promises as fs } from 'fs'
+import path from 'path'
 import { prisma } from '@/lib/prisma'
-import { withAuth } from '@/lib/api'
+import { withAuth, err } from '@/lib/api'
+import {
+    RESET_TABLES,
+    RESET_SNAPSHOT_KIND,
+    RESET_SNAPSHOT_VERSION,
+    resetSnapshotDir,
+    resetSnapshotFileName,
+    type ResetSnapshot,
+    type ResetTable,
+} from '@/lib/reset-test-snapshot'
 
-// POST /api/system/reset-test — OWNER only
-// Clears ALL transactional data, keeps master data (products, categories, users, recipes, locations, suppliers)
-export const POST = withAuth<any>(async (_req, { user }) => {
+/**
+ * POST /api/system/reset-test — OWNER only
+ *
+ * Clears every transactional table for the CALLER'S TENANT ONLY and zeroes its
+ * inventory; master data (products, categories, users, recipes, locations,
+ * suppliers, tables) is kept.
+ *
+ * Safety net: before touching the database the rows about to be removed are
+ * written to `backups/reset-test/<tenantCode>_<timestamp>.json`. If that file
+ * cannot be written, nothing is deleted. A reset pressed by mistake is undone
+ * with:
+ *
+ *     npx tsx scripts/restore-reset-snapshot.ts backups/reset-test/<file>.json
+ *
+ * See docs/RESTORE_AFTER_RESET.md.
+ */
+export const POST = withAuth<any>(async (req: NextRequest, { user, tenantId }) => {
+    const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, code: true, name: true },
+    })
+    if (!tenant) return err('ไม่พบร้านค้า', 404)
+
+    // ── 1. Snapshot everything we are about to delete/zero ──────────────────
+    const now = new Date()
+    const where = { tenantId }
+    const tables = {} as Record<ResetTable, unknown[]>
+    for (const table of RESET_TABLES) {
+        tables[table] = await (prisma as any)[table].findMany({ where })
+    }
+    const inventory = await prisma.inventory.findMany({
+        where,
+        select: { id: true, productId: true, locationId: true, quantity: true, reservedQty: true, avgCost: true },
+    })
+    const diningTables = await prisma.diningTable.findMany({
+        where,
+        select: { id: true, status: true },
+    })
+
+    const snapshot: ResetSnapshot = {
+        kind: RESET_SNAPSHOT_KIND,
+        version: RESET_SNAPSHOT_VERSION,
+        createdAt: now.toISOString(),
+        tenant,
+        actor: user ? { userId: user.userId, username: user.username } : null,
+        tables,
+        inventory,
+        diningTables,
+    }
+
+    const dir = resetSnapshotDir()
+    const fileName = resetSnapshotFileName(tenant.code, now)
+    const filePath = path.join(dir, fileName)
     try {
-        // Disable FK checks → delete all transactional data → re-enable FK checks
-        // This avoids FK constraint errors from any implicit indexes
-        await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0')
+        await fs.mkdir(dir, { recursive: true })
+        await fs.writeFile(filePath, JSON.stringify(snapshot), 'utf8')
+    } catch (e: any) {
+        console.error('[reset-test] snapshot write failed, nothing deleted:', e)
+        return err(`สำรองข้อมูลก่อนรีเซ็ตไม่สำเร็จ จึงยังไม่ลบข้อมูลใดๆ (${e?.message || e})`, 500)
+    }
+    const snapshotFile = path.relative(process.cwd(), filePath) || filePath
 
-        try {
-            const result = await prisma.$transaction(async (tx) => {
-                // ════════════════════════════════════════════════════════════
-                // DELETE ORDER: all transactional tables
-                // FK checks disabled so order doesn't matter strictly,
-                // but we keep logical order for clarity
-                // ════════════════════════════════════════════════════════════
-
-                // ── 1. POS Order tree ─────────────────────────────────────
-                const deliveryInfos  = await tx.deliveryInfo.deleteMany({})
-                const consumeFailLog = await tx.consumeFailLog.deleteMany({})
-                const salesEvents    = await tx.salesEvent.deleteMany({})
-                const orderItems     = await tx.orderItem.deleteMany({})
-                const payments       = await tx.payment.deleteMany({})
-                const orders         = await tx.order.deleteMany({})
-
-                // ── 2. Stock movements ────────────────────────────────────
-                const movements = await tx.stockMovement.deleteMany({})
-
-                // ── 3. Purchasing ─────────────────────────────────────────
-                const purchaseItems  = await tx.purchaseItem.deleteMany({})
-                const purchaseOrders = await tx.purchaseOrder.deleteMany({})
-
-                // ── 4. Transfers ──────────────────────────────────────────
-                const transferItems  = await tx.transferItem.deleteMany({})
-                const stockTransfers = await tx.stockTransfer.deleteMany({})
-
-                // ── 5. Adjustments ────────────────────────────────────────
-                const adjustmentItems  = await tx.adjustmentItem.deleteMany({})
-                const stockAdjustments = await tx.stockAdjustment.deleteMany({})
-
-                // ── 6. Stock count sheets ─────────────────────────────────
-                const stockCountItems = await tx.stockCountItem.deleteMany({})
-                const stockCounts     = await tx.stockCount.deleteMany({})
-
-                // ── 7. Prep productions (keep recipes, delete production logs) ──
-                const prepProductions = await tx.prepProduction.deleteMany({})
-
-                // ── 8. Sales imports ───────────────────────────────────────
-                const salesImportItems = await tx.salesImportItem.deleteMany({})
-                const salesImports     = await tx.salesImport.deleteMany({})
-
-                // ── 9. SKU suggestion queue ───────────────────────────────
-                const skuSuggestions = await tx.skuSuggestion.deleteMany({})
-
-                // ── 10. AI / catalog metadata ─────────────────────────────
-                const aiClassifications = await tx.aiItemClassification.deleteMany({})
-                const validationIssues  = await tx.validationIssue.deleteMany({})
-                const aiRecommendations = await tx.aiRecommendation.deleteMany({})
-                const entityUsage       = await tx.entityUsageSummary.deleteMany({})
-
-                // ════════════════════════════════════════════════════════════
-                // RESET (keep records, zero out values)
-                // ════════════════════════════════════════════════════════════
-
-                // ── Inventory quantities → 0 ──────────────────────────────
-                const invReset = await tx.inventory.updateMany({
-                    data: { quantity: 0, reservedQty: 0, avgCost: 0 },
-                })
-
-                // ── Dining tables → AVAILABLE ─────────────────────────────
-                const tablesReset = await tx.diningTable.updateMany({
-                    data: { status: 'AVAILABLE' },
-                })
-
-                return {
-                    // POS
-                    orders: orders.count,
-                    orderItems: orderItems.count,
-                    payments: payments.count,
-                    deliveryInfos: deliveryInfos.count,
-                    salesEvents: salesEvents.count,
-                    consumeFailLogs: consumeFailLog.count,
-                    // Stock
-                    movements: movements.count,
-                    inventoryReset: invReset.count,
-                    // Purchasing
-                    purchaseOrders: purchaseOrders.count,
-                    purchaseItems: purchaseItems.count,
-                    // Transfers & Adjustments
-                    stockTransfers: stockTransfers.count,
-                    stockAdjustments: stockAdjustments.count,
-                    // Stock counts
-                    stockCounts: stockCounts.count,
-                    // Prep
-                    prepProductions: prepProductions.count,
-                    // Sales imports
-                    salesImports: salesImports.count,
-                    // SKU / AI
-                    skuSuggestions: skuSuggestions.count,
-                    aiClassifications: aiClassifications.count,
-                    aiRecommendations: aiRecommendations.count,
-                    validationIssues: validationIssues.count,
-                    // Tables
-                    tablesReset: tablesReset.count,
-                }
-            }, { timeout: 60000 })
-
-            return NextResponse.json({
-                success: true,
-                message: 'รีเซ็ตข้อมูลทดสอบสำเร็จ — ครบทุกตาราง',
-                data: result,
+    // ── 2. Delete (children first) + zero inventory + free tables ───────────
+    let counts: Record<ResetTable, number>
+    let inventoryReset = 0
+    let tablesReset = 0
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const c = {} as Record<ResetTable, number>
+            for (const table of [...RESET_TABLES].reverse()) {
+                const r = await (tx as any)[table].deleteMany({ where })
+                c[table] = r.count
+            }
+            const inv = await tx.inventory.updateMany({
+                where,
+                data: { quantity: 0, reservedQty: 0, avgCost: 0 },
             })
-        } finally {
-            // ALWAYS re-enable FK checks even if transaction fails
-            await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1')
-        }
+            const tbl = await tx.diningTable.updateMany({
+                where,
+                data: { status: 'AVAILABLE' },
+            })
+            return { c, inv: inv.count, tbl: tbl.count }
+        }, { timeout: 60000 })
+        counts = result.c
+        inventoryReset = result.inv
+        tablesReset = result.tbl
     } catch (e: any) {
         console.error('[reset-test]', e)
         return NextResponse.json({ success: false, error: e.message }, { status: 500 })
     }
+
+    const data = {
+        // POS
+        orders: counts.order,
+        orderItems: counts.orderItem,
+        payments: counts.payment,
+        deliveryInfos: counts.deliveryInfo,
+        salesEvents: counts.salesEvent,
+        consumeFailLogs: counts.consumeFailLog,
+        // Stock
+        movements: counts.stockMovement,
+        inventoryReset,
+        // Purchasing
+        purchaseOrders: counts.purchaseOrder,
+        purchaseItems: counts.purchaseItem,
+        // Transfers & Adjustments
+        stockTransfers: counts.stockTransfer,
+        stockAdjustments: counts.stockAdjustment,
+        // Stock counts
+        stockCounts: counts.stockCount,
+        // Prep
+        prepProductions: counts.prepProduction,
+        // Sales imports
+        salesImports: counts.salesImport,
+        // SKU / AI
+        skuSuggestions: counts.skuSuggestion,
+        aiClassifications: counts.aiItemClassification,
+        aiRecommendations: counts.aiRecommendation,
+        validationIssues: counts.validationIssue,
+        // Tables
+        tablesReset,
+    }
+
+    // ── 3. Audit trail (non-critical) ───────────────────────────────────────
+    await prisma.auditLog.create({
+        data: {
+            actorType: 'TENANT_USER',
+            userId: user?.userId,
+            tenantId,
+            action: 'RESET_TEST_DATA',
+            payload: { snapshotFile, ...data } as any,
+            ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+        },
+    }).catch((e) => console.error('[reset-test] audit log failed:', e))
+
+    return NextResponse.json({
+        success: true,
+        message: 'รีเซ็ตข้อมูลทดสอบสำเร็จ — ครบทุกตาราง',
+        data,
+        snapshot: {
+            file: snapshotFile,
+            restoreCommand: `npx tsx scripts/restore-reset-snapshot.ts ${snapshotFile}`,
+        },
+    })
 }, ['OWNER'])

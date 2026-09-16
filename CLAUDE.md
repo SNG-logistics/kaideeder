@@ -188,6 +188,12 @@ first when working on any domain area, it's the map of the whole system:
 - **Delivery subdomain routing**: `src/middleware.ts` also rewrites `delivery.<domain>` traffic to
   `/d/<tenantCode>` — currently hardcoded to a single default tenant (`DEFAULT_TENANT_CODE =
   'kaideeder'`), so this subdomain trick doesn't yet generalize to arbitrary tenants.
+- **Test-data reset**: `POST /api/system/reset-test` (Settings → รีเซ็ตข้อมูลทดสอบ, OWNER only) deletes
+  every transactional table for the caller's tenant and zeroes its inventory. It writes a JSON snapshot
+  of the rows to `backups/reset-test/` first and refuses to delete if that write fails; undo with
+  `npx tsx scripts/restore-reset-snapshot.ts <file>` (runbook: `docs/RESTORE_AFTER_RESET.md`). The
+  table list lives in `src/lib/reset-test-snapshot.ts` — add new transactional models there, not in
+  the route, so reset and restore stay in sync.
 - **Database admin UI**: `/admin/database` mounts `@premieroctet/next-admin`
   (`src/lib/next-admin-options.ts`) as a generic CRUD browser over the Prisma schema — separate
   from the hand-built `/admin/**` platform pages.
