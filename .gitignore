@@ -38,3 +38,5 @@ public/uploads/
 /.claude/skills/
 /.agents/
 /skills-lock.json
+# Pre-reset snapshots written by /api/system/reset-test (server-local data, never commit)
+backups/
