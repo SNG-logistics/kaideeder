@@ -236,6 +236,27 @@ export function getAndroidPOSPrinterStatus(): AndroidPOSResult {
     return parseBridgeResult(bridge.getPrinterStatus())
 }
 
+/**
+ * เปิดลิ้นชักเก็บเงินโดยไม่พิมพ์บิล (ทอนเงิน / เช็คเงินในลิ้นชัก)
+ *
+ * ลิ้นชักเสียบที่ช่อง cash drawer ของฐาน SUNMI D2s Plus แอปสั่งผ่าน SunmiPrinterService.openDrawer()
+ * รหัสที่ตอบกลับ (CashDrawerManager.kt):
+ *   DRAWER_QUEUED    — แอปรับคำสั่งแล้ว ลิ้นชักควรเด้งทันที
+ *   DRAWER_DISABLED  — APK รุ่นนี้ build ด้วย CASH_DRAWER_ENABLED=false (ต่ำกว่า 1.3.0) → อัปเดตแอป
+ *   DRAWER_ERROR     — printer service ไม่รับคำสั่ง → เช็คสาย/ช่องเสียบ และสถานะเครื่องพิมพ์
+ * ฝั่งเว็บต้องเช็คสิทธิ์ (CASH_DRAWER_OPEN) และลง AuditLog ผ่าน POST /api/pos/cash-drawer/open ก่อนเรียก
+ */
+export function openAndroidPOSCashDrawer(): AndroidPOSResult {
+    const bridge = getBridge()
+    if (!bridge) {
+        return { ok: false, code: 'BRIDGE_UNAVAILABLE', message: 'AndroidPOS bridge is unavailable' }
+    }
+    if (typeof bridge.openCashDrawer !== 'function') {
+        return { ok: false, code: 'DRAWER_UNSUPPORTED', message: 'This APK does not expose openCashDrawer' }
+    }
+    return parseBridgeResult(bridge.openCashDrawer())
+}
+
 // ─── Receipt payload from an order fetched via GET /api/pos/orders/[id] ────────────────
 // Used for reprints (order history, /receipt page, pre-bill preview). The POS page builds
 // its ORIGINAL payload inline from the close-order response instead.

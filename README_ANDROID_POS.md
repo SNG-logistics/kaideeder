@@ -28,7 +28,7 @@ Configuration is centralized in `kaideeder-pos-android/gradle.properties`.
 | `ALLOWED_HOSTS` | `kaideeder.com` | Exact WebView/native-command host allow-list |
 | `ALLOWED_ASSET_HOSTS` | KAIDEEDER and approved image hosts | HTTPS logo download allow-list |
 | `ALLOW_CLEARTEXT` | `false` | HTTP is accepted only in a debug build when explicitly enabled |
-| `CASH_DRAWER_ENABLED` | `false` | Final native gate for drawer commands |
+| `CASH_DRAWER_ENABLED` | `true` (since 1.3.0) | Final native gate for drawer commands; the POS page shows an "เปิดลิ้นชัก" button to OWNER/MANAGER/CASHIER inside the APK |
 
 Release builds remain HTTPS-only even if `ALLOW_CLEARTEXT=true`. Enable the cash
 drawer only after verifying the attached drawer and SUNMI configuration. Reprints
