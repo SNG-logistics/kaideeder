@@ -1,5 +1,6 @@
 'use client'
 import { useRoleGuard } from '@/hooks/useRoleGuard'
+import { usePermissions } from '@/hooks/usePermission'
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { useStoreBranding } from '@/hooks/useStoreBranding'
 import { useCurrency, useTenant } from '@/context/TenantContext'
@@ -12,6 +13,7 @@ import {
     buildAndroidPOSReceiptPayload,
     createReceiptRequestId,
     isAndroidPOSApp,
+    openAndroidPOSCashDrawer,
     printAndroidPOSReceipt,
     reprintAndroidPOSReceipt,
     type AndroidPOSReceiptPayload,
@@ -146,6 +148,7 @@ export default function POSPage() {
     const { settings: tenantSettings } = useTenant()
 
     useRoleGuard(['owner', 'manager', 'cashier'])
+    const { can: canDo } = usePermissions()
     const branding = useStoreBranding()
     const [tables, setTables] = useState<DiningTable[]>([])
     const [categories, setCategories] = useState<Category[]>([])
@@ -169,6 +172,38 @@ export default function POSPage() {
     const [isTablet, setIsTablet] = useState(false)
     const [showOrderPanel, setShowOrderPanel] = useState(true)
     const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'warning' } | null>(null)
+    const [drawerBusy, setDrawerBusy] = useState(false)
+
+    // ── เปิดลิ้นชักเก็บเงินโดยไม่พิมพ์บิล (ทอนเงิน / เช็คเงิน) ──
+    // ปุ่มโชว์เฉพาะในแอปบนแท็บเล็ต (ลิ้นชักเสียบกับ SUNMI) และเฉพาะ role ที่มีสิทธิ์ CASH_DRAWER_OPEN
+    // ลำดับ: ขออนุญาต + ลง AuditLog ที่เซิร์ฟเวอร์ก่อน → ค่อยสั่ง bridge ให้ลิ้นชักเด้ง
+    const openCashDrawer = useCallback(async () => {
+        if (drawerBusy) return
+        setDrawerBusy(true)
+        try {
+            const res = await fetch('/api/pos/cash-drawer/open', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'MANUAL' }),
+            })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok || !json.success) {
+                setToast({ message: res.status === 403 ? 'ไม่มีสิทธิ์เปิดลิ้นชัก' : (json.error || 'ขออนุญาตเปิดลิ้นชักไม่สำเร็จ'), type: 'error' })
+                return
+            }
+            const result = openAndroidPOSCashDrawer()
+            if (result.ok) {
+                setToast({ message: 'สั่งเปิดลิ้นชักแล้ว', type: 'success' })
+            } else if (result.code === 'DRAWER_DISABLED' || result.code === 'DRAWER_UNSUPPORTED') {
+                setToast({ message: 'แอปรุ่นนี้ยังปิดลิ้นชักไว้ — อัปเดต KAIDEEDER POS เป็น 1.3.0 ขึ้นไป (ตั้งค่า → แอป SUNMI)', type: 'warning' })
+            } else {
+                setToast({ message: `ลิ้นชักไม่เด้ง (${result.code}) — เช็คสายลิ้นชักที่ช่องด้านหลังเครื่อง${result.message ? `: ${result.message}` : ''}`, type: 'error' })
+            }
+        } catch (e) {
+            setToast({ message: e instanceof Error ? e.message : 'เปิดลิ้นชักไม่สำเร็จ', type: 'error' })
+        } finally {
+            setDrawerBusy(false)
+        }
+    }, [drawerBusy])
     const [showReceiptPreview, setShowReceiptPreview] = useState(false)
     const [proteinPendingProduct, setProteinPendingProduct] = useState<Product | null>(null)
     const [proteinComment, setProteinComment] = useState('')      // comment สำหรับ topping modal (hack: stores selected topping IDs)
@@ -1215,6 +1250,24 @@ return (
                         }}
                     >
                         🕐 ประวัติ
+                    </button>
+                )}
+                {isAndroidPOSApp() && canDo('CASH_DRAWER_OPEN') && (
+                    <button
+                        onClick={openCashDrawer}
+                        disabled={drawerBusy}
+                        title="เปิดลิ้นชักเก็บเงินโดยไม่พิมพ์บิล (ทอนเงิน / เช็คเงิน) — บันทึกผู้เปิดทุกครั้ง"
+                        style={{
+                            fontSize: '0.78rem', color: '#fff', cursor: drawerBusy ? 'wait' : 'pointer',
+                            padding: '5px 14px', borderRadius: 8,
+                            border: '1px solid #60A5FA',
+                            background: 'rgba(96,165,250,0.15)',
+                            fontFamily: 'inherit', fontWeight: 700,
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            opacity: drawerBusy ? 0.6 : 1,
+                        }}
+                    >
+                        💰 {isMobile ? '' : 'เปิดลิ้นชัก'}
                     </button>
                 )}
                 <button

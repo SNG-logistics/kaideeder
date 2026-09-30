@@ -18,6 +18,7 @@ export const PERMISSIONS = {
     KITCHEN_VIEW: 'KITCHEN_VIEW',
     DELIVERY_VIEW: 'DELIVERY_VIEW',
     DELIVERY_UPDATE: 'DELIVERY_UPDATE',  // Rider อัปเดตสถานะ ASSIGNED→DELIVERED
+    CASH_DRAWER_OPEN: 'CASH_DRAWER_OPEN',  // เปิดลิ้นชักเก็บเงินโดยไม่พิมพ์บิล (ทอนเงิน/เช็คเงิน) — ทุกครั้งลง AuditLog
 
     // Dashboard
     DASHBOARD_VIEW: 'DASHBOARD_VIEW',
@@ -77,7 +78,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     OWNER: ALL,
 
     MANAGER: [
-        'POS_USE', 'KITCHEN_VIEW', 'DELIVERY_VIEW', 'DASHBOARD_VIEW',
+        'POS_USE', 'CASH_DRAWER_OPEN', 'KITCHEN_VIEW', 'DELIVERY_VIEW', 'DASHBOARD_VIEW',
         'MENU_VIEW', 'MENU_EDIT',
         'PRODUCT_VIEW', 'PRODUCT_EDIT',
         'INVENTORY_VIEW', 'ADJUSTMENT_USE',
@@ -122,6 +123,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
 
     CASHIER: [
         'POS_USE',
+        'CASH_DRAWER_OPEN',
         'KITCHEN_VIEW',
         'DELIVERY_VIEW',
         'DASHBOARD_VIEW',
