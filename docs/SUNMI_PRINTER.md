@@ -37,7 +37,7 @@
 ## 3. ติดตั้งและตรวจสอบ (หน้างาน)
 
 1. บนแท็บเล็ต SUNMI เปิดเว็บ → ล็อกอิน → **ตั้งค่า** → การ์ด **"KAIDEEDER POS สำหรับ SUNMI"** →
-   ดาวน์โหลด APK (`public/downloads/kaideeder-pos-sunmi-v1.1.0-debug.apk`) แล้วติดตั้ง
+   ดาวน์โหลด APK (ไฟล์ล่าสุดใน `public/downloads/` ที่ workflow วางให้ การ์ดบอกเวอร์ชันเอง) แล้วติดตั้ง
    (อนุญาต "ติดตั้งแอปที่ไม่รู้จัก" ถ้าเครื่องถาม)
 2. เปิดแอป **KAIDEEDER POS** — แอปจะโหลด `https://kaideeder.com/pos` เอง ล็อกอินตามปกติ
 3. ไปที่ **ตั้งค่า** (ในแอป) → การ์ด **"เครื่องพิมพ์ในตัว SUNMI"**
@@ -111,8 +111,9 @@ CSS ใหม่ ๆ ใน inline style ของ React จึงไม่ถ�
 - ค่าตั้ง: `kaideeder-pos-android/gradle.properties` (`POS_BASE_URL`, `ALLOWED_HOSTS`,
   `CASH_DRAWER_ENABLED`, ...)
 - build: JDK 17 + Android SDK 34 → `./gradlew testDebugUnitTest assembleDebug` (ดู `README_ANDROID_POS.md`)
-- APK ที่แจกให้ร้านโหลดอยู่ที่ `public/downloads/` และ path/เวอร์ชันถูกอ้างในการ์ด
-  `AndroidPosDownloadCard` (`src/app/(dashboard)/settings/page.tsx`) — อัปเดตทั้งสองที่พร้อมกัน
+- APK ที่แจกให้ร้านโหลดอยู่ที่ `public/downloads/` — workflow `Build SUNMI POS APK` เป็นคน commit
+  ไฟล์ + manifest (`kaideeder-pos-sunmi.json`) ให้เองเมื่อ `versionName` เปลี่ยน การ์ด
+  `AndroidPosDownloadCard` อ่าน manifest ตอนเปิดหน้า ไม่ต้องแก้โค้ดเว็บ **จะออกเวอร์ชันใหม่ต้องบัมป์ `versionName`**
 
 ฝั่งเว็บ ทุกอย่างที่คุยกับ bridge อยู่ใน `src/lib/android-pos.ts` เท่านั้น
 (`isAndroidPOSApp`, `printAndroidPOSReceipt`, `reprintAndroidPOSReceipt`,

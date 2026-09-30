@@ -10,8 +10,11 @@ name: Build SUNMI POS APK
 #   3. ดาวน์โหลดไฟล์จากส่วน Artifacts ด้านล่าง จะได้ .zip ที่มี app-debug.apk อยู่ข้างใน
 #   4. แตกไฟล์แล้วเอา APK ไปติดตั้งทับบนแท็บเล็ต SUNMI
 #
-# ถ้าจะแจกให้ร้านโหลดผ่านหน้าตั้งค่าด้วย ให้เอา APK ไปวางใน public/downloads/
-# แล้วอัปเดตค่าคงที่ ANDROID_POS_APK ใน src/app/(dashboard)/settings/page.tsx
+# แจกให้ร้านโหลดผ่านหน้าตั้งค่า: ขั้น "Publish APK to public/downloads" ด้านล่างจะ commit
+# ไฟล์ APK + manifest (public/downloads/kaideeder-pos-sunmi.json) กลับเข้า branch ที่สั่งบิลด์เอง
+# หน้าตั้งค่า (AndroidPosDownloadCard) อ่าน manifest นี้ตอนเปิดหน้า ไม่ต้องแก้โค้ดเว็บเมื่อออกเวอร์ชันใหม่
+# กติกา: commit เฉพาะเมื่อ versionName ใน build.gradle.kts ต่างจากที่ manifest บอกไว้
+# → จะออกเวอร์ชันใหม่ให้ร้าน ต้องบัมป์ versionName เสมอ (บิลด์ซ้ำเวอร์ชันเดิมไม่ทับไฟล์ ไม่สร้าง commit ซ้ำ)
 
 on:
   workflow_dispatch:
@@ -20,8 +23,9 @@ on:
       - 'kaideeder-pos-android/**'
       - '.github/workflows/build-android-apk.yml'
 
+# contents: write เพราะขั้นสุดท้าย commit APK กลับเข้า branch
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -80,3 +84,56 @@ jobs:
           path: kaideeder-pos-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # วาง APK ให้ร้านโหลดจากหน้าตั้งค่าได้เลย โดยไม่ต้องเข้า GitHub
+      # commit กลับเข้า branch เดิม — ถ้าเป็น branch ของ PR ไฟล์จะติดไปกับ PR, ถ้าเป็น main จะ deploy ตาม webhook ของ Plesk
+      # push นี้ไม่ปลุก workflow ซ้ำ เพราะ paths ด้านบนไม่รวม public/downloads/
+      - name: Publish APK to public/downloads
+        working-directory: .
+        env:
+          VERSION: ${{ steps.version.outputs.name }}
+          BRANCH: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          APK_SRC="kaideeder-pos-android/app/build/outputs/apk/debug/app-debug.apk"
+          DEST_DIR="public/downloads"
+          MANIFEST="$DEST_DIR/kaideeder-pos-sunmi.json"
+          FILE="kaideeder-pos-sunmi-v${VERSION}-debug.apk"
+          DEST="$DEST_DIR/$FILE"
+
+          CURRENT=$(python3 -c "import json; print(json.load(open('$MANIFEST'))['version'])" 2>/dev/null || echo "")
+          if [ "$CURRENT" = "${VERSION}-debug" ] && [ -f "$DEST" ]; then
+            echo "APK ${VERSION}-debug is already published — bump versionName in app/build.gradle.kts to ship a new one"
+            exit 0
+          fi
+
+          mkdir -p "$DEST_DIR"
+          rm -f "$DEST_DIR"/kaideeder-pos-sunmi-v*-debug.apk
+          cp "$APK_SRC" "$DEST"
+          SIZE=$(stat -c %s "$DEST")
+          SHA256=$(sha256sum "$DEST" | cut -d' ' -f1)
+          BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          python3 - <<EOF
+          import json
+          json.dump({
+              "version": "${VERSION}-debug",
+              "file": "$FILE",
+              "sizeBytes": $SIZE,
+              "sha256": "$SHA256",
+              "builtAt": "$BUILT_AT",
+              "commit": "${HEAD_SHA}",
+              "minAndroid": "6.0",
+          }, open("$MANIFEST", "w"), indent=2, ensure_ascii=False)
+          print(open("$MANIFEST").read())
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$DEST_DIR"
+          git commit -m "chore(android): publish KAIDEEDER POS APK v${VERSION}-debug to public/downloads
+
+          Built by the Build SUNMI POS APK workflow from ${HEAD_SHA}."
+          # เผื่อมีคน push ระหว่างที่บิลด์อยู่
+          git pull --rebase origin "$BRANCH"
+          git push origin "HEAD:$BRANCH"

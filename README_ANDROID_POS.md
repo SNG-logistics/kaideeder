@@ -48,9 +48,14 @@ already ship the Android SDK.
 Workflow: `.github/workflows/build-android-apk.yml`. It runs the unit tests before
 assembling, so a red run means the build is genuinely broken, not just unlucky.
 
-To hand the APK to stores through the in-app download card, drop the file into
-`public/downloads/` and update the `ANDROID_POS_APK` constant in
-`src/app/(dashboard)/settings/page.tsx`.
+The same run also **publishes the APK for stores**: it commits
+`public/downloads/kaideeder-pos-sunmi-v<version>-debug.apk` plus a manifest
+(`public/downloads/kaideeder-pos-sunmi.json` — version, file, size, sha256, build time,
+commit) back to the branch it ran on. The Settings page download card reads that manifest at
+runtime, so nothing in the web code changes per release. The commit only happens when
+`versionName` in `app/build.gradle.kts` differs from the manifest, so **bump `versionName`
+to ship a new build**; a rebuild of the same version keeps the published file as is. On a PR
+branch the APK rides along with the PR; on `main` the push triggers the normal Plesk deploy.
 
 ## Build and test locally
 
